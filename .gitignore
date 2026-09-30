@@ -1,0 +1,18 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# eval caches
+eval/.judge_cache/
+
+# os / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
