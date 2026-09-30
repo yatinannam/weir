@@ -17,3 +17,9 @@ Newest at the bottom. Each entry gives the date, the decision, the alternatives 
 | 2026-09-30 | D10 | k6 `constant-arrival-rate` for load tests | Locust | Open-model load, so the latency tail isn't hidden |
 | 2026-09-30 | D11 | Stub LLM mode for heavy load tests | Real models | Free-tier rate limits |
 | 2026-09-30 | D12 | Public GitHub repo `yatinannam/weir` | none | User |
+| 2026-09-30 | D13 | Small `openai/gpt-oss-20b`, large `openai/gpt-oss-120b` on Groq; list prices $0.075/$0.30 and $0.15/$0.60 per 1M tokens | Llama 3.1 8B / 3.3 70B | Llama models are not on Groq's free-tier list (checked 2026-09-30). gpt-oss models are free-tier, with published prices. |
+| 2026-09-30 | D14 | Chunks of 250 tokens or fewer, retrieve `k = 4`, eval throttled to about 4 requests/min | 300-token chunks, k = 5 | Free tier allows 8K tokens/min and 200K tokens/day per model |
+| 2026-09-30 | D15 | Judge model `gemini-2.5-flash` (config value) | Newer Flash versions | Long-standing free-tier model. Can be swapped in config after listing the models available to the key. |
+| 2026-09-30 | D16 | Eval baseline runs through Weir with the `baseline` ablation; load-test baseline hits hospital-rag directly | Eval calls hospital-rag directly | One cost/log code path, and a like-for-like gateway hop |
+| 2026-09-30 | D17 | `kb_version` is a content hash of each namespace's documents | Manual version flag | Can't forget to bump it |
+| 2026-09-30 | D18 | `options.force_model` takes a tier (`small`/`large`), not a model ID; `sensitive` flag lives in `weir.yaml` | Raw model IDs; flag in tenants.yaml | Callers can't pick arbitrary (unpriced) models; one place for namespace policy |

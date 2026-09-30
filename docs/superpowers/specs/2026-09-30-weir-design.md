@@ -38,7 +38,7 @@ We build a basic chatbot for a fictional hospital, measure it alone (the baselin
 
 | # | Decision | Choice | Why |
 | --- | --- | --- | --- |
-| D1 | LLM provider | **Groq free tier.** One small (~8B Llama-class) and one large (~70B Llama-class) model. Exact IDs chosen from Groq's free model list at setup and kept in config. | Free, very fast (realistic latency), OpenAI-compatible API, and separate rate limits per model, which allows fallback between tiers. |
+| D1 | LLM provider | **Groq free tier.** Small: `openai/gpt-oss-20b`. Large: `openai/gpt-oss-120b`. Both are on Groq's free-tier list (checked 2026-09-30: 30 RPM, 1K RPD, 8K TPM, 200K TPD each), and the IDs live in config. The Llama models are no longer on the free-tier list. | Free, very fast (realistic latency), OpenAI-compatible API, published list prices, and separate rate limits per model, which allows fallback between tiers. |
 | D2 | Judge model | **Google Gemini free tier** | A different model family from the models under test, as the original spec asks. Free. |
 | D3 | Embeddings | **`BAAI/bge-small-en-v1.5` via `fastembed`**, local CPU, 384 dimensions | Free, offline, fast, and no PyTorch install. |
 | D4 | Knowledge base | **Fictional "Weir General Hospital"**, about 40–60 Markdown documents | Fits the HMS story, carries no licensing or privacy risk, gives exact ground truth, and lets us plant trap pairs. The README states that it is synthetic. |
@@ -112,7 +112,9 @@ All services start with `docker compose up`. The eval runner and k6 run on deman
 - **Prompt contract.** The model is told to cite chunk IDs inline, like `[c3]`, and to reply exactly `NOT_FOUND` when the context does not contain the answer. `/generate` strips the citation markers from `answer` and returns them in `cited_chunk_ids`.
 - **Errors.** A Groq 429 becomes HTTP 503 `{error: "rate_limited", retry_after}`. A Groq timeout (20s) becomes 504.
 - **Stub mode.** With `LLM_MODE=stub`, `/generate` sleeps for a fixed `STUB_LATENCY_MS` and returns a canned answer built from the top chunk. It reports token counts from the tokenizer and never calls Groq.
-- **Ingest.** `python -m hospital_rag.ingest --kb kb/ --kb-version <v>` chunks each Markdown file by heading, at roughly 300 tokens with overlap, embeds the chunks and writes them. A version bump makes Weir's old cache entries stop matching.
+- **Ingest.** `python -m hospital_rag.ingest --kb kb/` chunks each Markdown file by heading, at 250 tokens or fewer (word-window overlap only for oversized paragraphs), embeds the chunks and writes them.
+  - `kb_version` is a content hash of the namespace's documents, so any edit bumps it automatically. A version bump makes Weir's old cache entries stop matching.
+  - Retrieval returns `k = 4` chunks. The small chunks and small `k` keep each request near 1.5K tokens, under the 8K tokens-per-minute free-tier limit.
 
 ### 5.3 Weir request pipeline
 
@@ -261,7 +263,7 @@ Savings are `sum(counterfactual) - sum(actual)`, where actual includes all calls
 
 Every response carries an `X-Request-ID` header.
 
-**Tenants** are defined in `configs/tenants.yaml` as a tenant name, the name of the environment variable holding its key, its allowed namespaces and its sensitive flag. Keys live only in `.env`. Starting tenants: `public-app` → `weir-general/en/public`, `staff-app` → `weir-general/en/staff` (marked sensitive, so logs keep hashes only).
+**Tenants** are defined in `configs/tenants.yaml` as a tenant name, the name of the environment variable holding its key, and its allowed namespaces. The per-namespace `sensitive` flag lives in `weir.yaml` under `namespaces`. `options.force_model` takes a tier name (`small` or `large`), never a raw model ID. Keys live only in `.env`. Starting tenants: `public-app` → `weir-general/en/public`, `staff-app` → `weir-general/en/staff` (marked sensitive, so logs keep hashes only).
 
 ### 9.2 Configuration
 
@@ -359,7 +361,8 @@ create table weir.feedback (
 
 ### 11.1 Eval set
 
-- **Location:** `eval/datasets/queries.jsonl`, with fields `{id, namespace, query, group: distinct|paraphrase|trap, cluster_id, difficulty: easy|medium|hard, required_facts: [...], source_doc, split: tune|holdout}`.
+- **Location:** `eval/datasets/queries.jsonl`, with fields `{id, namespace, query, group: distinct|paraphrase|trap, cluster_id, difficulty: easy|medium|hard, required_facts: [...], source_docs: [...], split: tune|holdout}`. A required fact may list alternatives separated by `|`, for example `8 pm|8:00 pm`.
+- **Where the baseline runs:** the eval baseline goes through Weir with the `baseline` ablation (cache off, always large), so cost and logs come from one code path. Both configurations pay the same gateway hop, so the comparison stays like-for-like. The load-test baseline (Phase 5) calls `hospital-rag` directly.
 - **Size:** 50 queries in Phase 1, growing to 150–300. The mix is 50% distinct, 30% paraphrase clusters (a seed plus 3–5 rewordings), and 20% traps.
 - **Split:** 70/30 by `cluster_id`, so every paraphrase cluster falls wholly in one split. The held-out set is used once, for the final numbers.
 - **Authorship:** subagents draft the questions from the knowledge base, and the user reviews a sample.

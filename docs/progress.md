@@ -11,6 +11,9 @@ A running log of what was done, what was learned, and what's next. Newest at the
 
 - The user approved the design spec.
 
-**Next:** write the Phase 0 + 1 implementation plan.
+- Checked the free tiers (2026-09-30): Groq free list has gpt-oss-20b/120b, not Llama, with 8K tokens/min and 200K tokens/day per model. Recorded as decisions D13-D18 and updated the spec.
+- Wrote the Phase 0 + 1 plan: `superpowers/plans/2026-09-30-phase-0-1-foundations-baseline.md` (16 tasks).
+
+**Next:** the user reviews the plan and picks an execution method.
 
 **Needed from the user before Phase 0:** a free Groq API key (console.groq.com) and a free Gemini API key (aistudio.google.com).
