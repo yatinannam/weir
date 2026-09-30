@@ -1,7 +1,7 @@
-# Weir: Implementation Design
+﻿# Weir: Implementation Design
 
-Date: 2026-09-30 · Author: Yatin Annam (with Claude Code)
-Status: Draft, awaiting review
+Date: 2026-09-30 Â· Author: Yatin Annam (with Claude Code)
+Status: Approved 2026-09-30
 Source spec: [`docs/weir-original.md`](../../weir-original.md)
 
 This document records how Weir will be built. The original spec says *what* Weir is and *why*. This one records the decisions made during design review, the fixes to gaps found in the original, and the concrete shape of every component. Where the two disagree, this document wins.
@@ -41,7 +41,7 @@ We build a basic chatbot for a fictional hospital, measure it alone (the baselin
 | D1 | LLM provider | **Groq free tier.** One small (~8B Llama-class) and one large (~70B Llama-class) model. Exact IDs chosen from Groq's free model list at setup and kept in config. | Free, very fast (realistic latency), OpenAI-compatible API, and separate rate limits per model, which allows fallback between tiers. |
 | D2 | Judge model | **Google Gemini free tier** | A different model family from the models under test, as the original spec asks. Free. |
 | D3 | Embeddings | **`BAAI/bge-small-en-v1.5` via `fastembed`**, local CPU, 384 dimensions | Free, offline, fast, and no PyTorch install. |
-| D4 | Knowledge base | **Fictional "Weir General Hospital"**, about 40–60 Markdown documents | Fits the HMS story, carries no licensing or privacy risk, gives exact ground truth, and lets us plant trap pairs. The README states that it is synthetic. |
+| D4 | Knowledge base | **Fictional "Weir General Hospital"**, about 40â€“60 Markdown documents | Fits the HMS story, carries no licensing or privacy risk, gives exact ground truth, and lets us plant trap pairs. The README states that it is synthetic. |
 | D5 | Structure | **Two services**: `hospital-rag` (the chatbot) and `weir` (the gateway) | Matches the "gateway in front of an existing service" story. The baseline is simply calling `hospital-rag` directly. |
 | D6 | Grounding check | **Rule-based, no LLM**: valid citations, no NOT_FOUND sentinel, not truncated, content overlap with the cited chunks | An LLM check would spend Groq free-tier limits twice on every miss. |
 | D7 | Cost reporting | **Priced at the providers' published paid-tier list prices.** Embeddings priced at $0 (local). Judge cost excluded. | Real spend is $0. List prices give an honest "what this would cost in production", stated in the README. |
@@ -57,16 +57,16 @@ We build a basic chatbot for a fictional hospital, measure it alone (the baselin
 
 | Gap | Fix | Section |
 | --- | --- | --- |
-| No existing RAG service to wrap | Build a minimal `hospital-rag` with separate `/retrieve` and `/generate` | §5.2 |
-| Counterfactual cost unknown on cache hits | Store `tokens_in`/`tokens_out` on each cache entry and price them at the large model's rate on a hit | §8 |
-| Follow-up questions could hit the cache wrongly | Detect follow-ups and bypass the cache | §6.1 |
-| "Grounding check" undefined | Rule-based check, defined precisely | §7.4 |
-| HNSW plus namespace filter can under-return results | `hnsw.iterative_scan = relaxed_order` and top-3 candidates | §6.2 |
-| Body `namespace` could spoof another tenant | Reject any namespace not allowed for the API key (403) | §9.1 |
-| Feedback cannot find the cache entry that served a request | `cache_entry_id` column on the request log | §10 |
-| `hit_count` write on the hot path | Incremented in the background with the log write | §6.3 |
-| Train/held-out split could leak paraphrases | Split by paraphrase cluster, never by individual query | §11.1 |
-| `model_prices` has no embedding price | Embedding model gets a row with an input price (0 for local) and output price 0 | §10 |
+| No existing RAG service to wrap | Build a minimal `hospital-rag` with separate `/retrieve` and `/generate` | Â§5.2 |
+| Counterfactual cost unknown on cache hits | Store `tokens_in`/`tokens_out` on each cache entry and price them at the large model's rate on a hit | Â§8 |
+| Follow-up questions could hit the cache wrongly | Detect follow-ups and bypass the cache | Â§6.1 |
+| "Grounding check" undefined | Rule-based check, defined precisely | Â§7.4 |
+| HNSW plus namespace filter can under-return results | `hnsw.iterative_scan = relaxed_order` and top-3 candidates | Â§6.2 |
+| Body `namespace` could spoof another tenant | Reject any namespace not allowed for the API key (403) | Â§9.1 |
+| Feedback cannot find the cache entry that served a request | `cache_entry_id` column on the request log | Â§10 |
+| `hit_count` write on the hot path | Incremented in the background with the log write | Â§6.3 |
+| Train/held-out split could leak paraphrases | Split by paraphrase cluster, never by individual query | Â§11.1 |
+| `model_prices` has no embedding price | Embedding model gets a row with an input price (0 for local) and output price 0 | Â§10 |
 
 ---
 
@@ -74,18 +74,18 @@ We build a basic chatbot for a fictional hospital, measure it alone (the baselin
 
 ```
  caller / eval / k6
-        │  POST /v1/query  (X-API-Key)
-        ▼
- ┌──────────────┐   /retrieve  /generate  /info   ┌──────────────────┐
- │  weir        │ ──────────────────────────────▶ │  hospital-rag    │ ──▶ Groq API (free)
- │  :8000       │                                 │  :8001           │     (or stub mode)
- └──────┬───────┘                                 └────────┬─────────┘
-        │ schema weir: cache, logs, prices                 │ schema rag: documents, chunks
-        ▼                                                  ▼
- ┌─────────────────────────────────────────────────────────────────────┐
- │  postgres 16 + pgvector   (pgvector/pgvector:pg16 image)   :5432    │
- └─────────────────────────────────────────────────────────────────────┘
- weir /metrics ──▶ prometheus :9090 ──▶ grafana :3000 ◀── postgres (SQL panels)
+        â”‚  POST /v1/query  (X-API-Key)
+        â–¼
+ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   /retrieve  /generate  /info   â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+ â”‚  weir        â”‚ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–¶ â”‚  hospital-rag    â”‚ â”€â”€â–¶ Groq API (free)
+ â”‚  :8000       â”‚                                 â”‚  :8001           â”‚     (or stub mode)
+ â””â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜                                 â””â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+        â”‚ schema weir: cache, logs, prices                 â”‚ schema rag: documents, chunks
+        â–¼                                                  â–¼
+ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+ â”‚  postgres 16 + pgvector   (pgvector/pgvector:pg16 image)   :5432    â”‚
+ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+ weir /metrics â”€â”€â–¶ prometheus :9090 â”€â”€â–¶ grafana :3000 â—€â”€â”€ postgres (SQL panels)
 ```
 
 All services start with `docker compose up`. The eval runner and k6 run on demand.
@@ -117,13 +117,13 @@ All services start with `docker compose up`. The eval runner and k6 run on deman
 ### 5.3 Weir request pipeline
 
 1. **Authenticate.** Map `X-API-Key` to a tenant, check that the body `namespace` is allowed for it (403 if not), and load that namespace's settings.
-2. **Bypass checks** (§6.1). If any fires, `cache_status = bypass` with a `bypass_reason`.
-3. **Embed and look up** (§6.2). A failure becomes `bypass (error)` and the request continues.
+2. **Bypass checks** (Â§6.1). If any fires, `cache_status = bypass` with a `bypass_reason`.
+3. **Embed and look up** (Â§6.2). A failure becomes `bypass (error)` and the request continues.
 4. **On a hit:** return the stored answer and sources, and queue the `hit_count` increment and the log row.
 5. **On a miss or bypass:** call `hospital-rag /retrieve`. A retrieval failure returns an error with the `request_id` and no guessed answer.
-6. **Route** (§7). Call `/generate` with the chosen model.
-7. **Grounding check** (§7.4). Escalate or fall back if needed (§7.3), with at most 2 model calls in total.
-8. **Respond.** Queue the cache write (if eligible, §6.3) and the log row. Both happen after the response is sent.
+6. **Route** (Â§7). Call `/generate` with the chosen model.
+7. **Grounding check** (Â§7.4). Escalate or fall back if needed (Â§7.3), with at most 2 model calls in total.
+8. **Respond.** Queue the cache write (if eligible, Â§6.3) and the log row. Both happen after the response is sent.
 
 `kb_version` and `prompt_version` per namespace come from `hospital-rag /info`, held in memory and refreshed every 30 seconds, so the cache lookup never waits on a network call.
 
@@ -136,9 +136,9 @@ All services start with `docker compose up`. The eval runner and k6 run on deman
 | Rule | Detection |
 | --- | --- |
 | `personalized: true` or `options.bypass_cache` | Request flags |
-| Time-sensitive | Keyword list in config: today, now, right now, currently, tonight, this week, wait time, open now, … |
+| Time-sensitive | Keyword list in config: today, now, right now, currently, tonight, this week, wait time, open now, â€¦ |
 | Follow-up | `session_id` present **and** one of: starts with a continuation phrase ("what about", "and ", "how about", "also", "same for"), or is 6 tokens or fewer and contains a bare pronoun (it, that, those, they, there) |
-| Clinical | Keyword list: dose, dosage, mg, symptom, diagnos*, treatment, medication, side effect, … These are also forced to the large model. |
+| Clinical | Keyword list: dose, dosage, mg, symptom, diagnos*, treatment, medication, side effect, â€¦ These are also forced to the large model. |
 | Kill switch or namespace cache disabled | Config |
 
 ### 6.2 Lookup
@@ -166,7 +166,7 @@ Any difference in any of these sets means a miss.
 
 ### 6.3 Write-back eligibility
 
-Write only if **all** of these hold: not bypassed, status ok, grounding passed, `retrieval_top_score >= cache.min_retrieval_score`, not `NOT_FOUND`, `finish_reason != "length"`, no PII pattern (phone, email, 6-plus digit IDs, a "my …" personal reference), and the namespace has the cache enabled.
+Write only if **all** of these hold: not bypassed, status ok, grounding passed, `retrieval_top_score >= cache.min_retrieval_score`, not `NOT_FOUND`, `finish_reason != "length"`, no PII pattern (phone, email, 6-plus digit IDs, a "my â€¦" personal reference), and the namespace has the cache enabled.
 
 The entry stores `tokens_in`, `tokens_out` and the `model` of the final answer. `hit_count` increments and entry writes go through the background queue.
 
@@ -187,11 +187,11 @@ The entry stores `tokens_in`, `tokens_out` and the `model` of the final answer. 
 | Feature | How |
 | --- | --- |
 | `tokens` | bge-small tokenizer (already loaded) |
-| `has_reasoning_words` | compare, why, explain, difference, steps, calculate, versus/vs, pros and cons, … |
+| `has_reasoning_words` | compare, why, explain, difference, steps, calculate, versus/vs, pros and cons, â€¦ |
 | `num_questions` | Count of `?` plus "and"-joined interrogatives |
 | `top_score`, `score_gap` | From `/retrieve` |
 | `context_tokens` | From `/retrieve` |
-| `is_followup`, `is_clinical` | From §6.1 |
+| `is_followup`, `is_clinical` | From Â§6.1 |
 
 ### 7.2 Rules v1
 
@@ -231,7 +231,7 @@ Optional, in Phase 6. A scikit-learn classifier trained on the features plus the
 
 ## 8. Cost model
 
-`cost = tin/1e6 · p_in(model) + tout/1e6 · p_out(model) + temb/1e6 · p_emb`, where the price is the row with the latest `effective_from <= request date`. Prices come from `configs/prices.yaml` (Groq's published paid-tier prices, with effective dates) and are upserted into `weir.model_prices` at startup. `p_emb = 0` for local bge-small.
+`cost = tin/1e6 Â· p_in(model) + tout/1e6 Â· p_out(model) + temb/1e6 Â· p_emb`, where the price is the row with the latest `effective_from <= request date`. Prices come from `configs/prices.yaml` (Groq's published paid-tier prices, with effective dates) and are upserted into `weir.model_prices` at startup. `p_emb = 0` for local bge-small.
 
 **Counterfactual** (always large, no cache):
 
@@ -261,7 +261,7 @@ Savings are `sum(counterfactual) - sum(actual)`, where actual includes all calls
 
 Every response carries an `X-Request-ID` header.
 
-**Tenants** are defined in `configs/tenants.yaml` as a tenant name, the name of the environment variable holding its key, its allowed namespaces and its sensitive flag. Keys live only in `.env`. Starting tenants: `public-app` → `weir-general/en/public`, `staff-app` → `weir-general/en/staff` (marked sensitive, so logs keep hashes only).
+**Tenants** are defined in `configs/tenants.yaml` as a tenant name, the name of the environment variable holding its key, its allowed namespaces and its sensitive flag. Keys live only in `.env`. Starting tenants: `public-app` â†’ `weir-general/en/public`, `staff-app` â†’ `weir-general/en/staff` (marked sensitive, so logs keep hashes only).
 
 ### 9.2 Configuration
 
@@ -360,7 +360,7 @@ create table weir.feedback (
 ### 11.1 Eval set
 
 - **Location:** `eval/datasets/queries.jsonl`, with fields `{id, namespace, query, group: distinct|paraphrase|trap, cluster_id, difficulty: easy|medium|hard, required_facts: [...], source_doc, split: tune|holdout}`.
-- **Size:** 50 queries in Phase 1, growing to 150–300. The mix is 50% distinct, 30% paraphrase clusters (a seed plus 3–5 rewordings), and 20% traps.
+- **Size:** 50 queries in Phase 1, growing to 150â€“300. The mix is 50% distinct, 30% paraphrase clusters (a seed plus 3â€“5 rewordings), and 20% traps.
 - **Split:** 70/30 by `cluster_id`, so every paraphrase cluster falls wholly in one split. The held-out set is used once, for the final numbers.
 - **Authorship:** subagents draft the questions from the knowledge base, and the user reviews a sample.
 - **Pairs file:** `eval/datasets/pairs.jsonl`, with fields `{a, b, should_match}`, derived from the clusters and traps for the threshold sweep.
@@ -368,7 +368,7 @@ create table weir.feedback (
 ### 11.2 Scoring
 
 1. **Key facts:** normalized substring and regex checks on `required_facts`.
-2. **Gemini judge:** a fixed 1–5 rubric on correctness and grounding, using the reference facts and the source document. Results are cached in `eval/.judge_cache/`, keyed by the hash of question, answer and rubric version, so reruns cost nothing.
+2. **Gemini judge:** a fixed 1â€“5 rubric on correctness and grounding, using the reference facts and the source document. Results are cached in `eval/.judge_cache/`, keyed by the hash of question, answer and rubric version, so reruns cost nothing.
 3. **Human spot check:** the user reviews about 20 answers, weighted toward disagreements between the key-fact check and the judge. Notes go in `docs/results/`.
 
 The runner throttles itself below the free-tier limits.
@@ -376,7 +376,7 @@ The runner throttles itself below the free-tier limits.
 ### 11.3 Runs
 
 - `eval/run_eval.py --config <ablation> --split tune|holdout` writes `eval/reports/<ts>-<config>.jsonl` and `summary.md`.
-- `eval/sweep_threshold.py` sweeps 0.80–0.98 in steps of 0.01 over the pairs file, reports hit rate and false-hit rate, and plots the curve.
+- `eval/sweep_threshold.py` sweeps 0.80â€“0.98 in steps of 0.01 over the pairs file, reports hit rate and false-hit rate, and plots the curve.
 - `eval/make_workload.py --repeat-rate R --n N --seed S` builds a Zipf-skewed replay stream, recording the repeat rate and seed.
 - **Shadow comparison:** for small-route answers, the runner also calls the large model and scores both.
 - **Reports:** per-route quality, share routed small, cost saved at equal quality, and the four-way ablation table.
@@ -405,7 +405,7 @@ The runner throttles itself below the free-tier limits.
 
 ## 14. Stack
 
-Python 3.12 · `uv` · FastAPI + uvicorn · psycopg 3 (async) + `pgvector` Python package · `fastembed` · `groq` SDK · `google-genai` · `prometheus-client` · `httpx` · `pydantic-settings` + PyYAML · pytest · Docker Compose · Postgres 16 + pgvector · Prometheus · Grafana OSS · k6. All free.
+Python 3.12 Â· `uv` Â· FastAPI + uvicorn Â· psycopg 3 (async) + `pgvector` Python package Â· `fastembed` Â· `groq` SDK Â· `google-genai` Â· `prometheus-client` Â· `httpx` Â· `pydantic-settings` + PyYAML Â· pytest Â· Docker Compose Â· Postgres 16 + pgvector Â· Prometheus Â· Grafana OSS Â· k6. All free.
 
 Both API keys (Groq from console.groq.com, Gemini from aistudio.google.com) are free. They go in `.env`, which is gitignored. `.env.example` lists the variable names.
 
@@ -415,23 +415,23 @@ Both API keys (Groq from console.groq.com, Gemini from aistudio.google.com) are 
 
 ```text
 weir/
-├── README.md
-├── docker-compose.yml
-├── .env.example
-├── configs/            weir.yaml, prices.yaml, tenants.yaml, entities.yaml, ablations/
-├── db/migrations/      001_init.sql, ...
-├── kb/                 public/*.md, staff/*.md  (Weir General Hospital)
-├── services/
-│   ├── hospital-rag/   pyproject.toml, Dockerfile, src/hospital_rag/{main,retrieve,generate,ingest,llm,stub}.py, tests/
-│   └── weir/           pyproject.toml, Dockerfile, src/weir/{main,pipeline,settings,auth}.py
-│                       src/weir/cache/{embedder,store,guards,entities}.py
-│                       src/weir/router/{features,rules,learned}.py
-│                       src/weir/rag/adapter.py   src/weir/llm/pricing.py
-│                       src/weir/metrics/{logger,prometheus}.py   tests/
-├── eval/               datasets/, run_eval.py, sweep_threshold.py, make_workload.py, judge.py, reports/
-├── loadtest/           *.js scenarios, scenarios.md
-├── dashboards/         grafana provisioning + weir.json
-└── docs/               see §17
+â”œâ”€â”€ README.md
+â”œâ”€â”€ docker-compose.yml
+â”œâ”€â”€ .env.example
+â”œâ”€â”€ configs/            weir.yaml, prices.yaml, tenants.yaml, entities.yaml, ablations/
+â”œâ”€â”€ db/migrations/      001_init.sql, ...
+â”œâ”€â”€ kb/                 public/*.md, staff/*.md  (Weir General Hospital)
+â”œâ”€â”€ services/
+â”‚   â”œâ”€â”€ hospital-rag/   pyproject.toml, Dockerfile, src/hospital_rag/{main,retrieve,generate,ingest,llm,stub}.py, tests/
+â”‚   â””â”€â”€ weir/           pyproject.toml, Dockerfile, src/weir/{main,pipeline,settings,auth}.py
+â”‚                       src/weir/cache/{embedder,store,guards,entities}.py
+â”‚                       src/weir/router/{features,rules,learned}.py
+â”‚                       src/weir/rag/adapter.py   src/weir/llm/pricing.py
+â”‚                       src/weir/metrics/{logger,prometheus}.py   tests/
+â”œâ”€â”€ eval/               datasets/, run_eval.py, sweep_threshold.py, make_workload.py, judge.py, reports/
+â”œâ”€â”€ loadtest/           *.js scenarios, scenarios.md
+â”œâ”€â”€ dashboards/         grafana provisioning + weir.json
+â””â”€â”€ docs/               see Â§17
 ```
 
 ---
