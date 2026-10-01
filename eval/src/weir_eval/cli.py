@@ -36,7 +36,7 @@ def cmd_assign_splits(_: argparse.Namespace) -> int:
 async def _run(args: argparse.Namespace) -> int:
     queries = [q for q in load_queries(QUERIES) if args.split == "all" or q.split == args.split]
     keys = {ns: os.environ[env] for ns, env in KEY_ENV.items()}
-    judge_model = os.environ.get("JUDGE_MODEL", "gemini-2.5-flash")
+    judge_model = os.environ.get("JUDGE_MODEL", "gemini-3.8-flash")
     judge = Judge(gemini_call(os.environ["GEMINI_API_KEY"], judge_model), EVAL_DIR / ".judge_cache", judge_model)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     out_dir = EVAL_DIR / "reports" / f"{stamp}-{args.config}-{args.split}"
@@ -58,7 +58,7 @@ async def _rejudge(args: argparse.Namespace) -> int:
     out_dir = Path(args.report_dir)
     header = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))["header"] \
         if (out_dir / "summary.json").exists() else {"report": out_dir.name}
-    judge_model = header.get("judge_model") or os.environ.get("JUDGE_MODEL", "gemini-2.5-flash")
+    judge_model = os.environ.get("JUDGE_MODEL") or header.get("judge_model") or "gemini-3.8-flash"
     judge = Judge(gemini_call(os.environ["GEMINI_API_KEY"], judge_model), EVAL_DIR / ".judge_cache", judge_model)
     queries = {q.id: q for q in load_queries(QUERIES)}
     records = await rejudge(out_dir / "results.jsonl", judge, queries, load_kb_texts(KB_DIR))
