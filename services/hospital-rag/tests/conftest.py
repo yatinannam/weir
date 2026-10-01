@@ -11,7 +11,7 @@ if sys.platform == "win32":  # psycopg async cannot use the Proactor loop
 
 REPO = Path(__file__).resolve().parents[3]
 MIGRATIONS = REPO / "db" / "migrations"
-TEST_DB = os.environ.get("TEST_DATABASE_URL", "postgresql://weir:weir@localhost:5432/weir_test")
+TEST_DB = os.environ.get("TEST_DATABASE_URL", "postgresql://weir:weir@127.0.0.1:5432/weir_test")
 
 
 @pytest.fixture

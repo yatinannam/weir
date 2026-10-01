@@ -28,5 +28,5 @@ jobs:
       - name: Test
         working-directory: ${{ matrix.project }}
         env:
-          TEST_DATABASE_URL: postgresql://weir:weir@localhost:5432/weir_test
+          TEST_DATABASE_URL: postgresql://weir:weir@127.0.0.1:5432/weir_test
         run: uv run pytest -q

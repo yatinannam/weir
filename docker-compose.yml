@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: weir
       POSTGRES_PASSWORD: weir
       POSTGRES_DB: weir
-    ports: ["${PG_PORT:-5432}:5432"]
+    ports: ["127.0.0.1:${PG_PORT:-5432}:5432"]  # localhost only: dev password
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
@@ -32,7 +32,7 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       LLM_MODE: ${LLM_MODE:-groq}
     volumes: ["./kb:/app/kb:ro"]
-    ports: ["8001:8001"]
+    ports: ["127.0.0.1:8001:8001"]  # localhost only: hospital-rag has no auth, Weir does
     depends_on:
       migrate: { condition: service_completed_successfully }
     healthcheck:
