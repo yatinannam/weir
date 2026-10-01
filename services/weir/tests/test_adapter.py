@@ -72,3 +72,13 @@ async def test_transport_errors():
 async def test_health():
     assert await client(lambda r: httpx.Response(200, json={"status": "ok"})).health() is True
     assert await client(lambda r: httpx.Response(503, json={})).health() is False
+
+
+@pytest.mark.parametrize("response", [
+    httpx.Response(200, text="not json"),
+    httpx.Response(200, json={"unexpected": "schema"}),
+])
+async def test_malformed_200_is_bad_response(response):
+    with pytest.raises(RagError) as exc:
+        await client(lambda r: response).retrieve("q", "ns", 4)
+    assert exc.value.kind == "bad_response"

@@ -138,3 +138,18 @@ async def test_timeout_maps_to_504_and_status_timeout():
 def test_blank_query_rejected():
     with pytest.raises(ValueError):
         QueryRequest(query="   ", namespace=PUBLIC)
+
+
+class ExplodingRag:
+    async def retrieve(self, *args):
+        raise RuntimeError("boom")
+
+
+async def test_unexpected_error_returns_500_with_request_id_and_logs():
+    p, sink = pipeline(ExplodingRag())
+    with pytest.raises(PipelineError) as exc:
+        await p.handle(QueryRequest(query="q", namespace=PUBLIC))
+    assert exc.value.status_code == 500 and exc.value.error == "internal"
+    [row] = sink.rows
+    assert row.status == "error" and exc.value.request_id == str(row.request_id)
+    assert row.error_detail == "internal: RuntimeError"

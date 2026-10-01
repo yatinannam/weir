@@ -1,6 +1,6 @@
 """HTTP client for hospital-rag's /retrieve and /generate (the two-step split Weir needs)."""
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 
 class RagError(Exception):
@@ -50,12 +50,12 @@ class RagClient:
 
     async def retrieve(self, query: str, namespace: str, k: int) -> RetrieveResult:
         data = await self._post("/retrieve", {"query": query, "namespace": namespace, "k": k})
-        return RetrieveResult.model_validate(data)
+        return _parse(RetrieveResult, data)
 
     async def generate(self, query: str, namespace: str, chunks: list[RetrievedChunk], model: str) -> GenerateResult:
         payload = {"query": query, "namespace": namespace, "model": model,
                    "chunks": [c.model_dump() for c in chunks]}
-        return GenerateResult.model_validate(await self._post("/generate", payload))
+        return _parse(GenerateResult, await self._post("/generate", payload))
 
     async def health(self) -> bool:
         try:
@@ -74,13 +74,23 @@ class RagClient:
         except httpx.HTTPError as e:
             raise RagError("unavailable", str(e)) from e
         if response.status_code == 200:
-            return response.json()
+            body = _json_or_none(response)
+            if body is None:
+                raise RagError("bad_response", f"200 with non-JSON body: {response.text[:100]}")
+            return body
         body = _json_or_none(response)
         if response.status_code == 503 and body and body.get("error") == "rate_limited":
             raise RagError("rate_limited", "provider rate limit", body.get("retry_after"))
         if response.status_code == 504:
             raise RagError("timeout", response.text[:300])
         raise RagError("bad_response", f"{response.status_code}: {response.text[:300]}")
+
+
+def _parse[M: BaseModel](model: type[M], data: dict) -> M:
+    try:
+        return model.model_validate(data)
+    except ValidationError as e:
+        raise RagError("bad_response", f"unexpected {model.__name__} shape: {e.error_count()} error(s)") from e
 
 
 def _json_or_none(response: httpx.Response) -> dict | None:

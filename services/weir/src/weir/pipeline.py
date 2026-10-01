@@ -115,6 +115,12 @@ class Pipeline:
             row.latency_total_ms = _ms(started)
             self._log.submit(row)
             raise PipelineError(ERROR_STATUS[e.kind], e.kind, str(row.request_id), e.retry_after) from e
+        except Exception as e:  # noqa: BLE001 - any failure still gets a request_id and a log row
+            row.status = "error"
+            row.error_detail = f"internal: {type(e).__name__}"
+            row.latency_total_ms = _ms(started)
+            self._log.submit(row)
+            raise PipelineError(500, "internal", str(row.request_id)) from e
 
         today = now.date()
         row.model = generated.model
