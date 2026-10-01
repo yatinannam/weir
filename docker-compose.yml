@@ -25,5 +25,21 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
+  hospital-rag:
+    build: { context: ., dockerfile: services/hospital-rag/Dockerfile }
+    environment:
+      DATABASE_URL: postgresql://weir:weir@postgres:5432/weir
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      LLM_MODE: ${LLM_MODE:-groq}
+    volumes: ["./kb:/app/kb:ro"]
+    ports: ["8001:8001"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/healthz')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
 volumes:
   pgdata:

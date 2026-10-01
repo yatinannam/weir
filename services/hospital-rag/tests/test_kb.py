@@ -36,6 +36,11 @@ def test_load_kb_rejects_duplicate_ids(tmp_path):
         load_kb(tmp_path)
 
 
+def test_load_kb_rejects_folder_without_documents(tmp_path):
+    with pytest.raises(ValueError, match="no documents"):
+        load_kb(tmp_path / "missing")
+
+
 def test_kb_version_changes_only_when_content_changes(tmp_path):
     write(tmp_path / "public" / "pub-a.md", "pub-a", "A")
     v1 = kb_version(load_kb(tmp_path))

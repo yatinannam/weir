@@ -53,6 +53,9 @@ def load_kb(kb_dir: Path) -> list[KbDoc]:
                 body=body,
                 content_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(),
             ))
+    if not docs:
+        folders = ", ".join(str(kb_dir / f) for f in NAMESPACE_DIRS)
+        raise ValueError(f"no documents found in {folders}")
     return docs
 
 
