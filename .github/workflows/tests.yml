@@ -1,0 +1,32 @@
+name: tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [services/weir, services/hospital-rag, eval]
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.0-pg16
+        env:
+          POSTGRES_USER: weir
+          POSTGRES_PASSWORD: weir
+          POSTGRES_DB: weir_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U weir -d weir_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install
+        working-directory: ${{ matrix.project }}
+        run: uv sync --frozen
+      - name: Test
+        working-directory: ${{ matrix.project }}
+        env:
+          TEST_DATABASE_URL: postgresql://weir:weir@localhost:5432/weir_test
+        run: uv run pytest -q
