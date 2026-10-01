@@ -1,0 +1,64 @@
+{
+  "header": {
+    "config": "baseline",
+    "split": "all",
+    "queries": 50,
+    "judge_model": "groq:qwen/qwen3.8-27b",
+    "rubric": "r1",
+    "git_commit": "a61ce0b",
+    "started_utc": "20261001T124959Z"
+  },
+  "summary": {
+    "n": 50,
+    "ok": 50,
+    "errors": 0,
+    "cost_usd_total": 0.0049467,
+    "cost_per_1k_usd": 0.098934,
+    "latency_ms": {
+      "p50": 853,
+      "p95": 5999,
+      "p99": 9238
+    },
+    "judge_mean": 5,
+    "judge_errors": 0,
+    "fact_mean": 1.0,
+    "cache_hit_rate": 0.0,
+    "route_mix": {
+      "large": 1.0
+    },
+    "by_group": {
+      "distinct": {
+        "n": 25,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "paraphrase": {
+        "n": 15,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "trap": {
+        "n": 10,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      }
+    },
+    "by_difficulty": {
+      "easy": {
+        "n": 33,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "hard": {
+        "n": 5,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "medium": {
+        "n": 12,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      }
+    }
+  }
+}

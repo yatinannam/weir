@@ -11,3 +11,4 @@ The record of everything planned, decided and measured for Weir. Start here.
 | [superpowers/plans/](superpowers/plans/) | One implementation plan per build phase |
 | [plans/…phase-0-1…](superpowers/plans/2026-09-30-phase-0-1-foundations-baseline.md) | Phase 0 + 1: foundations and baseline (16 tasks) |
 | [results/](results/) | Baseline, threshold sweep, ablation and load-test results |
+| [results/baseline.md](results/baseline.md) | Frozen Phase 1 baseline: cost, latency, quality |

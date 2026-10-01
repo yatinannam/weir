@@ -127,3 +127,23 @@ async def test_rejudge_scores_only_missing_verdicts(tmp_path):
     assert [r.get("judge_score") for r in records] == [5, 2, None]
     assert "judge_error" not in records[0]
     assert [json.loads(l)["id"] for l in results.read_text(encoding="utf-8").splitlines()] == ["d1", "d2", "d3"]
+
+
+async def test_rejudge_saves_after_each_record(tmp_path):
+    from weir_eval.runner import rejudge
+
+    results = tmp_path / "results.jsonl"
+    rows = [{"id": f"d{i}", "status_code": 200, "answer": f"a{i}", "judge_score": None} for i in (1, 2)]
+    results.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    seen_on_disk = []
+
+    class PeekingCall:
+        async def __call__(self, prompt):
+            on_disk = [json.loads(l) for l in results.read_text(encoding="utf-8").splitlines()]
+            seen_on_disk.append([r.get("judge_score") for r in on_disk])
+            return json.dumps({"score": 5, "reason": "ok"})
+
+    judge = Judge(PeekingCall(), tmp_path / "cache", "m", sleep=no_sleep)
+    queries = {x.id: x for x in [q("d1", "d1"), q("d2", "d2")]}
+    await rejudge(results, judge, queries, {})
+    assert seen_on_disk == [[None, None], [5, None]]  # d1 saved before d2 was graded

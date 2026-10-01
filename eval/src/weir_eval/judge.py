@@ -37,12 +37,24 @@ def _rate_limit_wait(error: Exception) -> float | None:
 
 class Judge:
     def __init__(self, call: Callable[[str], Awaitable[str]], cache_dir: Path, model: str,
-                 sleep: Callable[[float], Awaitable[None]] = asyncio.sleep):
+                 sleep: Callable[[float], Awaitable[None]] = asyncio.sleep, min_interval_s: float = 0.0):
         self._call = call
         self._cache_dir = cache_dir
         self._model = model
         self._sleep = sleep
+        self._min_interval_s = min_interval_s
+        self._last_call: float | None = None
         cache_dir.mkdir(parents=True, exist_ok=True)
+
+    async def _paced_call(self, prompt: str) -> str:
+        """Space out real API calls (free-tier limits); cache hits never get here."""
+        loop = asyncio.get_running_loop()
+        if self._last_call is not None:
+            remaining = self._min_interval_s - (loop.time() - self._last_call)
+            if remaining > 0:
+                await self._sleep(remaining)
+        self._last_call = loop.time()
+        return await self._call(prompt)
 
     async def grade(self, query: str, facts: list[str], source_text: str, answer: str) -> JudgeVerdict:
         key = hashlib.sha256(json.dumps([RUBRIC_VERSION, self._model, query, facts, answer]).encode()).hexdigest()
@@ -53,7 +65,7 @@ class Judge:
                   f"### Required facts\n{json.dumps(facts, ensure_ascii=False)}\n\n### Answer to grade\n{answer}\n")
         last_error: Exception | None = None
         for _ in range(2):  # one retry on malformed output
-            raw = await with_retries(lambda: self._call(prompt), _rate_limit_wait, sleep=self._sleep)
+            raw = await with_retries(lambda: self._paced_call(prompt), _rate_limit_wait, sleep=self._sleep)
             try:
                 verdict = JudgeVerdict.model_validate_json(raw)
             except ValidationError as e:
@@ -62,6 +74,27 @@ class Judge:
             cached.write_text(verdict.model_dump_json(), encoding="utf-8")
             return verdict
         raise ValueError(f"judge returned invalid output twice: {last_error}")
+
+
+def groq_call(api_key: str, model: str, client=None) -> Callable[[str], Awaitable[str]]:
+    """Judge on the Groq free tier (decision D20). Different model family from the gpt-oss models under test."""
+    import groq
+
+    client = client or groq.AsyncGroq(api_key=api_key, timeout=60, max_retries=0)
+
+    async def call(prompt: str) -> str:
+        try:
+            response = await client.chat.completions.create(
+                model=model, temperature=0, response_format={"type": "json_object"},
+                messages=[{"role": "system", "content": "You are a strict grader. Reply with JSON only."},
+                          {"role": "user", "content": prompt}],
+            )
+        except groq.APIStatusError as e:
+            e.code = e.status_code  # let _rate_limit_wait retry 429 and 5xx
+            raise
+        return response.choices[0].message.content or ""
+
+    return call
 
 
 def gemini_call(api_key: str, model: str) -> Callable[[str], Awaitable[str]]:

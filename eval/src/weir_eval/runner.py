@@ -103,10 +103,14 @@ async def _grade(record: dict, q: EvalQuery, judge: Judge, kb: dict[str, str]) -
 
 
 async def rejudge(results_path: Path, judge: Judge, queries: dict[str, EvalQuery], kb: dict[str, str]) -> list[dict]:
-    """Re-score answered rows that have no judge verdict, without calling Weir again."""
+    """Re-score answered rows that have no judge verdict, without calling Weir again.
+
+    The file is rewritten after every graded row, so an interrupted rejudge keeps its progress.
+    """
     records = [json.loads(line) for line in results_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    for record in records:
-        if record.get("status_code") == 200 and record.get("judge_score") is None:
-            await _grade(record, queries[record["id"]], judge, kb)
-    results_path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records), encoding="utf-8")
+    pending = [r for r in records if r.get("status_code") == 200 and r.get("judge_score") is None]
+    for i, record in enumerate(pending, start=1):
+        await _grade(record, queries[record["id"]], judge, kb)
+        results_path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records), encoding="utf-8")
+        print(f"[{i}/{len(pending)}] {record['id']} judge={record.get('judge_score')}", flush=True)
     return records

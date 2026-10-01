@@ -10,7 +10,7 @@ from pathlib import Path
 import httpx
 
 from .dataset import assign_splits, load_queries, save_queries, validate
-from .judge import RUBRIC_VERSION, Judge, gemini_call
+from .judge import RUBRIC_VERSION, Judge, gemini_call, groq_call
 from .kb import facts_missing_from_sources, load_kb_texts
 from .runner import rejudge, run_eval
 from .summary import pick_spot_checks, render_markdown, summarize
@@ -36,8 +36,7 @@ def cmd_assign_splits(_: argparse.Namespace) -> int:
 async def _run(args: argparse.Namespace) -> int:
     queries = [q for q in load_queries(QUERIES) if args.split == "all" or q.split == args.split]
     keys = {ns: os.environ[env] for ns, env in KEY_ENV.items()}
-    judge_model = os.environ.get("JUDGE_MODEL", "gemini-3.8-flash")
-    judge = Judge(gemini_call(os.environ["GEMINI_API_KEY"], judge_model), EVAL_DIR / ".judge_cache", judge_model)
+    judge, judge_model = _make_judge()
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     out_dir = EVAL_DIR / "reports" / f"{stamp}-{args.config}-{args.split}"
     async with httpx.AsyncClient(base_url=args.weir_url, timeout=90) as http:
@@ -58,12 +57,24 @@ async def _rejudge(args: argparse.Namespace) -> int:
     out_dir = Path(args.report_dir)
     header = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))["header"] \
         if (out_dir / "summary.json").exists() else {"report": out_dir.name}
-    judge_model = os.environ.get("JUDGE_MODEL") or header.get("judge_model") or "gemini-3.8-flash"
-    judge = Judge(gemini_call(os.environ["GEMINI_API_KEY"], judge_model), EVAL_DIR / ".judge_cache", judge_model)
+    judge, judge_model = _make_judge()
     queries = {q.id: q for q in load_queries(QUERIES)}
     records = await rejudge(out_dir / "results.jsonl", judge, queries, load_kb_texts(KB_DIR))
     _write_report(out_dir, {**header, "judge_model": judge_model}, records)
     return 0
+
+
+def _make_judge() -> tuple[Judge, str]:
+    """JUDGE_PROVIDER groq (default, decision D20) or gemini; JUDGE_MODEL; JUDGE_MIN_INTERVAL seconds."""
+    provider = os.environ.get("JUDGE_PROVIDER", "groq")
+    if provider == "groq":
+        model = os.environ.get("JUDGE_MODEL", "qwen/qwen3.8-27b")
+        call = groq_call(os.environ["GROQ_API_KEY"], model)
+    else:
+        model = os.environ.get("JUDGE_MODEL", "gemini-3-flash-preview")
+        call = gemini_call(os.environ["GEMINI_API_KEY"], model)
+    interval = float(os.environ.get("JUDGE_MIN_INTERVAL", "8"))
+    return Judge(call, EVAL_DIR / ".judge_cache", model, min_interval_s=interval), f"{provider}:{model}"
 
 
 def _write_report(out_dir: Path, header: dict, records: list[dict]) -> None:

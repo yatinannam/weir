@@ -26,3 +26,11 @@ A running log of what was done, what was learned, and what's next. Newest at the
 - Exit check (real Groq): "ICU visiting hours" → cited answer from pub-visiting-hours-icu, 432 tokens in / 70 out, $0.000107 at list price, ~2 s.
 - Whole-branch review: 4 Important findings fixed (malformed-reply handling, eval robustness + `rejudge`, time/number fact matching, localhost-only ports). Real gpt-oss output showed its native 【c1】 citation style, which hid sources; the parser now handles it.
 - Learned: on Windows, `localhost` tries IPv6 first; DB URLs use 127.0.0.1. Git Bash rewrites `/app/...` paths in `docker exec` (use `MSYS_NO_PATHCONV=1`). Docker Desktop auto-updated mid-session and stopped containers once.
+
+## 2026-10-01: Phase 1, baseline recorded (sign-off pending user spot checks)
+
+- Eval set: 50 queries (25 distinct, 3×5 paraphrase, 5×2 traps), split 33/17 by cluster.
+- Baseline (always gpt-oss-120b, no cache): **cost/1k $0.0989**, **p50 853 ms / p95 6.0 s** (sequential), **judge 5.0/5**, **facts 1.00**, 0 errors. Details and frozen settings are in `results/baseline.md`.
+- The judge moved Gemini → Qwen on Groq (D19, D20), because Gemini's free tier allows about 20 requests/day. The eval tools gained `rejudge` (re-grade saved answers, no Groq calls), per-row progress saving, and call pacing.
+- Learned: the large model aces this set (ceiling effect), so any later drop is a real regression. Harder and unanswerable questions should be added before the final numbers.
+- **Next:** the user signs off the spot checks, then Phase 2 (semantic cache) planning.
