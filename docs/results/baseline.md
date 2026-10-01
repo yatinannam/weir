@@ -45,7 +45,7 @@ I read all 10 trap answers by hand. Each one gives its own side's fact: ICU vs g
 | Eval set | 50 queries: 25 distinct, 3×5 paraphrase, 5×2 traps; split 33 tune / 17 holdout by cluster |
 | Judge | `groq:qwen/qwen3.8-27b`, rubric `r1`, temperature 0, JSON output (decision D20) |
 | Prices | `configs/prices.yaml`: gpt-oss-120b $0.15 in / $0.60 out per 1M tokens |
-| Code | git commit `58c7ebb` (branch `phase-0-1`) |
+| Code | answers produced at git commit `a61ce0b`; graded with the judge code in `3b2cf88` |
 | Machine | Intel Core Ultra 5 225U (12 cores / 14 threads), 15.5 GB RAM, Windows 11 Home build 26300, Docker Desktop (server 29.8.1) |
 
 ## What this means for the next phases
