@@ -16,7 +16,12 @@ After each fact, cite the passage it came from, like [c1] or [c2].
 If the passages do not contain the answer, reply with exactly: NOT_FOUND
 Never give medical advice beyond what the passages state."""
 
-CITATION = re.compile(r"\[\s*(c\d+(?:\s*,\s*c\d+)*)\s*\]", re.IGNORECASE)
+# [c1], [c1, c3], [c1; c3], [c1 and c2], and gpt-oss's native 【c1】 / 【c2†L3-L5】.
+CITATION = re.compile(
+    r"[\[【]\s*(c\d+(?:\s*(?:,|;|and)\s*c\d+)*)(?:†[^\]】]*)?\s*[\]】]",
+    re.IGNORECASE,
+)
+LABEL_SEPARATOR = re.compile(r"\s*(?:,|;|and)\s*", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -36,12 +41,12 @@ def build_messages(query: str, chunks: list[tuple[str, str]]) -> tuple[list[dict
 
 def parse_answer(raw: str, labels: dict[str, str]) -> ParsedAnswer:
     text = raw.strip()
-    if not text or text.upper().startswith(NOT_FOUND):
+    if not text or text.strip("*_` ").upper().startswith(NOT_FOUND):
         return ParsedAnswer(NOT_FOUND_MESSAGE, [], 0, True)
     cited: list[str] = []
     invalid = 0
     for match in CITATION.finditer(text):
-        for label in re.split(r"\s*,\s*", match.group(1).lower()):
+        for label in LABEL_SEPARATOR.split(match.group(1).lower()):
             if label in labels:
                 if labels[label] not in cited:
                     cited.append(labels[label])
@@ -49,5 +54,6 @@ def parse_answer(raw: str, labels: dict[str, str]) -> ParsedAnswer:
                 invalid += 1
     clean = CITATION.sub("", text)
     clean = re.sub(r"\s+([.,;:!?])", r"\1", clean)
+    clean = re.sub(r"[,;]+([.!?])", r"\1", clean)  # "[c1],[c2]." leaves ",." behind
     clean = re.sub(r"[ \t]{2,}", " ", clean).strip()
     return ParsedAnswer(clean, cited, invalid, False)
