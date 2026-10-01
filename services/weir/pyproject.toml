@@ -1,0 +1,32 @@
+[project]
+name = "weir"
+version = "0.1.0"
+description = "Semantic cache + model router gateway in front of a RAG service"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "httpx>=0.27",
+  "psycopg[binary,pool]>=3.2",
+  "pgvector>=0.3",
+  "numpy>=1.26",
+  "pydantic>=2.8",
+  "pydantic-settings>=2.4",
+  "pyyaml>=6.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.24"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/weir"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = ["db: needs the compose Postgres (weir_test database)"]

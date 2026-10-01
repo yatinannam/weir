@@ -1,0 +1,29 @@
+name: weir
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.0-pg16
+    environment:
+      POSTGRES_USER: weir
+      POSTGRES_PASSWORD: weir
+      POSTGRES_DB: weir
+    ports: ["${PG_PORT:-5432}:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weir -d weir"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: { context: ., dockerfile: services/weir/Dockerfile }
+    command: ["python", "-m", "weir.migrate"]
+    environment:
+      DATABASE_URL: postgresql://weir:weir@postgres:5432/weir
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes:
+  pgdata:
