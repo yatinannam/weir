@@ -41,5 +41,19 @@ services:
       timeout: 3s
       retries: 30
 
+  weir:
+    build: { context: ., dockerfile: services/weir/Dockerfile }
+    environment:
+      DATABASE_URL: postgresql://weir:weir@postgres:5432/weir
+      WEIR_KEY_PUBLIC: ${WEIR_KEY_PUBLIC:?set WEIR_KEY_PUBLIC in .env}
+      WEIR_KEY_STAFF: ${WEIR_KEY_STAFF:?set WEIR_KEY_STAFF in .env}
+      WEIR_KEY_ADMIN: ${WEIR_KEY_ADMIN:?set WEIR_KEY_ADMIN in .env}
+      WEIR_ABLATION: ${WEIR_ABLATION:-}
+    volumes: ["./configs:/app/configs:ro"]
+    ports: ["8000:8000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      hospital-rag: { condition: service_healthy }
+
 volumes:
   pgdata:
