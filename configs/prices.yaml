@@ -1,0 +1,17 @@
+# USD per 1M tokens at Groq's published paid (Developer) tier. We pay $0 on the free tier;
+# these list prices let Weir report "what this would cost in production" (decision D7/D13).
+# Source: https://console.groq.com/docs/models, checked 2026-09-30.
+# When a price changes, ADD a row with a new effective_from. Never edit old rows.
+prices:
+  - model: openai/gpt-oss-20b
+    usd_per_m_input: 0.075
+    usd_per_m_output: 0.30
+    effective_from: 2026-09-01
+  - model: openai/gpt-oss-120b
+    usd_per_m_input: 0.15
+    usd_per_m_output: 0.60
+    effective_from: 2026-09-01
+  - model: BAAI/bge-small-en-v1.5   # local embeddings: free
+    usd_per_m_input: 0
+    usd_per_m_output: 0
+    effective_from: 2026-09-01
