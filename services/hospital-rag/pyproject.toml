@@ -1,0 +1,34 @@
+[project]
+name = "hospital-rag"
+version = "0.1.0"
+description = "Minimal RAG chatbot for the fictional Weir General Hospital"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "psycopg[binary,pool]>=3.2",
+  "pgvector>=0.3",
+  "numpy>=1.26",
+  "fastembed>=0.4",
+  "tokenizers>=0.19",
+  "groq>=0.11",
+  "pydantic>=2.8",
+  "pydantic-settings>=2.4",
+  "pyyaml>=6.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "httpx>=0.27"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hospital_rag"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = ["db: needs the compose Postgres (weir_test database)"]
