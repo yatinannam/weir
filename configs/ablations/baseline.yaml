@@ -1,0 +1,6 @@
+# Baseline: no cache, always the large model (docs/weir-original.md, "Step 0: the baseline").
+config_label: baseline
+cache:
+  enabled: false
+kill_switch:
+  force_large: true

@@ -1,0 +1,25 @@
+# Weir gateway configuration. Every threshold lives here; experiments change config, not code.
+# Sections are added phase by phase (see docs/superpowers/plans/). Unknown keys are rejected.
+config_label: dev
+
+rag:
+  base_url: http://hospital-rag:8001
+  timeout_seconds: 30
+  retrieve_k: 4
+
+router:
+  small_model: openai/gpt-oss-20b
+  large_model: openai/gpt-oss-120b
+
+cache:
+  enabled: false          # the semantic cache arrives in Phase 2
+
+kill_switch:
+  force_large: false      # send every request to the large model
+  disable_cache: false    # skip the cache entirely
+
+namespaces:
+  weir-general/en/public:
+    sensitive: false
+  weir-general/en/staff:
+    sensitive: true       # logs keep only hashes, never raw query text

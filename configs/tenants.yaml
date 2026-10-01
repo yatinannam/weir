@@ -1,0 +1,12 @@
+# API-key tenants. Keys come from environment variables (.env), never from this file.
+tenants:
+  - name: public-app
+    key_env: WEIR_KEY_PUBLIC
+    namespaces: [weir-general/en/public]
+  - name: staff-app
+    key_env: WEIR_KEY_STAFF
+    namespaces: [weir-general/en/staff]
+  - name: admin
+    key_env: WEIR_KEY_ADMIN
+    namespaces: []
+    admin: true
