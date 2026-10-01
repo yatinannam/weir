@@ -30,7 +30,9 @@ class JudgeVerdict(BaseModel):
 
 
 def _rate_limit_wait(error: Exception) -> float | None:
-    return 30.0 if getattr(error, "code", None) == 429 else None
+    """Retry rate limits (429) and transient server errors (5xx, e.g. 'model overloaded')."""
+    code = getattr(error, "code", None)
+    return 30.0 if isinstance(code, int) and (code == 429 or code >= 500) else None
 
 
 class Judge:

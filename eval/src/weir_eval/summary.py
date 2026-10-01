@@ -9,9 +9,14 @@ def percentile(values: list[float], p: float) -> float:
     return ordered[rank - 1]
 
 
+def _judge_mean(records: list[dict]) -> float | None:
+    scores = [r["judge_score"] for r in records if r.get("judge_score") is not None]
+    return round(mean(scores), 3) if scores else None
+
+
 def _group_stats(records: list[dict]) -> dict:
     return {"n": len(records),
-            "judge_mean": round(mean(r["judge_score"] for r in records), 3),
+            "judge_mean": _judge_mean(records),
             "fact_mean": round(mean(r["fact_score"] for r in records), 3)}
 
 
@@ -33,7 +38,8 @@ def summarize(records: list[dict]) -> dict:
         "cost_usd_total": total_cost,
         "cost_per_1k_usd": total_cost / len(ok) * 1000,
         "latency_ms": {f"p{p}": percentile(latencies, p) for p in (50, 95, 99)},
-        "judge_mean": round(mean(r["judge_score"] for r in ok), 3),
+        "judge_mean": _judge_mean(ok),
+        "judge_errors": sum(1 for r in ok if r.get("judge_score") is None),
         "fact_mean": round(mean(r["fact_score"] for r in ok), 3),
         "cache_hit_rate": hits / len(ok),
         "route_mix": {k: v / len(ok) for k, v in routes.items()},
@@ -45,7 +51,7 @@ def summarize(records: list[dict]) -> dict:
 
 def pick_spot_checks(records: list[dict], n: int = 20) -> list[dict]:
     """Human review sample, weighted toward judge vs key-fact disagreement (spec §11.2)."""
-    ok = [r for r in records if r.get("status_code") == 200]
+    ok = [r for r in records if r.get("status_code") == 200 and r.get("judge_score") is not None]
     return sorted(ok, key=lambda r: abs((r["judge_score"] - 1) / 4 - r["fact_score"]), reverse=True)[:n]
 
 
@@ -59,7 +65,7 @@ def render_markdown(summary: dict, header: dict, spot_checks: list[dict]) -> str
             "| Metric | Value |", "| --- | --- |",
             f"| Cost per 1,000 requests (USD, list prices) | {summary['cost_per_1k_usd']:.4f} |",
             f"| Latency p50 / p95 / p99 (ms, sequential, client-side) | {lat['p50']} / {lat['p95']} / {lat['p99']} |",
-            f"| Judge score mean (1-5) | {summary['judge_mean']} |",
+            f"| Judge score mean (1-5) | {summary['judge_mean']} ({summary['judge_errors']} not judged) |",
             f"| Key-fact score mean (0-1) | {summary['fact_mean']} |",
             f"| Cache hit rate | {summary['cache_hit_rate']:.1%} |",
             f"| Route mix | {', '.join(f'{k} {v:.0%}' for k, v in summary['route_mix'].items())} |",

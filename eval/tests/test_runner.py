@@ -76,3 +76,54 @@ async def test_limiter_spaces_calls():
     now[0] += 4.0
     await limiter.wait()
     assert slept == [pytest.approx(6.0)]
+
+
+class FlakyJudgeCall:
+    """Fails permanently for prompts mentioning 'question d1'; scores everything else 4."""
+
+    async def __call__(self, prompt):
+        if "question d1" in prompt:
+            raise ValueError("safety block")
+        return json.dumps({"score": 4, "reason": "ok"})
+
+
+async def test_judge_failure_is_recorded_and_run_continues(tmp_path):
+    judge = Judge(FlakyJudgeCall(), tmp_path / "cache", "m", sleep=no_sleep)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(weir_ok), base_url="http://w") as http:
+        records = await run_eval([q("d1", "d1"), q("d2", "d2")], http, {"weir-general/en/public": "k"},
+                                 judge, {"pub-a": "Open at 4 pm."}, tmp_path, min_interval_s=0, sleep=no_sleep)
+    assert records[0]["judge_score"] is None and "safety block" in records[0]["judge_error"]
+    assert records[0]["fact_score"] == 1.0
+    assert records[1]["judge_score"] == 4
+
+
+async def test_ask_retries_transport_errors():
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 1:
+            raise httpx.ConnectError("weir restarting", request=request)
+        return weir_ok(request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://w") as http:
+        record = await ask(http, "key", q("d1", "d1"), sleep=no_sleep)
+    assert record["status_code"] == 200 and len(calls) == 2
+
+
+async def test_rejudge_scores_only_missing_verdicts(tmp_path):
+    from weir_eval.runner import rejudge
+
+    results = tmp_path / "results.jsonl"
+    rows = [
+        {"id": "d1", "status_code": 200, "answer": "Open at 4 pm.", "judge_score": None, "judge_error": "x"},
+        {"id": "d2", "status_code": 200, "answer": "Open at 4 pm.", "judge_score": 2, "judge_reason": "kept"},
+        {"id": "d3", "status_code": 503, "error": "gave up"},
+    ]
+    results.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    judge = Judge(ScoreCall(), tmp_path / "cache", "m", sleep=no_sleep)
+    queries = {x.id: x for x in [q("d1", "d1"), q("d2", "d2"), q("d3", "d3")]}
+    records = await rejudge(results, judge, queries, {"pub-a": "Open at 4 pm."})
+    assert [r.get("judge_score") for r in records] == [5, 2, None]
+    assert "judge_error" not in records[0]
+    assert [json.loads(l)["id"] for l in results.read_text(encoding="utf-8").splitlines()] == ["d1", "d2", "d3"]

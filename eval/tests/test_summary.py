@@ -35,3 +35,11 @@ def test_render_markdown_contains_key_numbers():
     s = summarize([rec(1, 100, 0.001, 5, 1.0)])
     md = render_markdown(s, {"config": "baseline", "split": "all"}, [])
     assert "baseline" in md and "Cost per 1,000 requests" in md and "p95" in md
+
+
+def test_summary_excludes_missing_judge_scores_and_counts_them():
+    missing = rec(2, 200, 0.001, None, 0.5)
+    s = summarize([rec(1, 100, 0.001, 4, 1.0), missing])
+    assert s["judge_mean"] == 4.0 and s["judge_errors"] == 1
+    assert s["fact_mean"] == 0.75
+    assert [r["id"] for r in pick_spot_checks([missing, rec(1, 1, 0, 5, 1.0)])] == ["q1"]

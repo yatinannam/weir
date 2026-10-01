@@ -45,8 +45,11 @@ async def ask(http: httpx.AsyncClient, key: str, q: EvalQuery,
 
     async def once() -> tuple[httpx.Response, int]:
         started = time.perf_counter()
-        response = await http.post("/v1/query", headers={"X-API-Key": key},
-                                   json={"query": q.query, "namespace": q.namespace})
+        try:
+            response = await http.post("/v1/query", headers={"X-API-Key": key},
+                                       json={"query": q.query, "namespace": q.namespace})
+        except httpx.TransportError as e:  # Weir or Docker restarting: wait and retry
+            raise HttpRetry(15.0) from e
         elapsed = int((time.perf_counter() - started) * 1000)
         if response.status_code in RETRYABLE:
             raise HttpRetry(float(response.headers.get("Retry-After", "30")) + 1)
@@ -77,13 +80,33 @@ async def run_eval(queries: list[EvalQuery], http: httpx.AsyncClient, keys: dict
             record = await ask(http, keys[q.namespace], q, sleep=sleep)
             if record["status_code"] == 200:
                 facts = check_facts(record["answer"], q.required_facts)
-                source = "\n\n".join(kb.get(d, "") for d in q.source_docs)
-                verdict = await judge.grade(q.query, q.required_facts, source, record["answer"])
-                record.update(fact_hits=facts.hits, fact_total=facts.total, fact_score=facts.score,
-                              judge_score=verdict.score, judge_reason=verdict.reason)
+                record.update(fact_hits=facts.hits, fact_total=facts.total, fact_score=facts.score)
+                await _grade(record, q, judge, kb)
             out.write(json.dumps(record, ensure_ascii=False) + "\n")
             out.flush()  # keep progress if the run is interrupted
             records.append(record)
             print(f"[{i}/{len(queries)}] {q.id} {record['status_code']} "
                   f"judge={record.get('judge_score')} facts={record.get('fact_score')}")
+    return records
+
+
+async def _grade(record: dict, q: EvalQuery, judge: Judge, kb: dict[str, str]) -> None:
+    """Judge one answer; a judge failure is recorded on the row instead of ending the run."""
+    source = "\n\n".join(kb.get(d, "") for d in q.source_docs)
+    try:
+        verdict = await judge.grade(q.query, q.required_facts, source, record["answer"])
+    except Exception as e:  # noqa: BLE001 - re-score later with `weir_eval rejudge`
+        record.update(judge_score=None, judge_error=f"{type(e).__name__}: {e}"[:300])
+        return
+    record.pop("judge_error", None)
+    record.update(judge_score=verdict.score, judge_reason=verdict.reason)
+
+
+async def rejudge(results_path: Path, judge: Judge, queries: dict[str, EvalQuery], kb: dict[str, str]) -> list[dict]:
+    """Re-score answered rows that have no judge verdict, without calling Weir again."""
+    records = [json.loads(line) for line in results_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    for record in records:
+        if record.get("status_code") == 200 and record.get("judge_score") is None:
+            await _grade(record, queries[record["id"]], judge, kb)
+    results_path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records), encoding="utf-8")
     return records

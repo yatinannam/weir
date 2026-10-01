@@ -12,7 +12,7 @@ import httpx
 from .dataset import assign_splits, load_queries, save_queries, validate
 from .judge import RUBRIC_VERSION, Judge, gemini_call
 from .kb import facts_missing_from_sources, load_kb_texts
-from .runner import run_eval
+from .runner import rejudge, run_eval
 from .summary import pick_spot_checks, render_markdown, summarize
 
 EVAL_DIR = Path(__file__).resolve().parents[2]
@@ -47,14 +47,30 @@ async def _run(args: argparse.Namespace) -> int:
                   f"Restart it with WEIR_ABLATION={args.config}.", file=sys.stderr)
             return 2
         records = await run_eval(queries, http, keys, judge, load_kb_texts(KB_DIR), out_dir, args.min_interval)
-    summary = summarize(records)
     commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
     header = {"config": args.config, "split": args.split, "queries": len(queries), "judge_model": judge_model,
               "rubric": RUBRIC_VERSION, "git_commit": commit, "started_utc": stamp}
+    _write_report(out_dir, header, records)
+    return 0
+
+
+async def _rejudge(args: argparse.Namespace) -> int:
+    out_dir = Path(args.report_dir)
+    header = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))["header"] \
+        if (out_dir / "summary.json").exists() else {"report": out_dir.name}
+    judge_model = header.get("judge_model") or os.environ.get("JUDGE_MODEL", "gemini-2.5-flash")
+    judge = Judge(gemini_call(os.environ["GEMINI_API_KEY"], judge_model), EVAL_DIR / ".judge_cache", judge_model)
+    queries = {q.id: q for q in load_queries(QUERIES)}
+    records = await rejudge(out_dir / "results.jsonl", judge, queries, load_kb_texts(KB_DIR))
+    _write_report(out_dir, {**header, "judge_model": judge_model}, records)
+    return 0
+
+
+def _write_report(out_dir: Path, header: dict, records: list[dict]) -> None:
+    summary = summarize(records)
     (out_dir / "summary.json").write_text(json.dumps({"header": header, "summary": summary}, indent=2), encoding="utf-8")
     (out_dir / "summary.md").write_text(render_markdown(summary, header, pick_spot_checks(records)), encoding="utf-8")
-    print(f"report: {out_dir}")
-    return 0
+    print(f"report: {out_dir} (errors {summary['errors']}, not judged {summary.get('judge_errors', 0)})")
 
 
 def main() -> None:
@@ -68,5 +84,8 @@ def main() -> None:
     run.add_argument("--min-interval", type=float, default=15.0, help="seconds between requests (free-tier TPM)")
     run.add_argument("--weir-url", default=os.environ.get("WEIR_URL", "http://localhost:8000"))
     run.set_defaults(func=lambda a: asyncio.run(_run(a)))
+    rejudge_cmd = sub.add_parser("rejudge", help="re-score rows without a judge verdict; no Weir calls")
+    rejudge_cmd.add_argument("report_dir")
+    rejudge_cmd.set_defaults(func=lambda a: asyncio.run(_rejudge(a)))
     args = parser.parse_args()
     sys.exit(args.func(args))

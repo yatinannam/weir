@@ -50,3 +50,11 @@ async def test_out_of_range_score_rejected(tmp_path):
     judge = Judge(FakeCall([json.dumps({"score": 9, "reason": "x"})] * 2), tmp_path, "m", sleep=no_sleep)
     with pytest.raises(ValueError):
         await judge.grade("q", ["f"], "s", "a")
+
+
+async def test_server_errors_are_retried(tmp_path):
+    class Overloaded(Exception):
+        code = 503
+
+    call = FakeCall([Overloaded(), json.dumps({"score": 3, "reason": "ok"})])
+    assert (await Judge(call, tmp_path, "m", sleep=no_sleep).grade("q", ["f"], "s", "a")).score == 3
