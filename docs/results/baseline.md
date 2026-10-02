@@ -69,7 +69,9 @@ The flip side is a **ceiling effect**: this set can't show the large model getti
 - **Costs are list prices.** Actual spend was $0.
 - **Judge history.** The first judge choice, `gemini-2.5-flash`, refuses new accounts. Gemini's free tier then allowed only about 20 grades per model per day. The baseline was graded with Qwen on Groq instead (D19 → D20). The answers were saved first, so no question was sent to Groq twice.
 
-## Human spot checks
+## Spot checks
 
-- **Eval set:** the user checked 10 random questions against the knowledge base. *Pending.*
-- **Judge agreement:** the judge and the key-fact check agree on all 50 answers (5 and 1.00 everywhere), so there are no disagreements to review. The user checked 5 random graded answers. *Pending.*
+The user asked Claude to do these checks. That is weaker than an independent human review, because the same session built the eval set. Each expected answer was traced to the exact sentence in the source document:
+
+- **Eval set:** 10 random questions (q-019, q-005, q-018, q-016, q-039, q-032, q-048, q-011, q-009, q-004). All 10 answers are correct and come from the right sentence. For example, q-018's ₹4,800 private-room supplement equals ₹6,000 (private) minus ₹1,200 (general ward), and q-048's 9 am to 12 noon is the child clinic, not the adult clinic's 10 am to 1 pm.
+- **Judge agreement:** 5 random graded answers (q-012, q-019, q-010, q-038, q-029). All 5 match the documents, so the judge's 5/5 is justified. The judge and the key-fact check also agree on all 50 answers.
