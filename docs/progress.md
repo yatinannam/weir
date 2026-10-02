@@ -41,4 +41,6 @@ A running log of what was done, what was learned, and what's next. Newest at the
 - Agreed with the user: eval set grows to about 150 (D21); the threshold comes from a sweep (D22); follow-ups are tested in unit tests (D23); the feedback FK is dropped (D24).
 - Wrote the Phase 2 addendum: `superpowers/specs/2026-10-02-phase-2-semantic-cache-design.md`. Work happens on branch `phase-2`.
 - The user approved the addendum.
-- **Next:** write the Phase 2 implementation plan.
+- Wrote the Phase 2 plan: `superpowers/plans/2026-10-02-phase-2-semantic-cache.md` (13 tasks).
+- Correction: the Qwen judge is token-bound to about 220 grades/day (200K tokens/day), not 1,000. The plan judges separately and never re-grades.
+- **Next:** the user reviews the plan, then it gets executed.
