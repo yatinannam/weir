@@ -128,6 +128,35 @@ def _make_judge() -> tuple[Judge, str]:
     return Judge(call, EVAL_DIR / ".judge_cache", model, min_interval_s=interval), f"{provider}:{model}"
 
 
+REPO = EVAL_DIR.parent
+CONFIGS_DIR = REPO / "configs"
+
+
+def cmd_sweep(args: argparse.Namespace) -> int:
+    from weir.cache.embedder import Embedder
+    from weir.cache.entities import Lexicon
+    from weir.text import normalize
+
+    from .sweep import THRESHOLDS, build_pairs, choose_threshold, sweep, write_sweep_report
+
+    queries = load_queries(QUERIES)
+    vectors = dict(zip([q.id for q in queries],
+                       Embedder("BAAI/bge-small-en-v1.5").embed_many([normalize(q.query) for q in queries]),
+                       strict=True))
+    lexicon = Lexicon.from_yaml(CONFIGS_DIR / "entities.yaml")
+    pairs = build_pairs(queries, vectors, lexicon.conflicts)
+    results = {(split, guard): sweep([p for p in pairs if split == "all" or p.split == split], THRESHOLDS, guard)
+               for split in ("tune", "holdout", "all") for guard in (True, False)}
+    chosen = choose_threshold(results[("tune", True)], args.max_false_hit)
+    out_dir = EVAL_DIR / "reports" / f"sweep-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
+    write_sweep_report(out_dir, results, chosen, pairs)
+    (EVAL_DIR / "datasets" / "pairs.jsonl").write_text((out_dir / "pairs.jsonl").read_text(encoding="utf-8"),
+                                                       encoding="utf-8")
+    holdout = next((r for r in results[("holdout", True)] if r["threshold"] == chosen), None)
+    print(f"chosen threshold (tune, guard on): {chosen}; holdout at chosen: {holdout}; report: {out_dir}")
+    return 0
+
+
 def _write_report(out_dir: Path, header: dict, records: list[dict]) -> None:
     summary = summarize(records)
     (out_dir / "summary.json").write_text(json.dumps({"header": header, "summary": summary}, indent=2), encoding="utf-8")
@@ -159,6 +188,9 @@ def main() -> None:
     wl.add_argument("--seed", type=int, default=7)
     wl.add_argument("--exponent", type=float, default=1.1)
     wl.set_defaults(func=cmd_make_workload)
+    sw = sub.add_parser("sweep", help="similarity threshold sweep on paraphrase/trap/hard-negative pairs")
+    sw.add_argument("--max-false-hit", type=float, default=0.01)
+    sw.set_defaults(func=cmd_sweep)
     rejudge_cmd = sub.add_parser("rejudge", help="re-score rows without a judge verdict; no Weir calls")
     rejudge_cmd.add_argument("report_dir")
     rejudge_cmd.set_defaults(func=lambda a: asyncio.run(_rejudge(a)))
