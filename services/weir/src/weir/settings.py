@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://weir:weir@127.0.0.1:5432/weir"
     weir_configs_dir: Path = Path("/app/configs")
     weir_ablation: str | None = None
+    embed_cache_dir: str | None = None
 
     @field_validator("weir_ablation")
     @classmethod

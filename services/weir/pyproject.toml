@@ -13,6 +13,8 @@ dependencies = [
   "pydantic>=2.8",
   "pydantic-settings>=2.4",
   "pyyaml>=6.0",
+  "fastembed>=0.4",
+  "tokenizers>=0.19",
 ]
 
 [dependency-groups]
