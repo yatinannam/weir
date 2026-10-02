@@ -1,0 +1,54 @@
+import pytest
+
+from weir.cache.entities import Lexicon
+
+from .conftest import CONFIGS
+
+LEX = Lexicon.from_yaml(CONFIGS / "entities.yaml")
+
+
+@pytest.mark.parametrize(("a", "b"), [
+    ("What are the ICU visiting hours?", "What are the general ward visiting hours?"),
+    ("When is the Cardiology OPD open?", "When is the Neurology OPD open?"),
+    ("How much is parking for a car?", "How much is parking for a two-wheeler?"),
+    ("When is the adult vaccination clinic?", "When is the child vaccination clinic?"),
+    ("When does the night shift start for nurses?", "When does the night shift start for doctors?"),
+    ("What is the deposit for cashless insurance admission?", "What is the deposit for self-pay admission?"),
+    ("What is the private room tariff?", "What is the semi-private room tariff?"),
+    ("What are the main pharmacy hours?", "What are the OPD pharmacy hours?"),
+    ("Is parking free on weekdays?", "Is parking free on weekends?"),
+    ("Can I visit for 2 hours?", "Can I visit for 3 hours?"),
+    ("Is there parking on Sunday?", "Is there no parking on Sunday?"),
+    ("Can kids visit the ICU?", "Can adults visit the ICU?"),
+])
+def test_kb_look_alike_pairs_conflict(a, b):
+    assert LEX.conflicts(a, b)
+
+
+@pytest.mark.parametrize(("a", "b"), [
+    ("What are the ICU visiting hours?", "When can I visit someone in intensive care?"),
+    ("How much does a CT scan cost?", "What is the charge for a CT?"),
+    ("What is the standard discharge time?", "When do patients usually get discharged?"),
+    ("Parking fee for a bike?", "How much do two-wheelers pay for parking?"),
+])
+def test_paraphrases_do_not_conflict(a, b):
+    assert not LEX.conflicts(a, b)
+
+
+def test_longest_phrase_wins():
+    assert LEX.extract("semi-private room tariff").terms == frozenset({"wards:semi-private room"})
+    assert LEX.extract("intensive care unit hours").terms == frozenset({"wards:icu"})
+
+
+def test_numbers_and_units_are_normalised():
+    assert LEX.extract("Rs 1,200 for 2 hours at 4pm").numbers == frozenset({"1200", "2 hour", "4 pm"})
+
+
+def test_negation_forms():
+    assert LEX.extract("I can't visit").negated and LEX.extract("non-veg thali").negated
+    assert not LEX.extract("I can visit").negated
+
+
+def test_duplicate_phrase_rejected():
+    with pytest.raises(ValueError, match="two terms"):
+        Lexicon({"a": {"x": ["shared"]}, "b": {"y": ["shared"]}})

@@ -1,0 +1,68 @@
+# Entity guard lexicon (Phase 2 addendum §3.1).
+# Two questions may share a cached answer only if they mention the same terms below, the same
+# numbers and the same negation. Format: group -> canonical term -> synonyms. Matching is
+# case-insensitive on whole words, longest phrase first ("semi-private room" before "private room").
+# Every phrase may appear only once in this file. Built from kb/ (Weir General Hospital).
+groups:
+  wards:
+    icu: [intensive care unit, intensive care, critical care]
+    general ward: [general wards]
+    pediatric ward: [paediatric ward, children's ward, childrens ward, kids ward]
+    maternity ward: [maternity, labour ward, labor ward, delivery ward]
+    private room: [private rooms, private]
+    semi-private room: [semi-private rooms, semi-private, semi private room, semi private]
+  departments:
+    cardiology: [cardiac, heart]
+    neurology: [neuro, neurologist]
+    orthopedics: [orthopaedics, ortho, orthopedic, bone]
+    pediatrics: [paediatrics, pediatric opd, paediatric opd, pediatrician]
+    radiology: [imaging]
+    emergency: [casualty, emergency department, er]
+    blood bank: [blood donation, donate blood, donation camp]
+    laboratory: [lab, labs, lab report, lab reports]
+    medical records: [records department]
+    cafeteria: [visitor cafeteria]
+    staff canteen: [canteen]
+    main pharmacy: [24-hour pharmacy, 24 hour pharmacy]
+    opd pharmacy: [outpatient pharmacy]
+  services:
+    ct scan: [ct, ct scans, cat scan]
+    mri: [mri scan, mri scans]
+    x-ray: [x-rays, xray, x ray]
+    ultrasound: [sonography, usg]
+    health checkup: [health check-up, health check, checkup package]
+    vaccination: [vaccine, vaccines, immunisation, immunization]
+  people:
+    adult: [adults]
+    child: [children, kid, kids, baby, babies, infant, infants]
+    senior: [seniors, senior citizen, senior citizens, elderly]
+    nurse: [nurses, nursing]
+    doctor: [doctors, physician, consultant]
+    attendant: [attendants]
+    visitor: [visitors]
+  vehicles:
+    car: [cars, four-wheeler, four wheeler]
+    two-wheeler: [two wheeler, two-wheelers, bike, bikes, motorcycle, scooter]
+  payment:
+    self-pay: [self pay, cash, out of pocket]
+    insurance: [insured, cashless, tpa]
+    government scheme: [govt scheme, government health scheme]
+  days:
+    monday: [mondays]
+    tuesday: [tuesdays]
+    wednesday: [wednesdays]
+    thursday: [thursdays]
+    friday: [fridays]
+    saturday: [saturdays]
+    sunday: [sundays]
+    weekday: [weekdays, monday to friday]
+    weekend: [weekends, saturday and sunday]
+    public holiday: [public holidays, holiday, holidays]
+  time_of_day:
+    morning: [mornings]
+    afternoon: [afternoons]
+    evening: [evenings]
+    night: [nights, night shift, overnight]
+  copies:
+    first copy: [first]
+    additional copy: [additional, duplicate, extra copy, another copy]
