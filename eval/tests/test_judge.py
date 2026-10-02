@@ -92,3 +92,17 @@ async def test_groq_call_requests_json_at_temperature_zero():
     assert seen["model"] == "qwen/qwen3.8-27b" and seen["temperature"] == 0
     assert seen["response_format"] == {"type": "json_object"}
     assert seen["messages"][-1]["content"] == "grade this"
+
+
+async def test_unanswerable_note_and_separate_cache_key(tmp_path):
+    import hashlib
+
+    from weir_eval.judge import RUBRIC_VERSION
+
+    call = FakeCall([json.dumps({"score": 5, "reason": "ok"})] * 2)
+    judge = Judge(call, tmp_path, "m", sleep=no_sleep)
+    await judge.grade("q", ["f"], "", "a")
+    await judge.grade("q", ["f"], "", "a", unanswerable=True)
+    assert len(call.prompts) == 2 and "does NOT contain" in call.prompts[1] and "(none)" in call.prompts[1]
+    legacy = hashlib.sha256(json.dumps([RUBRIC_VERSION, "m", "q", ["f"], "a"]).encode()).hexdigest()
+    assert (tmp_path / f"{legacy}.json").exists()  # answerable keys unchanged: Phase 1 grades stay valid

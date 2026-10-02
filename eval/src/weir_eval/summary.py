@@ -33,7 +33,12 @@ def summarize(records: list[dict]) -> dict:
         by_group[r["group"]].append(r)
         by_difficulty[r["difficulty"]].append(r)
     routes = Counter(r["meta"]["route"] for r in ok)
-    hits = sum(1 for r in ok if r["meta"]["cache_status"] == "hit")
+    hit_rows = [r for r in ok if r["meta"]["cache_status"] == "hit"]
+    wrong = [r for r in hit_rows
+             if r["fact_score"] < 1 or (r.get("judge_score") is not None and r["judge_score"] <= 3)]
+    by_status: dict[str, list[int]] = defaultdict(list)
+    for r in ok:
+        by_status[r["meta"]["cache_status"]].append(r["client_latency_ms"])
     summary.update({
         "cost_usd_total": total_cost,
         "cost_per_1k_usd": total_cost / len(ok) * 1000,
@@ -41,7 +46,13 @@ def summarize(records: list[dict]) -> dict:
         "judge_mean": _judge_mean(ok),
         "judge_errors": sum(1 for r in ok if r.get("judge_score") is None),
         "fact_mean": round(mean(r["fact_score"] for r in ok), 3),
-        "cache_hit_rate": hits / len(ok),
+        "cache_hit_rate": len(hit_rows) / len(ok),
+        "hits": len(hit_rows),
+        "wrong_hits": len(wrong),
+        "hit_rate_by_group": {g: sum(r["meta"]["cache_status"] == "hit" for r in rs) / len(rs)
+                              for g, rs in sorted(by_group.items())},
+        "latency_by_cache_status": {s: {"n": len(v), "p50": percentile(v, 50), "p95": percentile(v, 95)}
+                                    for s, v in sorted(by_status.items())},
         "route_mix": {k: v / len(ok) for k, v in routes.items()},
         "by_group": {g: _group_stats(rs) for g, rs in sorted(by_group.items())},
         "by_difficulty": {d: _group_stats(rs) for d, rs in sorted(by_difficulty.items())},
@@ -68,12 +79,15 @@ def render_markdown(summary: dict, header: dict, spot_checks: list[dict]) -> str
             f"| Judge score mean (1-5) | {summary['judge_mean']} ({summary['judge_errors']} not judged) |",
             f"| Key-fact score mean (0-1) | {summary['fact_mean']} |",
             f"| Cache hit rate | {summary['cache_hit_rate']:.1%} |",
+            f"| Cache hits / wrong hits | {summary['hits']} / {summary['wrong_hits']} |",
             f"| Route mix | {', '.join(f'{k} {v:.0%}' for k, v in summary['route_mix'].items())} |",
             "", "## By group", "", "| Group | n | Judge | Facts |", "| --- | --- | --- | --- |",
         ]
         lines += [f"| {g} | {s['n']} | {s['judge_mean']} | {s['fact_mean']} |" for g, s in summary["by_group"].items()]
         lines += ["", "## By difficulty", "", "| Difficulty | n | Judge | Facts |", "| --- | --- | --- | --- |"]
         lines += [f"| {d} | {s['n']} | {s['judge_mean']} | {s['fact_mean']} |" for d, s in summary["by_difficulty"].items()]
+        lines += ["", "## Latency by cache status", "", "| Status | n | p50 (ms) | p95 (ms) |", "| --- | --- | --- | --- |"]
+        lines += [f"| {s} | {v['n']} | {v['p50']} | {v['p95']} |" for s, v in summary["latency_by_cache_status"].items()]
     if spot_checks:
         lines += ["", "## Human spot check (judge vs key-fact disagreement first)", "",
                   "| id | judge | facts | your verdict |", "| --- | --- | --- | --- |"]

@@ -147,3 +147,31 @@ async def test_rejudge_saves_after_each_record(tmp_path):
     queries = {x.id: x for x in [q("d1", "d1"), q("d2", "d2")]}
     await rejudge(results, judge, queries, {})
     assert seen_on_disk == [[None, None], [5, None]]  # d1 saved before d2 was graded
+
+
+def weir_hit(request):
+    resp = weir_ok(request)
+    body = json.loads(resp.content)
+    body["meta"]["cache_status"] = "hit"
+    return httpx.Response(200, json=body)
+
+
+async def test_run_eval_without_judge_and_no_wait_after_hits(tmp_path):
+    slept = []
+
+    async def fake_sleep(s):
+        slept.append(s)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(weir_hit), base_url="http://w") as http:
+        records = await run_eval([q("d1", "d1"), q("d2", "d2"), q("d3", "d3")], http,
+                                 {"weir-general/en/public": "k"}, None, {"pub-a": "Open at 4 pm."}, tmp_path,
+                                 min_interval_s=5, sleep=fake_sleep)
+    assert all(r["judge_score"] is None and "not judged" in r["judge_error"] for r in records)
+    assert slept == []  # every response was a cache hit, so the limiter never waited
+
+
+def test_limiter_release():
+    limiter = Limiter(10.0, clock=lambda: 0.0)
+    limiter._last = 0.0
+    limiter.release()
+    assert limiter._last is None

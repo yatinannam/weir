@@ -31,6 +31,10 @@ class Limiter:
                 await self._sleep(remaining)
         self._last = self._clock()
 
+    def release(self) -> None:
+        """The last call was free (a cache hit), so the next one needn't wait."""
+        self._last = None
+
 
 class HttpRetry(Exception):
     def __init__(self, wait_s: float):
@@ -68,7 +72,7 @@ async def ask(http: httpx.AsyncClient, key: str, q: EvalQuery,
     return record
 
 
-async def run_eval(queries: list[EvalQuery], http: httpx.AsyncClient, keys: dict[str, str], judge: Judge,
+async def run_eval(queries: list[EvalQuery], http: httpx.AsyncClient, keys: dict[str, str], judge: Judge | None,
                    kb: dict[str, str], out_dir: Path, min_interval_s: float,
                    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep) -> list[dict]:
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -78,10 +82,15 @@ async def run_eval(queries: list[EvalQuery], http: httpx.AsyncClient, keys: dict
         for i, q in enumerate(queries, start=1):
             await limiter.wait()
             record = await ask(http, keys[q.namespace], q, sleep=sleep)
+            if record.get("meta", {}).get("cache_status") == "hit":
+                limiter.release()
             if record["status_code"] == 200:
                 facts = check_facts(record["answer"], q.required_facts)
                 record.update(fact_hits=facts.hits, fact_total=facts.total, fact_score=facts.score)
-                await _grade(record, q, judge, kb)
+                if judge is None:
+                    record.update(judge_score=None, judge_error="not judged yet (--no-judge); run rejudge")
+                else:
+                    await _grade(record, q, judge, kb)
             out.write(json.dumps(record, ensure_ascii=False) + "\n")
             out.flush()  # keep progress if the run is interrupted
             records.append(record)
@@ -94,7 +103,8 @@ async def _grade(record: dict, q: EvalQuery, judge: Judge, kb: dict[str, str]) -
     """Judge one answer; a judge failure is recorded on the row instead of ending the run."""
     source = "\n\n".join(kb.get(d, "") for d in q.source_docs)
     try:
-        verdict = await judge.grade(q.query, q.required_facts, source, record["answer"])
+        verdict = await judge.grade(q.query, q.required_facts, source, record["answer"],
+                                    unanswerable=q.group == "unanswerable")
     except Exception as e:  # noqa: BLE001 - re-score later with `weir_eval rejudge`
         record.update(judge_score=None, judge_error=f"{type(e).__name__}: {e}"[:300])
         return

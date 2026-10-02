@@ -24,6 +24,11 @@ If the answer says the information could not be found but the source contains it
 Return JSON only: {"score": <integer 1-5>, "reason": "<one sentence>"}"""
 
 
+UNANSWERABLE_NOTE = ("### Note\nThe knowledge base does NOT contain the answer to this question. "
+                     "Score 5 if the answer clearly says the information could not be found. "
+                     "Score 1 if it gives an answer anyway.")
+
+
 class JudgeVerdict(BaseModel):
     score: int = Field(ge=1, le=5)
     reason: str
@@ -56,13 +61,16 @@ class Judge:
         self._last_call = loop.time()
         return await self._call(prompt)
 
-    async def grade(self, query: str, facts: list[str], source_text: str, answer: str) -> JudgeVerdict:
-        key = hashlib.sha256(json.dumps([RUBRIC_VERSION, self._model, query, facts, answer]).encode()).hexdigest()
+    async def grade(self, query: str, facts: list[str], source_text: str, answer: str,
+                    unanswerable: bool = False) -> JudgeVerdict:
+        payload = [RUBRIC_VERSION, self._model, query, facts, answer] + (["unanswerable"] if unanswerable else [])
+        key = hashlib.sha256(json.dumps(payload).encode()).hexdigest()
         cached = self._cache_dir / f"{key}.json"
         if cached.exists():
             return JudgeVerdict.model_validate_json(cached.read_text(encoding="utf-8"))
-        prompt = (f"{RUBRIC}\n\n### Source document\n{source_text}\n\n### Question\n{query}\n\n"
-                  f"### Required facts\n{json.dumps(facts, ensure_ascii=False)}\n\n### Answer to grade\n{answer}\n")
+        note = f"\n\n{UNANSWERABLE_NOTE}" if unanswerable else ""
+        prompt = (f"{RUBRIC}\n\n### Source document\n{source_text or '(none)'}\n\n### Question\n{query}\n\n"
+                  f"### Required facts\n{json.dumps(facts, ensure_ascii=False)}\n\n### Answer to grade\n{answer}\n{note}")
         last_error: Exception | None = None
         for _ in range(2):  # one retry on malformed output
             raw = await with_retries(lambda: self._paced_call(prompt), _rate_limit_wait, sleep=self._sleep)

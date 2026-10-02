@@ -43,3 +43,16 @@ def test_summary_excludes_missing_judge_scores_and_counts_them():
     assert s["judge_mean"] == 4.0 and s["judge_errors"] == 1
     assert s["fact_mean"] == 0.75
     assert [r["id"] for r in pick_spot_checks([missing, rec(1, 1, 0, 5, 1.0)])] == ["q1"]
+
+
+def test_cache_metrics_and_wrong_hits():
+    def r(i, status, fact, judge, group="paraphrase", latency=10):
+        x = rec(i, latency, 0.0, judge, fact, group=group)
+        x["meta"]["cache_status"] = status
+        return x
+
+    s = summarize([r(1, "miss", 1.0, 5, latency=900), r(2, "hit", 1.0, 5), r(3, "hit", 0.0, 5, group="trap"),
+                   r(4, "hit", 1.0, 2), r(5, "bypass", 1.0, 5, group="trap")])
+    assert s["hits"] == 3 and s["wrong_hits"] == 2
+    assert s["hit_rate_by_group"] == {"paraphrase": 2 / 3, "trap": 0.5}
+    assert s["latency_by_cache_status"]["hit"]["n"] == 3 and s["latency_by_cache_status"]["miss"]["p50"] == 900

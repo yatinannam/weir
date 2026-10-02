@@ -20,6 +20,8 @@ def load_kb_texts(kb_dir: Path) -> dict[str, str]:
 def facts_missing_from_sources(queries: list[EvalQuery], kb: dict[str, str]) -> list[str]:
     problems: list[str] = []
     for q in queries:
+        if q.group == "unanswerable":
+            continue
         missing_docs = [d for d in q.source_docs if d not in kb]
         if missing_docs:
             problems.append(f"{q.id}: unknown source docs {missing_docs}")

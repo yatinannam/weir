@@ -4,7 +4,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class EvalQuery(BaseModel):
@@ -12,12 +12,20 @@ class EvalQuery(BaseModel):
     id: str
     namespace: str
     query: str
-    group: Literal["distinct", "paraphrase", "trap"]
+    group: Literal["distinct", "paraphrase", "trap", "unanswerable"]
     cluster_id: str
     difficulty: Literal["easy", "medium", "hard"]
     required_facts: list[str] = Field(min_length=1)
-    source_docs: list[str] = Field(min_length=1)
+    source_docs: list[str] = Field(default_factory=list)
     split: Literal["tune", "holdout"] | None = None
+
+    @model_validator(mode="after")
+    def sources_match_group(self) -> "EvalQuery":
+        if self.group == "unanswerable" and self.source_docs:
+            raise ValueError("unanswerable queries have no source_docs")
+        if self.group != "unanswerable" and not self.source_docs:
+            raise ValueError("answerable queries need at least one source_doc")
+        return self
 
 
 def load_queries(path: Path) -> list[EvalQuery]:
@@ -36,7 +44,7 @@ def save_queries(path: Path, queries: list[EvalQuery]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-CLUSTER_SIZE = {"distinct": (1, 1), "paraphrase": (4, 6), "trap": (2, 2)}
+CLUSTER_SIZE = {"distinct": (1, 1), "paraphrase": (4, 6), "trap": (2, 2), "unanswerable": (1, 1)}
 
 
 def validate(queries: list[EvalQuery]) -> list[str]:
@@ -67,11 +75,14 @@ def validate(queries: list[EvalQuery]) -> list[str]:
 
 
 def assign_splits(queries: list[EvalQuery], holdout_frac: float = 0.3, seed: int = 7) -> list[EvalQuery]:
-    """Hold out ~holdout_frac of clusters per group; a cluster is never split (spec §11.1)."""
+    """Hold out ~holdout_frac of the *unassigned* clusters per group (spec §11.1). Clusters that
+    already have a split keep it, so adding questions never reshuffles the existing tune/holdout sets."""
     rng = random.Random(seed)
+    assigned = {q.cluster_id: q.split for q in queries if q.split is not None}
     holdout: set[str] = set()
-    for group in ("distinct", "paraphrase", "trap"):
-        cluster_ids = sorted({q.cluster_id for q in queries if q.group == group})
-        rng.shuffle(cluster_ids)
-        holdout.update(cluster_ids[: round(len(cluster_ids) * holdout_frac)])
-    return [q.model_copy(update={"split": "holdout" if q.cluster_id in holdout else "tune"}) for q in queries]
+    for group in ("distinct", "paraphrase", "trap", "unanswerable"):
+        new_ids = sorted({q.cluster_id for q in queries if q.group == group and q.cluster_id not in assigned})
+        rng.shuffle(new_ids)
+        holdout.update(new_ids[: round(len(new_ids) * holdout_frac)])
+    return [q.model_copy(update={"split": assigned.get(q.cluster_id)
+                                 or ("holdout" if q.cluster_id in holdout else "tune")}) for q in queries]
