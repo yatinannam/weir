@@ -94,3 +94,31 @@ class InlineQueue:
     async def drain(self):
         while self.jobs:
             await self.jobs.pop(0)()
+
+
+from weir.admin import RequestRef  # noqa: E402,F401  (re-exported for tests)
+
+
+class FakeAdmin:
+    def __init__(self, requests=None, appear_after=0):
+        self.requests = dict(requests or {})
+        self.appear_after = appear_after
+        self.lookups = 0
+        self.feedback, self.evicted, self.purged = [], [], []
+
+    async def find_request(self, request_id):
+        self.lookups += 1
+        if self.lookups <= self.appear_after:
+            return None
+        return self.requests.get(request_id)
+
+    async def add_feedback(self, request_id, rating, comment):
+        self.feedback.append((request_id, rating, comment))
+
+    async def evict(self, entry_id):
+        self.evicted.append(entry_id)
+        return True
+
+    async def purge(self, **selector):
+        self.purged.append({k: v for k, v in selector.items() if v is not None})
+        return 3
