@@ -44,3 +44,23 @@ A running log of what was done, what was learned, and what's next. Newest at the
 - Wrote the Phase 2 plan: `superpowers/plans/2026-10-02-phase-2-semantic-cache.md` (13 tasks).
 - Correction: the Qwen judge is token-bound to about 220 grades/day (200K tokens/day), not 1,000. The plan judges separately and never re-grades.
 - **Next:** the user reviews the plan, then it gets executed.
+
+## 2026-10-02: Phase 2, cache live (Tasks 1–8)
+
+- The semantic cache is built and switched on:
+  - bypass rules, local bge-small embedder, pgvector lookup (namespace + kb/prompt version)
+  - entity guard (lexicon in `configs/entities.yaml`), eligible write-back
+  - background writes, version refresh and cleanup
+  - `POST /v1/feedback` (thumbs-down evicts) and `DELETE /v1/cache` (admin)
+- Live smoke test (real Groq):
+
+  | Question | Result | Similarity | Time |
+  | --- | --- | --- | --- |
+  | "ICU visiting hours" | miss | — | 787 ms |
+  | Same question again | **hit** | 1.0 | 7 ms, $0 |
+  | Paraphrase "visit a patient in intensive care" | miss | 0.843, below the starting 0.92 | |
+  | General-ward trap | miss | 0.772 | |
+
+  Thumbs-down evicted the entry; the purge deleted 2. The hit row: cost $0, counterfactual $0.000109. Embedding ~5 ms, lookup 1–2 ms.
+- Weir tests: 136 passing.
+- **Next:** eval tooling, 100 new questions, baseline v2, threshold sweep.
