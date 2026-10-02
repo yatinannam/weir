@@ -175,3 +175,16 @@ def test_limiter_release():
     limiter._last = 0.0
     limiter.release()
     assert limiter._last is None
+
+
+async def test_rejudge_rescores_facts_from_current_answer_key(tmp_path):
+    from weir_eval.runner import rejudge
+
+    results = tmp_path / "results.jsonl"
+    row = {"id": "d1", "status_code": 200, "answer": "Open until 8 pm.", "judge_score": 5, "fact_hits": 0,
+           "fact_total": 1, "fact_score": 0.0}
+    results.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    judge = Judge(ScoreCall(), tmp_path / "cache", "m", sleep=no_sleep)
+    [record] = await rejudge(results, judge, {"d1": q("d1", "d1", facts=("8 pm",))}, {})
+    assert record["fact_score"] == 1.0 and record["judge_score"] == 5  # facts re-scored, judge untouched
+    assert json.loads(results.read_text(encoding="utf-8"))["fact_score"] == 1.0

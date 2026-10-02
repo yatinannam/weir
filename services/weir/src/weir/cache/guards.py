@@ -81,6 +81,8 @@ def store_block_reason(*, generated: GenerateResult, top_score: float, query: st
         return "no_citations"
     if generated.invalid_citations:
         return "invalid_citations"
+    if "not_found" in generated.answer.lower():  # model answered part, then gave up on the rest
+        return "partial_answer"
     if top_score < min_retrieval_score:
         return "low_retrieval"
     if contains_personal_data(query) or contains_personal_data(generated.answer):

@@ -87,3 +87,8 @@ def gen(**over):
 ])
 def test_store_block_reason(over, top, query, expected):
     assert store_block_reason(generated=gen(**over), top_score=top, query=query, min_retrieval_score=0.3) == expected
+
+
+def test_partial_answer_with_stray_not_found_is_not_stored():
+    partial = gen(answer="The fee is ₹1,200.\nNOT_FOUND")
+    assert store_block_reason(generated=partial, top_score=0.9, query="q", min_retrieval_score=0.3) == "partial_answer"
