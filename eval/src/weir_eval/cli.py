@@ -147,13 +147,15 @@ def cmd_sweep(args: argparse.Namespace) -> int:
     pairs = build_pairs(queries, vectors, lexicon.conflicts)
     results = {(split, guard): sweep([p for p in pairs if split == "all" or p.split == split], THRESHOLDS, guard)
                for split in ("tune", "holdout", "all") for guard in (True, False)}
-    chosen = choose_threshold(results[("tune", True)], args.max_false_hit)
+    # Rule (decision D25): lowest threshold clean on ALL pairs (tune, holdout and pairs spanning both),
+    # plus a safety margin above it.
+    chosen = choose_threshold(results[("all", True)], args.max_false_hit, args.margin)
     out_dir = EVAL_DIR / "reports" / f"sweep-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
     write_sweep_report(out_dir, results, chosen, pairs)
     (EVAL_DIR / "datasets" / "pairs.jsonl").write_text((out_dir / "pairs.jsonl").read_text(encoding="utf-8"),
                                                        encoding="utf-8")
-    holdout = next((r for r in results[("holdout", True)] if r["threshold"] == chosen), None)
-    print(f"chosen threshold (tune, guard on): {chosen}; holdout at chosen: {holdout}; report: {out_dir}")
+    at = {s: next((r for r in results[(s, True)] if r["threshold"] == chosen), None) for s in ("tune", "holdout", "all")}
+    print(f"chosen threshold (all pairs, guard on, margin {args.margin}): {chosen}; at chosen: {at}; report: {out_dir}")
     return 0
 
 
@@ -190,6 +192,7 @@ def main() -> None:
     wl.set_defaults(func=cmd_make_workload)
     sw = sub.add_parser("sweep", help="similarity threshold sweep on paraphrase/trap/hard-negative pairs")
     sw.add_argument("--max-false-hit", type=float, default=0.01)
+    sw.add_argument("--margin", type=float, default=0.02, help="safety margin added to the lowest passing threshold")
     sw.set_defaults(func=cmd_sweep)
     rejudge_cmd = sub.add_parser("rejudge", help="re-score rows without a judge verdict; no Weir calls")
     rejudge_cmd.add_argument("report_dir")

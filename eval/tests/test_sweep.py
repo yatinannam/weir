@@ -71,3 +71,18 @@ def test_same_answer_detected_by_any_shared_alternative():
     same_answer = ({"d1", "p1"}, {"d1", "p2"})
     assert not any(p.kind == "hard_negative" and {p.a, p.b} in same_answer
                    for p in build_pairs(qs, vecs, lambda a, b: False))
+
+
+def test_same_answer_when_one_fact_contains_the_other_but_not_inside_numbers():
+    from weir_eval.sweep import _same_answer
+
+    assert _same_answer(q("a", "a", facts=("8 pm",)), q("b", "b", facts=("8 am to 8 pm",)))
+    assert not _same_answer(q("a", "a", facts=("₹50",)), q("b", "b", facts=("₹500",)))
+    assert not _same_answer(q("a", "a", facts=("9 am to 5 pm",)), q("b", "b", facts=("8 am to 8 pm",)))
+
+
+def test_choose_threshold_with_safety_margin():
+    rows = sweep(pairs_fixture(), [0.82, 0.84, 0.90], use_guard=True)
+    assert choose_threshold(rows, margin=0.02) == 0.86
+    assert choose_threshold([{"threshold": 0.97, "accepted": 1, "false_hit_rate": 0.0, "trap_false_hits": 0}],
+                            margin=0.02) == 0.98  # capped at the top of the sweep range

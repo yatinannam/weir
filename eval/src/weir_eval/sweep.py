@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from .dataset import EvalQuery
-from .keyfacts import norm
+from .keyfacts import fact_present, norm
 
 THRESHOLDS = [round(0.80 + 0.01 * i, 2) for i in range(19)]
 
@@ -61,9 +61,11 @@ def _alternatives(q: EvalQuery) -> set[str]:
 
 
 def _same_answer(a: EvalQuery, b: EvalQuery) -> bool:
-    """Two questions whose required facts share any alternative have the same answer, so serving
-    one's answer for the other is not a wrong hit (e.g. "₹6,500|Rs 6,500" vs "₹6,500|INR 6,500")."""
-    return bool(_alternatives(a) & _alternatives(b))
+    """Two questions have compatible answers when one's fact appears in the other's, as whole
+    numbers ("8 pm" in "8 am to 8 pm"; "₹6,500|Rs 6,500" vs "₹6,500|INR 6,500"; never "₹50" in
+    "₹500"). Serving one's answer for the other is then not a wrong hit."""
+    alts_a, alts_b = _alternatives(a), _alternatives(b)
+    return any(fact_present(x, y) or fact_present(y, x) for x in alts_a for y in alts_b)
 
 
 def sweep(pairs: list[Pair], thresholds: list[float], use_guard: bool) -> list[dict]:
@@ -82,10 +84,11 @@ def sweep(pairs: list[Pair], thresholds: list[float], use_guard: bool) -> list[d
     return rows
 
 
-def choose_threshold(rows: list[dict], max_false_hit: float = 0.01) -> float | None:
+def choose_threshold(rows: list[dict], max_false_hit: float = 0.01, margin: float = 0.0) -> float | None:
+    """Lowest passing threshold plus a safety margin (capped at the top of the sweep range)."""
     passing = [r["threshold"] for r in rows
                if r["accepted"] > 0 and r["false_hit_rate"] < max_false_hit and r["trap_false_hits"] == 0]
-    return min(passing) if passing else None
+    return min(round(min(passing) + margin, 2), THRESHOLDS[-1]) if passing else None
 
 
 def write_sweep_report(out_dir: Path, results: dict[tuple[str, bool], list[dict]], chosen: float | None,

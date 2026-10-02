@@ -64,3 +64,13 @@ A running log of what was done, what was learned, and what's next. Newest at the
   Thumbs-down evicted the entry; the purge deleted 2. The hit row: cost $0, counterfactual $0.000109. Embedding ~5 ms, lookup 1–2 ms.
 - Weir tests: 136 passing.
 - **Next:** eval tooling, 100 new questions, baseline v2, threshold sweep.
+
+## 2026-10-02: Phase 2, eval set, baseline v2, threshold
+
+- **Eval set:** grew to 150 questions: +10 paraphrase clusters, +15 trap pairs, +10 unanswerable, +10 hard (subagent-drafted; facts traced by script).
+- **Baseline v2 (150):** judge 4.93, facts 0.987, $0.0972 per 1k, p50 615 ms. The only misses are 3 hard two-document questions (retrieval k=4).
+- **Bug found and fixed (D27):** the model sometimes answers half a question then writes NOT_FOUND. Such answers are never cached.
+- **Threshold sweep:** **0.85** (D25 → D26). Zero wrong matches and zero trap pairs on every split. Without the entity guard the same threshold would give a 31% false-hit rate.
+  - The sweep found 3 lexicon gaps (buildings, lost/damaged, packages) and 2 labelling bugs, all fixed with tests.
+  - It also found one wrong-match type the guard can't see (timings vs room), which the safety margin covers.
+- **Next:** cache run (cold pass + 300-request replay, workload repeat rate 73.7%), then results, the final review and merge.
