@@ -82,3 +82,14 @@ async def test_malformed_200_is_bad_response(response):
     with pytest.raises(RagError) as exc:
         await client(lambda r: response).retrieve("q", "ns", 4)
     assert exc.value.kind == "bad_response"
+
+
+async def test_info_parses_versions():
+    body = {"namespaces": {"ns": {"kb_version": "v1", "prompt_version": "p1"}}}
+    assert await client(lambda r: httpx.Response(200, json=body)).info() == {"ns": ("v1", "p1")}
+
+
+@pytest.mark.parametrize("response", [httpx.Response(500, text="x"), httpx.Response(200, json={"oops": 1})])
+async def test_info_errors_are_rag_errors(response):
+    with pytest.raises(RagError):
+        await client(lambda r: response).info()

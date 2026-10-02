@@ -57,6 +57,19 @@ class RagClient:
                    "chunks": [c.model_dump() for c in chunks]}
         return _parse(GenerateResult, await self._post("/generate", payload))
 
+    async def info(self) -> dict[str, tuple[str, str]]:
+        try:
+            response = await self._client.get("/info")
+        except httpx.TimeoutException as e:
+            raise RagError("timeout", str(e)) from e
+        except httpx.HTTPError as e:
+            raise RagError("unavailable", str(e)) from e
+        body = _json_or_none(response) if response.status_code == 200 else None
+        try:
+            return {ns: (v["kb_version"], v["prompt_version"]) for ns, v in body["namespaces"].items()}
+        except (TypeError, KeyError, AttributeError) as e:
+            raise RagError("bad_response", f"/info {response.status_code}: {response.text[:200]}") from e
+
     async def health(self) -> bool:
         try:
             return (await self._client.get("/healthz")).status_code == 200
