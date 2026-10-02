@@ -6,13 +6,14 @@ from weir.config import load_config
 from weir.main import AppDeps, create_app
 
 from .conftest import CONFIGS
-from .test_pipeline import PUBLIC, STAFF, fake_rag, pipeline
+from .test_pipeline import PUBLIC, STAFF, fake_rag, harness
 
 ENV = {"WEIR_KEY_PUBLIC": "pub-key", "WEIR_KEY_STAFF": "staff-key", "WEIR_KEY_ADMIN": "admin-key"}
 
 
 def app_client(rag=None, health_ok=True):
-    p, sink = pipeline(rag or fake_rag())
+    h = harness(rag or fake_rag())
+    p, sink = h.p, h.sink
 
     async def health():
         return {"db": health_ok, "rag": True}

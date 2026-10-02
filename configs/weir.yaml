@@ -13,7 +13,7 @@ router:
   large_model: openai/gpt-oss-120b
 
 cache:
-  enabled: false             # switched on in Phase 2 Task 7
+  enabled: true              # Phase 2: on (addendum §5)
   threshold: 0.92            # replaced by the threshold sweep (docs/results/cache-threshold.md)
   candidates: 3
   ttl_hours: 24

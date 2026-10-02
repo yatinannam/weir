@@ -1,16 +1,21 @@
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
 import httpx
 import pytest
 
-from weir.config import load_config
+from weir.cache.entities import Lexicon
+from weir.cache.guards import BypassRules
+from weir.cache.versions import VersionCache
+from weir.config import WeirConfig, load_config
 from weir.llm.pricing import PriceTable
-from weir.pipeline import Pipeline, PipelineError, QueryOptions, QueryRequest
+from weir.pipeline import CacheDeps, Pipeline, PipelineError, QueryOptions, QueryRequest
 from weir.rag.adapter import RagClient
 
 from .conftest import CONFIGS
+from .fakes import FakeEmbedder, FakeStore, InlineQueue, ListSink
 
 PUBLIC = "weir-general/en/public"
 STAFF = "weir-general/en/staff"
@@ -19,125 +24,245 @@ CHUNKS = [
     {"id": "pub-a#1", "doc_id": "pub-a", "title": "Visiting", "text": "t", "score": 0.8, "token_count": 3},
     {"id": "pub-b#0", "doc_id": "pub-b", "title": "ICU", "text": "t", "score": 0.7, "token_count": 3},
 ]
+VERSIONS = {PUBLIC: ("v1", "p1"), STAFF: ("v1", "p1")}
+FIXED_NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 
 
-class ListSink:
-    def __init__(self):
-        self.rows = []
-
-    def submit(self, row):
-        self.rows.append(row)
-
-
-def fake_rag(generate_response=None, chunks=CHUNKS, seen=None):
+def fake_rag(generate_response=None, chunks=CHUNKS, seen=None, calls=None, top_score=0.9, cited=None, answer="Answer."):
     def handler(request):
+        if calls is not None:
+            calls.append(request.url.path)
         body = json.loads(request.content)
         if request.url.path == "/retrieve":
-            return httpx.Response(200, json={"chunks": chunks, "top_score": 0.9, "score_gap": 0.1,
-                                             "context_tokens": 9, "kb_version": "v1", "latency_ms": 3})
+            return httpx.Response(200, json={"chunks": chunks, "top_score": top_score if chunks else 0.0,
+                                             "score_gap": 0.1, "context_tokens": 9,
+                                             "kb_version": "v1" if chunks else None, "latency_ms": 3})
         if seen is not None:
             seen.append(body)
         if generate_response is not None:
             return generate_response
-        cited = ["pub-a#1", "pub-b#0", "pub-a#0"] if body["chunks"] else []
+        has = bool(body["chunks"])
+        ids = (["pub-a#1", "pub-b#0", "pub-a#0"] if cited is None else cited) if has else []
         return httpx.Response(200, json={
-            "answer": "Answer." if body["chunks"] else "Sorry, not found.", "cited_chunk_ids": cited,
-            "invalid_citations": 0, "not_found": not body["chunks"],
-            "finish_reason": "stop" if body["chunks"] else "skipped",
-            "tokens_in": 1000 if body["chunks"] else 0, "tokens_out": 500 if body["chunks"] else 0,
+            "answer": answer if has else "Sorry, not found.", "cited_chunk_ids": ids, "invalid_citations": 0,
+            "not_found": not has, "finish_reason": "stop" if has else "skipped",
+            "tokens_in": 1000 if has else 0, "tokens_out": 500 if has else 0,
             "model": body["model"], "prompt_version": "p1", "latency_ms": 7})
     return RagClient("http://rag", 5, client=httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://rag"))
 
 
-def pipeline(rag, overlay=None, **config_overrides):
+@dataclass
+class Harness:
+    p: Pipeline
+    sink: ListSink
+    store: FakeStore
+    writer: InlineQueue
+    embedder: FakeEmbedder
+    cfg: WeirConfig
+
+
+def harness(rag, overlay=None, versions=VERSIONS, aliases=None, **config_overrides) -> Harness:
     cfg = load_config(CONFIGS / "weir.yaml", overlay)
     for path, value in config_overrides.items():
         section, key = path.split("__")
         setattr(getattr(cfg, section), key, value)
-    sink = ListSink()
-    fixed_now = lambda: datetime(2026, 10, 1, 12, 0, tzinfo=UTC)  # noqa: E731
-    return Pipeline(cfg, rag, PriceTable.from_yaml(CONFIGS / "prices.yaml"), sink, now=fixed_now), sink
+    sink, store, writer, embedder = ListSink(), FakeStore(now=lambda: FIXED_NOW), InlineQueue(), FakeEmbedder(aliases)
+    cache = CacheDeps(embedder=embedder, versions=VersionCache(fetch=None, initial=versions), store=store,
+                      writer=writer, lexicon=Lexicon.from_yaml(CONFIGS / "entities.yaml"), rules=BypassRules(cfg.bypass))
+    p = Pipeline(cfg, rag, PriceTable.from_yaml(CONFIGS / "prices.yaml"), sink, cache, now=lambda: FIXED_NOW)
+    return Harness(p, sink, store, writer, embedder, cfg)
 
 
-async def test_happy_path_large_with_cost_and_log():
-    p, sink = pipeline(fake_rag())
-    resp = await p.handle(QueryRequest(query="  When can I visit? ", namespace=PUBLIC))
-    assert resp.answer == "Answer."
-    assert [s.id for s in resp.sources] == ["pub-a", "pub-b"]  # dedup by doc, citation order
-    assert resp.meta.cache_status == "bypass" and resp.meta.route == "large"
-    assert resp.meta.model == "openai/gpt-oss-120b"
-    assert resp.meta.cost_usd == pytest.approx(0.00045)
-    [row] = sink.rows
-    assert row.bypass_reason == "cache_disabled" and row.status == "ok"
+def ask(query, namespace=PUBLIC, **kwargs):
+    return QueryRequest(query=query, namespace=namespace, **kwargs)
+
+
+# --- miss / hit -------------------------------------------------------------------------------
+
+async def test_first_ask_is_a_miss_with_cost_log_and_store():
+    h = harness(fake_rag())
+    resp = await h.p.handle(ask("  When can I visit? "))
+    assert resp.answer == "Answer." and [s.id for s in resp.sources] == ["pub-a", "pub-b"]
+    assert resp.meta.cache_status == "miss" and resp.meta.route == "large"
+    [row] = h.sink.rows
+    assert row.bypass_reason is None and row.status == "ok" and row.embed_tokens == 4
     assert row.cost_usd == Decimal("0.00045") == row.counterfactual_cost_usd
-    assert (row.tokens_in, row.tokens_out, row.model_calls) == (1000, 500, 1)
     assert row.query_text == "When can I visit?" and row.config_label == "dev"
-    assert str(row.request_id) == resp.meta.request_id
+    await h.writer.drain()
+    [entry] = h.store.entries
+    assert row.cache_entry_id == entry.id and entry.query_text == "when can i visit?"
+    assert entry.source_ids == ["pub-a", "pub-b"] and (entry.tokens_in, entry.tokens_out) == (1000, 500)
+    assert entry.kb_version == "v1" and entry.prompt_version == "p1"
 
 
-async def test_force_small_is_cheaper_than_counterfactual():
-    seen = []
-    p, sink = pipeline(fake_rag(seen=seen))
-    resp = await p.handle(QueryRequest(query="q", namespace=PUBLIC, options=QueryOptions(force_model="small")))
-    assert seen[0]["model"] == "openai/gpt-oss-20b" and resp.meta.route == "small"
-    [row] = sink.rows
-    # small: 1000*0.075 + 500*0.30 = 225 per 1e6; counterfactual at large prices = 450 per 1e6
-    assert row.cost_usd == Decimal("0.000225") and row.counterfactual_cost_usd == Decimal("0.00045")
+async def test_identical_question_hits_without_calling_rag():
+    calls = []
+    h = harness(fake_rag(calls=calls))
+    await h.p.handle(ask("When can I visit?"))
+    await h.writer.drain()
+    resp = await h.p.handle(ask("when can i VISIT?"))
+    assert resp.meta.cache_status == "hit" and resp.meta.route == "none" and resp.answer == "Answer."
+    assert resp.meta.similarity == pytest.approx(1.0) and [s.id for s in resp.sources] == ["pub-a", "pub-b"]
+    assert calls.count("/retrieve") == 1 and calls.count("/generate") == 1
+    hit = h.sink.rows[1]
+    assert hit.cost_usd == 0 and hit.counterfactual_cost_usd == Decimal("0.00045")
+    assert hit.model_calls == 0 and hit.cache_entry_id == h.store.entries[0].id
+    await h.writer.drain()
+    assert h.store.hits == {h.store.entries[0].id: 1}
 
 
-async def test_kill_switch_force_large_beats_force_model():
-    seen = []
-    p, _ = pipeline(fake_rag(seen=seen), overlay=CONFIGS / "ablations" / "baseline.yaml")
-    resp = await p.handle(QueryRequest(query="q", namespace=PUBLIC, options=QueryOptions(force_model="small")))
-    assert resp.meta.route == "large" and seen[0]["model"] == "openai/gpt-oss-120b"
+async def test_paraphrase_with_same_entities_hits():
+    h = harness(fake_rag(), aliases={"what are the visiting hours?": "when can i visit?"})
+    await h.p.handle(ask("When can I visit?"))
+    await h.writer.drain()
+    assert (await h.p.handle(ask("What are the visiting hours?"))).meta.cache_status == "hit"
 
+
+async def test_look_alike_with_different_entities_misses():
+    calls = []
+    h = harness(fake_rag(calls=calls),
+                aliases={"what are the icu visiting hours?": "what are the general ward visiting hours?"})
+    await h.p.handle(ask("What are the general ward visiting hours?"))
+    await h.writer.drain()
+    resp = await h.p.handle(ask("What are the ICU visiting hours?"))
+    assert resp.meta.cache_status == "miss" and calls.count("/generate") == 2
+    assert h.sink.rows[1].similarity == pytest.approx(1.0)  # embedding said "same"; the guard said no
+
+
+async def test_below_threshold_misses_and_logs_similarity():
+    h = harness(fake_rag())
+    await h.p.handle(ask("When can I visit?"))
+    await h.writer.drain()
+    resp = await h.p.handle(ask("How much is parking?"))
+    assert resp.meta.cache_status == "miss" and h.sink.rows[1].similarity < 0.5
+
+
+async def test_version_change_misses():
+    h = harness(fake_rag())
+    await h.p.handle(ask("When can I visit?"))
+    await h.writer.drain()
+    h.p._cache.versions = VersionCache(fetch=None, initial={PUBLIC: ("v2", "p1")})
+    assert (await h.p.handle(ask("When can I visit?"))).meta.cache_status == "miss"
+
+
+async def test_sensitive_namespace_hit_logs_no_query_text():
+    h = harness(fake_rag())
+    await h.p.handle(ask("How do I register a patient?", namespace=STAFF))
+    await h.writer.drain()
+    await h.p.handle(ask("How do I register a patient?", namespace=STAFF))
+    assert [r.cache_status for r in h.sink.rows] == ["miss", "hit"]
+    assert all(r.query_text is None and len(r.query_hash) == 64 for r in h.sink.rows)
+
+
+# --- bypass -----------------------------------------------------------------------------------
 
 @pytest.mark.parametrize(("request_kwargs", "overrides", "reason"), [
     ({"personalized": True}, {}, "personalized"),
     ({"options": QueryOptions(bypass_cache=True)}, {}, "request_option"),
     ({}, {"kill_switch__disable_cache": True}, "kill_switch"),
-    ({}, {}, "cache_disabled"),
+    ({}, {"cache__enabled": False}, "cache_disabled"),
 ])
-async def test_bypass_reasons(request_kwargs, overrides, reason):
-    p, sink = pipeline(fake_rag(), **overrides)
-    await p.handle(QueryRequest(query="q", namespace=PUBLIC, **request_kwargs))
-    assert sink.rows[0].bypass_reason == reason
+async def test_bypass_reasons_from_request_and_config(request_kwargs, overrides, reason):
+    h = harness(fake_rag(), **overrides)
+    resp = await h.p.handle(ask("When can I visit?", **request_kwargs))
+    assert resp.meta.cache_status == "bypass" and h.sink.rows[0].bypass_reason == reason
+    await h.writer.drain()
+    assert h.store.entries == []
 
 
-async def test_sensitive_namespace_logs_no_query_text():
-    p, sink = pipeline(fake_rag())
-    await p.handle(QueryRequest(query="How do I register a patient?", namespace=STAFF))
-    assert sink.rows[0].query_text is None
-    assert len(sink.rows[0].query_hash) == 64
+@pytest.mark.parametrize(("query", "kwargs", "reason"), [
+    ("What dosage of paracetamol is safe?", {}, "clinical"),
+    ("Is the pharmacy open now?", {}, "time_sensitive"),
+    ("what about weekends?", {"session_id": "s1"}, "followup"),
+])
+async def test_bypass_reasons_from_question_text(query, kwargs, reason):
+    h = harness(fake_rag())
+    await h.p.handle(ask(query, **kwargs))
+    assert h.sink.rows[0].bypass_reason == reason
+
+
+async def test_namespace_disabled():
+    h = harness(fake_rag())
+    h.cfg.namespaces[PUBLIC].cache.enabled = False
+    await h.p.handle(ask("When can I visit?"))
+    assert h.sink.rows[0].bypass_reason == "namespace_disabled"
+
+
+async def test_no_version_bypasses_cache():
+    h = harness(fake_rag(), versions={})
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert resp.answer == "Answer." and h.sink.rows[0].bypass_reason == "no_version"
+
+
+async def test_embedder_failure_bypasses():
+    h = harness(fake_rag())
+    h.embedder.fail = True
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert resp.answer == "Answer." and h.sink.rows[0].bypass_reason == "error"
+
+
+async def test_lookup_failure_bypasses():
+    h = harness(fake_rag())
+    h.store.fail_lookup = True
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert resp.answer == "Answer." and h.sink.rows[0].bypass_reason == "error"
+
+
+# --- write-back eligibility -------------------------------------------------------------------
+
+@pytest.mark.parametrize("rag_kwargs", [
+    {"chunks": []},                       # not found
+    {"cited": []},                        # no citations
+    {"top_score": 0.1},                   # weak retrieval
+    {"answer": "Call 98765 43210."},      # personal data
+])
+async def test_ineligible_answers_are_not_stored(rag_kwargs):
+    h = harness(fake_rag(**rag_kwargs))
+    await h.p.handle(ask("When can I visit?"))
+    await h.writer.drain()
+    assert h.store.entries == [] and h.sink.rows[0].cache_entry_id is None
+
+
+# --- Phase 1 behaviour kept -------------------------------------------------------------------
+
+async def test_force_small_is_cheaper_than_counterfactual():
+    seen = []
+    h = harness(fake_rag(seen=seen))
+    resp = await h.p.handle(ask("q", options=QueryOptions(force_model="small")))
+    assert seen[0]["model"] == "openai/gpt-oss-20b" and resp.meta.route == "small"
+    assert h.sink.rows[0].cost_usd == Decimal("0.000225") and h.sink.rows[0].counterfactual_cost_usd == Decimal("0.00045")
+
+
+async def test_kill_switch_force_large_beats_force_model():
+    seen = []
+    h = harness(fake_rag(seen=seen), overlay=CONFIGS / "ablations" / "baseline.yaml")
+    resp = await h.p.handle(ask("q", options=QueryOptions(force_model="small")))
+    assert resp.meta.route == "large" and seen[0]["model"] == "openai/gpt-oss-120b"
+    assert h.sink.rows[0].bypass_reason == "cache_disabled"
 
 
 async def test_no_chunks_returns_not_found_answer():
-    p, sink = pipeline(fake_rag(chunks=[]))
-    resp = await p.handle(QueryRequest(query="q", namespace=PUBLIC))
+    h = harness(fake_rag(chunks=[]))
+    resp = await h.p.handle(ask("q"))
     assert resp.sources == [] and resp.answer == "Sorry, not found."
-    assert sink.rows[0].model_calls == 0 and sink.rows[0].cost_usd == 0
+    assert h.sink.rows[0].model_calls == 0 and h.sink.rows[0].cost_usd == 0
 
 
 async def test_rate_limited_generate_raises_503_and_logs_error():
     limited = httpx.Response(503, json={"error": "rate_limited", "retry_after": 12.0})
-    p, sink = pipeline(fake_rag(generate_response=limited))
+    h = harness(fake_rag(generate_response=limited))
     with pytest.raises(PipelineError) as exc:
-        await p.handle(QueryRequest(query="q", namespace=PUBLIC))
+        await h.p.handle(ask("q"))
     assert exc.value.status_code == 503 and exc.value.retry_after == 12.0
-    assert exc.value.request_id == str(sink.rows[0].request_id)
-    assert sink.rows[0].status == "error" and "rate_limited" in sink.rows[0].error_detail
+    assert exc.value.request_id == str(h.sink.rows[0].request_id)
+    assert h.sink.rows[0].status == "error" and "rate_limited" in h.sink.rows[0].error_detail
 
 
 async def test_timeout_maps_to_504_and_status_timeout():
-    p, sink = pipeline(fake_rag(generate_response=httpx.Response(504, json={"error": "timeout"})))
+    h = harness(fake_rag(generate_response=httpx.Response(504, json={"error": "timeout"})))
     with pytest.raises(PipelineError) as exc:
-        await p.handle(QueryRequest(query="q", namespace=PUBLIC))
-    assert exc.value.status_code == 504 and sink.rows[0].status == "timeout"
-
-
-def test_blank_query_rejected():
-    with pytest.raises(ValueError):
-        QueryRequest(query="   ", namespace=PUBLIC)
+        await h.p.handle(ask("q"))
+    assert exc.value.status_code == 504 and h.sink.rows[0].status == "timeout"
 
 
 class ExplodingRag:
@@ -146,10 +271,14 @@ class ExplodingRag:
 
 
 async def test_unexpected_error_returns_500_with_request_id_and_logs():
-    p, sink = pipeline(ExplodingRag())
+    h = harness(ExplodingRag())
     with pytest.raises(PipelineError) as exc:
-        await p.handle(QueryRequest(query="q", namespace=PUBLIC))
+        await h.p.handle(ask("q"))
     assert exc.value.status_code == 500 and exc.value.error == "internal"
-    [row] = sink.rows
-    assert row.status == "error" and exc.value.request_id == str(row.request_id)
-    assert row.error_detail == "internal: RuntimeError"
+    [row] = h.sink.rows
+    assert row.status == "error" and row.error_detail == "internal: RuntimeError"
+
+
+def test_blank_query_rejected():
+    with pytest.raises(ValueError):
+        QueryRequest(query="   ", namespace=PUBLIC)
