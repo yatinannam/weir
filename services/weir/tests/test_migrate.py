@@ -14,7 +14,7 @@ EXPECTED_TABLES = {
 
 
 def test_applies_all_then_is_idempotent(clean_db_url):
-    assert apply_migrations(clean_db_url, MIGRATIONS) == ["001_init.sql"]
+    assert apply_migrations(clean_db_url, MIGRATIONS) == ["001_init.sql", "002_phase2_cache.sql"]
     assert apply_migrations(clean_db_url, MIGRATIONS) == []
 
 
@@ -34,3 +34,12 @@ def test_creates_schema_and_pgvector_0_8(clean_db_url):
     assert EXPECTED_TABLES <= tables
     major, minor = (int(x) for x in version.split(".")[:2])
     assert (major, minor) >= (0, 8)  # needed for hnsw.iterative_scan
+
+
+def test_feedback_fk_dropped(clean_db_url):
+    apply_migrations(clean_db_url, MIGRATIONS)
+    with psycopg.connect(clean_db_url) as conn:
+        fks = conn.execute(
+            "select count(*) from pg_constraint where conrelid = 'weir.feedback'::regclass and contype = 'f'"
+        ).fetchone()[0]
+    assert fks == 0

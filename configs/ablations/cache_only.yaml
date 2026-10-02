@@ -1,0 +1,6 @@
+# Cache only: semantic cache on, always the large model (Phase 2 addendum §5).
+config_label: cache_only
+cache:
+  enabled: true
+kill_switch:
+  force_large: true

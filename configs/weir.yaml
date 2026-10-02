@@ -6,20 +6,38 @@ rag:
   base_url: http://hospital-rag:8001
   timeout_seconds: 30
   retrieve_k: 4
+  info_refresh_seconds: 30   # how often kb/prompt versions are refreshed from hospital-rag /info
 
 router:
   small_model: openai/gpt-oss-20b
   large_model: openai/gpt-oss-120b
 
 cache:
-  enabled: false          # the semantic cache arrives in Phase 2
+  enabled: false             # switched on in Phase 2 Task 7
+  threshold: 0.92            # replaced by the threshold sweep (docs/results/cache-threshold.md)
+  candidates: 3
+  ttl_hours: 24
+  min_retrieval_score: 0.30  # never cache answers built on weak retrieval
+  cleanup_interval_minutes: 60
+  embed_model: BAAI/bge-small-en-v1.5
+
+bypass:                      # questions that never read or write the cache (addendum §3.2)
+  time_sensitive: [today, tonight, now, right now, currently, at the moment, this week, wait time, waiting time, open now]
+  clinical: [dose, dosage, mg, "symptom*", "diagnos*", "treatment*", "medication*", "side effect*", "prescri*"]
+  followup_prefixes: [what about, how about, and, also, same for, what if]
+  followup_pronouns: [it, that, those, they, there, them, this]
+  followup_max_words: 6
 
 kill_switch:
-  force_large: false      # send every request to the large model
-  disable_cache: false    # skip the cache entirely
+  force_large: false         # send every request to the large model
+  disable_cache: false       # skip the cache entirely
 
 namespaces:
   weir-general/en/public:
     sensitive: false
+    cache:
+      enabled: true
   weir-general/en/staff:
-    sensitive: true       # logs keep only hashes, never raw query text
+    sensitive: true          # logs keep only hashes, never raw query text
+    cache:
+      enabled: true
