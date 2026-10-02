@@ -35,3 +35,9 @@ A running log of what was done, what was learned, and what's next. Newest at the
 - Learned: the large model aces this set (ceiling effect), so any later drop is a real regression. Harder and unanswerable questions should be added before the final numbers.
 - Spot checks: Claude did them at the user's request (2026-10-02). 10 eval questions and 5 graded answers were traced to their source sentences, and all are correct.
 - **Gate:** Phase 2 (semantic cache) may start. **Next:** write the Phase 2 plan.
+
+## 2026-10-02: Phase 2 design
+
+- Agreed with the user: eval set grows to about 150 (D21); the threshold comes from a sweep (D22); follow-ups are tested in unit tests (D23); the feedback FK is dropped (D24).
+- Wrote the Phase 2 addendum: `superpowers/specs/2026-10-02-phase-2-semantic-cache-design.md`. Work happens on branch `phase-2`.
+- **Next:** the user reviews the addendum, then the Phase 2 implementation plan gets written.
