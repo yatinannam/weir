@@ -36,7 +36,7 @@ def test_unknown_key_rejected(tmp_path):
 
 def test_phase2_config_fields():
     cfg = load_config(CONFIGS / "weir.yaml")
-    assert cfg.cache.threshold == 0.92 and cfg.cache.candidates == 3
+    assert cfg.cache.threshold == 0.88 and cfg.cache.candidates == 3  # D25: from the threshold sweep
     assert cfg.cache.embed_model == "BAAI/bge-small-en-v1.5" and cfg.cache.ttl_hours == 24
     assert cfg.rag.info_refresh_seconds == 30
     assert cfg.cache_enabled_for("weir-general/en/public") is True

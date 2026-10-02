@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from .dataset import EvalQuery
+from .keyfacts import norm
 
 THRESHOLDS = [round(0.80 + 0.01 * i, 2) for i in range(19)]
 
@@ -48,12 +49,21 @@ def build_pairs(queries: list[EvalQuery], vectors: dict[str, np.ndarray],
                 for b in members[i + 1:]:
                     add(a.id, b.id, kind)
     for q in queries:  # hard negatives: the nearest question from another cluster with a different answer
-        others = [o for o in queries if o.cluster_id != q.cluster_id
-                  and not set(o.required_facts) & set(q.required_facts)]
+        others = [o for o in queries if o.cluster_id != q.cluster_id and not _same_answer(o, q)]
         if others:
             nearest = max(others, key=lambda o: float(vectors[q.id] @ vectors[o.id]))
             add(q.id, nearest.id, "hard_negative")
     return list(pairs.values())
+
+
+def _alternatives(q: EvalQuery) -> set[str]:
+    return {norm(alt) for fact in q.required_facts for alt in fact.split("|") if alt.strip()}
+
+
+def _same_answer(a: EvalQuery, b: EvalQuery) -> bool:
+    """Two questions whose required facts share any alternative have the same answer, so serving
+    one's answer for the other is not a wrong hit (e.g. "₹6,500|Rs 6,500" vs "₹6,500|INR 6,500")."""
+    return bool(_alternatives(a) & _alternatives(b))
 
 
 def sweep(pairs: list[Pair], thresholds: list[float], use_guard: bool) -> list[dict]:

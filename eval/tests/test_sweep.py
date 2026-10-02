@@ -63,3 +63,11 @@ def test_report_files(tmp_path):
     write_sweep_report(tmp_path, results, 0.84, pairs_fixture())
     assert {"sweep.csv", "summary.md", "threshold.png"} <= {p.name for p in tmp_path.iterdir()}
     assert "0.84" in (tmp_path / "summary.md").read_text(encoding="utf-8")
+
+
+def test_same_answer_detected_by_any_shared_alternative():
+    qs, vecs = toy()
+    qs[4] = q("d1", "d-1", "distinct", "holdout", facts=("Rs 9|A",))  # differently formatted, same answer as p1/p2
+    same_answer = ({"d1", "p1"}, {"d1", "p2"})
+    assert not any(p.kind == "hard_negative" and {p.a, p.b} in same_answer
+                   for p in build_pairs(qs, vecs, lambda a, b: False))

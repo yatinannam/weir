@@ -66,3 +66,15 @@ groups:
   copies:
     first copy: [first]
     additional copy: [additional, duplicate, extra copy, another copy]
+  # Added after the Phase 2 threshold sweep (docs/results/cache-threshold.md): look-alike pairs
+  # the first lexicon let through at similarity >= 0.90.
+  buildings:
+    main block: [main building]
+    opd block: [outpatient block, opd building]
+  item_condition:
+    lost: [misplaced, stolen, missing]
+    damaged: [broken, torn]
+  packages:
+    basic package: [basic]
+    executive package: [executive]
+    womens wellness package: [women's wellness, womens wellness, wellness package]

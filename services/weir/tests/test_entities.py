@@ -52,3 +52,12 @@ def test_negation_forms():
 def test_duplicate_phrase_rejected():
     with pytest.raises(ValueError, match="two terms"):
         Lexicon({"a": {"x": ["shared"]}, "b": {"y": ["shared"]}})
+
+
+@pytest.mark.parametrize(("a", "b"), [
+    ("What is the replacement cost of a lost ID badge?", "What is the replacement cost of a damaged ID badge?"),
+    ("How quickly must the Code Blue team arrive in the Main Block?", "How quickly must the Code Blue team arrive in the OPD Block?"),
+    ("What is the price of the Basic health checkup package?", "What is the price of the Executive health checkup package?"),
+])
+def test_sweep_found_look_alikes_conflict(a, b):  # added after the Phase 2 threshold sweep
+    assert LEX.conflicts(a, b)
