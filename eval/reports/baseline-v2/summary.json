@@ -1,0 +1,82 @@
+{
+  "header": {
+    "merged_from": [
+      "20261001T124959Z-baseline-all",
+      "20261002T173631Z-baseline-all"
+    ],
+    "queries": 150
+  },
+  "summary": {
+    "n": 150,
+    "ok": 150,
+    "errors": 0,
+    "cost_usd_total": 0.0145821,
+    "cost_per_1k_usd": 0.09721400000000001,
+    "latency_ms": {
+      "p50": 615,
+      "p95": 3547,
+      "p99": 8830
+    },
+    "judge_mean": 5,
+    "judge_errors": 100,
+    "fact_mean": 0.967,
+    "cache_hit_rate": 0.0,
+    "hits": 0,
+    "wrong_hits": 0,
+    "hit_rate_by_group": {
+      "distinct": 0.0,
+      "paraphrase": 0.0,
+      "trap": 0.0,
+      "unanswerable": 0.0
+    },
+    "latency_by_cache_status": {
+      "bypass": {
+        "n": 150,
+        "p50": 615,
+        "p95": 3547
+      }
+    },
+    "route_mix": {
+      "large": 1.0
+    },
+    "by_group": {
+      "distinct": {
+        "n": 35,
+        "judge_mean": 5,
+        "fact_mean": 0.943
+      },
+      "paraphrase": {
+        "n": 65,
+        "judge_mean": 5,
+        "fact_mean": 0.954
+      },
+      "trap": {
+        "n": 40,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "unanswerable": {
+        "n": 10,
+        "judge_mean": null,
+        "fact_mean": 1.0
+      }
+    },
+    "by_difficulty": {
+      "easy": {
+        "n": 95,
+        "judge_mean": 5,
+        "fact_mean": 0.968
+      },
+      "hard": {
+        "n": 15,
+        "judge_mean": 5,
+        "fact_mean": 0.867
+      },
+      "medium": {
+        "n": 40,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      }
+    }
+  }
+}
