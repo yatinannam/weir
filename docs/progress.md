@@ -40,4 +40,5 @@ A running log of what was done, what was learned, and what's next. Newest at the
 
 - Agreed with the user: eval set grows to about 150 (D21); the threshold comes from a sweep (D22); follow-ups are tested in unit tests (D23); the feedback FK is dropped (D24).
 - Wrote the Phase 2 addendum: `superpowers/specs/2026-10-02-phase-2-semantic-cache-design.md`. Work happens on branch `phase-2`.
-- **Next:** the user reviews the addendum, then the Phase 2 implementation plan gets written.
+- The user approved the addendum.
+- **Next:** write the Phase 2 implementation plan.

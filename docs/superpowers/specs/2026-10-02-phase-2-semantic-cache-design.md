@@ -1,7 +1,7 @@
 # Weir Phase 2: Semantic Cache Design (addendum)
 
 Date: 2026-10-02 · Author: Yatin Annam (with Claude Code)
-Status: Draft, awaiting review
+Status: Approved 2026-10-02
 Builds on: [main design spec](2026-09-30-weir-design.md) §6 (semantic cache), §8 (cost), §10 (data model), §11 (evaluation), §16 (Phase 2 row), plus the Phase 1 baseline in [`docs/results/baseline.md`](../../results/baseline.md).
 
 This addendum pins down the Phase 2 details the main spec leaves open. Where the two disagree, this document wins for Phase 2.
