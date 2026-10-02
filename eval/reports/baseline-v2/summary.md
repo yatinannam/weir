@@ -2,6 +2,7 @@
 
 - **merged_from:** ['20261001T124959Z-baseline-all', '20261002T173631Z-baseline-all']
 - **queries:** 150
+- **judge_model:** groq:qwen/qwen3.8-27b
 
 Requests: 150 (ok 150, errors 0)
 
@@ -9,8 +10,8 @@ Requests: 150 (ok 150, errors 0)
 | --- | --- |
 | Cost per 1,000 requests (USD, list prices) | 0.0972 |
 | Latency p50 / p95 / p99 (ms, sequential, client-side) | 615 / 3547 / 8830 |
-| Judge score mean (1-5) | 5 (100 not judged) |
-| Key-fact score mean (0-1) | 0.967 |
+| Judge score mean (1-5) | 4.927 (0 not judged) |
+| Key-fact score mean (0-1) | 0.987 |
 | Cache hit rate | 0.0% |
 | Cache hits / wrong hits | 0 / 0 |
 | Route mix | large 100% |
@@ -19,17 +20,17 @@ Requests: 150 (ok 150, errors 0)
 
 | Group | n | Judge | Facts |
 | --- | --- | --- | --- |
-| distinct | 35 | 5 | 0.943 |
-| paraphrase | 65 | 5 | 0.954 |
+| distinct | 35 | 4.714 | 0.943 |
+| paraphrase | 65 | 4.985 | 1.0 |
 | trap | 40 | 5 | 1.0 |
-| unanswerable | 10 | None | 1.0 |
+| unanswerable | 10 | 5 | 1.0 |
 
 ## By difficulty
 
 | Difficulty | n | Judge | Facts |
 | --- | --- | --- | --- |
-| easy | 95 | 5 | 0.968 |
-| hard | 15 | 5 | 0.867 |
+| easy | 95 | 4.989 | 1.0 |
+| hard | 15 | 4.333 | 0.867 |
 | medium | 40 | 5 | 1.0 |
 
 ## Latency by cache status
@@ -42,6 +43,9 @@ Requests: 150 (ok 150, errors 0)
 
 | id | judge | facts | your verdict |
 | --- | --- | --- | --- |
+| q-078 | 4 | 1.00 |  |
+| q-141 | 2 | 0.50 |  |
+| q-150 | 2 | 0.50 |  |
 | q-001 | 5 | 1.00 |  |
 | q-002 | 5 | 1.00 |  |
 | q-003 | 5 | 1.00 |  |
@@ -59,6 +63,3 @@ Requests: 150 (ok 150, errors 0)
 | q-015 | 5 | 1.00 |  |
 | q-016 | 5 | 1.00 |  |
 | q-017 | 5 | 1.00 |  |
-| q-018 | 5 | 1.00 |  |
-| q-019 | 5 | 1.00 |  |
-| q-020 | 5 | 1.00 |  |

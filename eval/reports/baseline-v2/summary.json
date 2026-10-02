@@ -4,7 +4,8 @@
       "20261001T124959Z-baseline-all",
       "20261002T173631Z-baseline-all"
     ],
-    "queries": 150
+    "queries": 150,
+    "judge_model": "groq:qwen/qwen3.8-27b"
   },
   "summary": {
     "n": 150,
@@ -17,9 +18,9 @@
       "p95": 3547,
       "p99": 8830
     },
-    "judge_mean": 5,
-    "judge_errors": 100,
-    "fact_mean": 0.967,
+    "judge_mean": 4.927,
+    "judge_errors": 0,
+    "fact_mean": 0.987,
     "cache_hit_rate": 0.0,
     "hits": 0,
     "wrong_hits": 0,
@@ -42,13 +43,13 @@
     "by_group": {
       "distinct": {
         "n": 35,
-        "judge_mean": 5,
+        "judge_mean": 4.714,
         "fact_mean": 0.943
       },
       "paraphrase": {
         "n": 65,
-        "judge_mean": 5,
-        "fact_mean": 0.954
+        "judge_mean": 4.985,
+        "fact_mean": 1.0
       },
       "trap": {
         "n": 40,
@@ -57,19 +58,19 @@
       },
       "unanswerable": {
         "n": 10,
-        "judge_mean": null,
+        "judge_mean": 5,
         "fact_mean": 1.0
       }
     },
     "by_difficulty": {
       "easy": {
         "n": 95,
-        "judge_mean": 5,
-        "fact_mean": 0.968
+        "judge_mean": 4.989,
+        "fact_mean": 1.0
       },
       "hard": {
         "n": 15,
-        "judge_mean": 5,
+        "judge_mean": 4.333,
         "fact_mean": 0.867
       },
       "medium": {

@@ -75,3 +75,41 @@ The user asked Claude to do these checks. That is weaker than an independent hum
 
 - **Eval set:** 10 random questions (q-019, q-005, q-018, q-016, q-039, q-032, q-048, q-011, q-009, q-004). All 10 answers are correct and come from the right sentence. For example, q-018's ₹4,800 private-room supplement equals ₹6,000 (private) minus ₹1,200 (general ward), and q-048's 9 am to 12 noon is the child clinic, not the adult clinic's 10 am to 1 pm.
 - **Judge agreement:** 5 random graded answers (q-012, q-019, q-010, q-038, q-029). All 5 match the documents, so the judge's 5/5 is justified. The judge and the key-fact check also agree on all 50 answers.
+
+
+## Baseline v2: 150 queries (Phase 2, 2026-10-02)
+
+The eval set grew to 150 questions (decision D21). The 100 new ones were answered with the same frozen settings and the `baseline` ablation (no cache, always `gpt-oss-120b`). The original 50 answers were reused. Everything was graded by the Qwen judge (rubric r1; unanswerable questions get an extra note, D20/D28).
+
+- Raw data: `eval/reports/baseline-v2/` (merged). The new answers are in `eval/reports/20261002T173631Z-baseline-all/`.
+- Pacing: 5 s between requests for the new 100 (15 s for the original 50).
+
+| Metric | Value |
+| --- | --- |
+| Requests answered | 150 / 150, no errors |
+| Cost per 1,000 requests | **$0.0972** at list prices |
+| Latency p50 / p95 / p99 | **615 ms / 3.5 s / 8.8 s** (sequential, client-side) |
+| Judge score (1–5) | **4.93** |
+| Key-fact score (0–1) | **0.987** |
+
+| Group | n | Judge | Facts |
+| --- | --- | --- | --- |
+| distinct | 35 | 4.71 | 0.943 |
+| paraphrase | 65 | 4.98 | 1.000 |
+| trap | 40 | 5.00 | 1.000 |
+| unanswerable | 10 | 5.00 | 1.000 (all 10 correctly said "couldn't find") |
+
+| Difficulty | n | Judge | Facts |
+| --- | --- | --- | --- |
+| easy | 95 | 4.99 | 1.000 |
+| medium | 40 | 5.00 | 1.000 |
+| hard | 15 | 4.33 | 0.867 |
+
+**Where the baseline is imperfect.** The three misses are all hard questions that need two documents:
+- **q-143:** the model said "couldn't find" for a refund-percentage + package-price question.
+- **q-141:** answered half the question, then appended `NOT_FOUND`.
+- **q-150:** the same pattern as q-141.
+
+With `k = 4` retrieved chunks, the second document is sometimes not retrieved. This is a real limitation of the baseline RAG, not a grading artefact. The cache and router phases are compared against these numbers.
+
+**Dataset fix during grading (D28).** Three paraphrase rewordings asked only "until what time", but their cluster's key required the full opening range ("8 am to 8 pm"). The two clusters' keys were narrowed to the closing time and facts were re-scored. The judge had already scored those answers 5, 5 and 4.
