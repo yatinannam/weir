@@ -75,7 +75,7 @@ A running log of what was done, what was learned, and what's next. Newest at the
   - It also found one wrong-match type the guard can't see (timings vs room), which the safety margin covers.
 - **Next:** cache run (cold pass + 300-request replay, workload repeat rate 73.7%), then results, the final review and merge.
 
-## 2026-10-03: Phase 2 exit ✅: cache measured
+## 2026-10-03: Phase 2 cache measured (superseded by the final-review fixes below)
 
 - **Cold pass** (150 questions, empty cache):
   - 23% hits (56% of the paraphrases that could hit)
@@ -89,3 +89,14 @@ A running log of what was done, what was learned, and what's next. Newest at the
 - Over both runs, 71% of LLM cost was saved ($0.04376 → $0.01272 at list prices). A hit costs ~8 ms inside Weir against ~700 ms for a miss.
 - Full write-up: `results/cache-only.md`.
 - **Next:** final whole-branch review, then merge Phase 2 to main. After that, plan Phase 3 (router).
+
+## 2026-10-03: Final review → fixes (Phase 2 not yet closed)
+
+- The whole-branch review (fresh reviewer) found one critical and three important issues; all are fixed test-first:
+  - **C1 / D29:** the guard missed numbers written as words or ordinals ("three days" vs "one day" before cancelling, different refunds, matched at 0.966).
+  - **I1 / D30:** the sweep counted "two-part vs one-part answer" pairs as safe.
+  - **I2 / D31:** a stuck database would stall each request about 30 s. The lookup budget is now 500 ms.
+  - **I3 / D32:** a miss now updates the document version immediately after an edit.
+- Added 4 number-word trap pairs (158 questions). The re-run sweep chose **0.90** (0 wrong, 0 trap matches on every split).
+- 11 minor findings were deferred (listed in the session ledger and the final message).
+- **Next:** re-run the cache measurement at 0.90 (cold pass + replay + grading), then update `results/cache-only.md`, then merge.

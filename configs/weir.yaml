@@ -14,12 +14,13 @@ router:
 
 cache:
   enabled: true              # Phase 2: on (addendum §5)
-  threshold: 0.85            # from the threshold sweep, decisions D25/D26 (docs/results/cache-threshold.md)
+  threshold: 0.90            # from the threshold sweep, decisions D25/D26/D30 (docs/results/cache-threshold.md)
   candidates: 3
   ttl_hours: 24
   min_retrieval_score: 0.30  # never cache answers built on weak retrieval
   cleanup_interval_minutes: 60
   embed_model: BAAI/bge-small-en-v1.5
+  lookup_timeout_ms: 500    # embed + lookup budget; on timeout the request bypasses the cache
 
 bypass:                      # questions that never read or write the cache (addendum §3.2)
   time_sensitive: [today, tonight, now, right now, currently, at the moment, this week, wait time, waiting time, open now]
