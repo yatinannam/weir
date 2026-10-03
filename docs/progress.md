@@ -100,3 +100,18 @@ A running log of what was done, what was learned, and what's next. Newest at the
 - Added 4 number-word trap pairs (158 questions). The re-run sweep chose **0.90** (0 wrong, 0 trap matches on every split).
 - 11 minor findings were deferred (listed in the session ledger and the final message).
 - **Next:** re-run the cache measurement at 0.90 (cold pass + replay + grading), then update `results/cache-only.md`, then merge.
+
+## 2026-10-03: Phase 2 exit ✅: cache re-measured at 0.90 after the review fixes
+
+- **Baseline v3** (158 questions = v2 + 8 number-word traps): judge 4.90, facts 0.981, $0.098 per 1k, p50 617 ms.
+- **Cold pass:**
+  - 14.6% hits (37% of the paraphrases that could hit)
+  - quality equal to baseline (judge 4.91 vs 4.90)
+  - 0 wrong hits; no trap, including "three days" vs "one day", got its look-alike's answer
+- **Warm replay** (300 requests, 73.7% repeats):
+  - **93.3% hits**
+  - **$0.098 → $0.0050 per 1k (−95%)**
+  - **p50 617 → 56 ms**
+  - quality equal to baseline on the same mix
+- Over both runs 67% of LLM cost was saved (list prices). Full write-up: `results/cache-only.md`.
+- **Next:** merge Phase 2 to main; then plan Phase 3 (router).

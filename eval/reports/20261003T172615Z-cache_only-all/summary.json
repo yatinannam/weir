@@ -1,0 +1,91 @@
+{
+  "header": {
+    "config": "cache_only",
+    "split": "all",
+    "workload": null,
+    "queries": 158,
+    "judge_model": "groq:qwen/qwen3.8-27b",
+    "rubric": "r1",
+    "git_commit": "b88032d",
+    "started_utc": "20261003T172615Z"
+  },
+  "summary": {
+    "n": 158,
+    "ok": 158,
+    "errors": 0,
+    "cost_usd_total": 0.01338465,
+    "cost_per_1k_usd": 0.08471297468354431,
+    "latency_ms": {
+      "p50": 686,
+      "p95": 1278,
+      "p99": 1662
+    },
+    "judge_mean": 4.905,
+    "judge_errors": 0,
+    "fact_mean": 0.978,
+    "cache_hit_rate": 0.14556962025316456,
+    "hits": 23,
+    "wrong_hits": 0,
+    "hit_rate_by_group": {
+      "distinct": 0.0,
+      "paraphrase": 0.2923076923076923,
+      "trap": 0.08333333333333333,
+      "unanswerable": 0.0
+    },
+    "latency_by_cache_status": {
+      "hit": {
+        "n": 23,
+        "p50": 43,
+        "p95": 77
+      },
+      "miss": {
+        "n": 135,
+        "p50": 707,
+        "p95": 1279
+      }
+    },
+    "route_mix": {
+      "large": 0.8544303797468354,
+      "none": 0.14556962025316456
+    },
+    "by_group": {
+      "distinct": {
+        "n": 35,
+        "judge_mean": 4.714,
+        "fact_mean": 0.929
+      },
+      "paraphrase": {
+        "n": 65,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "trap": {
+        "n": 48,
+        "judge_mean": 4.896,
+        "fact_mean": 0.979
+      },
+      "unanswerable": {
+        "n": 10,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      }
+    },
+    "by_difficulty": {
+      "easy": {
+        "n": 95,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "hard": {
+        "n": 15,
+        "judge_mean": 4.333,
+        "fact_mean": 0.833
+      },
+      "medium": {
+        "n": 48,
+        "judge_mean": 4.896,
+        "fact_mean": 0.979
+      }
+    }
+  }
+}
