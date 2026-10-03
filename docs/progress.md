@@ -74,3 +74,18 @@ A running log of what was done, what was learned, and what's next. Newest at the
   - The sweep found 3 lexicon gaps (buildings, lost/damaged, packages) and 2 labelling bugs, all fixed with tests.
   - It also found one wrong-match type the guard can't see (timings vs room), which the safety margin covers.
 - **Next:** cache run (cold pass + 300-request replay, workload repeat rate 73.7%), then results, the final review and merge.
+
+## 2026-10-03: Phase 2 exit ✅: cache measured
+
+- **Cold pass** (150 questions, empty cache):
+  - 23% hits (56% of the paraphrases that could hit)
+  - quality identical to baseline v2 (judge 4.93, facts 0.987)
+  - 0 wrong hits; no trap ever got its look-alike's answer
+- **Warm replay** (300 requests, 73.7% repeats):
+  - **93.7% hits**
+  - **cost per 1k $0.0972 → $0.0047 (−95%)**
+  - **p50 615 ms → 53 ms**
+  - quality equal to baseline on the same mix
+- Over both runs, 71% of LLM cost was saved ($0.04376 → $0.01272 at list prices). A hit costs ~8 ms inside Weir against ~700 ms for a miss.
+- Full write-up: `results/cache-only.md`.
+- **Next:** final whole-branch review, then merge Phase 2 to main. After that, plan Phase 3 (router).

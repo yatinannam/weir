@@ -13,4 +13,6 @@ The record of everything planned, decided and measured for Weir. Start here.
 | [plans/…phase-0-1…](superpowers/plans/2026-09-30-phase-0-1-foundations-baseline.md) | Phase 0 + 1: foundations and baseline (16 tasks) |
 | [plans/…phase-2…](superpowers/plans/2026-10-02-phase-2-semantic-cache.md) | Phase 2: semantic cache (13 tasks) |
 | [results/](results/) | Baseline, threshold sweep, ablation and load-test results |
-| [results/baseline.md](results/baseline.md) | Frozen Phase 1 baseline: cost, latency, quality |
+| [results/baseline.md](results/baseline.md) | Frozen baselines: v1 (50 questions) and v2 (150) |
+| [results/cache-threshold.md](results/cache-threshold.md) | Threshold sweep: 0.85, and why the entity guard matters |
+| [results/cache-only.md](results/cache-only.md) | Phase 2 result: cache hit rate, cost, latency, wrong hits |
