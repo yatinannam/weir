@@ -22,6 +22,23 @@ UNIT_CANON = {
 _UNITS = "|".join(sorted((re.escape(u) for u in UNIT_CANON), key=len, reverse=True))
 NUMBER = re.compile(rf"(?<![\w.])(\d+(?:[.,:]\d+)*)(?:\s*({_UNITS}))?(?!\w)")
 WORD = re.compile(r"[a-z]+(?:'[a-z]+)?")
+# Numbers written as words or ordinals count as the same number ("three days" = "3 days",
+# "2nd floor" = "second floor"); final-review finding C1.
+NUMBER_WORDS = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+    "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+    "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30,
+    "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
+    "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8,
+    "ninth": 9, "tenth": 10,
+}
+_NUMBER_WORD = re.compile(r"\b(" + "|".join(NUMBER_WORDS) + r")\b")
+_ORDINAL = re.compile(r"\b(\d+)(?:st|nd|rd|th)\b")
+
+
+def _digits(text: str) -> str:
+    text = _ORDINAL.sub(r"\1", text)
+    return _NUMBER_WORD.sub(lambda m: str(NUMBER_WORDS[m.group(1)]), text)
 NEGATIONS = frozenset({"no", "not", "without", "except", "non", "never", "cannot", "none", "neither", "nor"})
 
 
@@ -53,7 +70,9 @@ class Lexicon:
 
     def extract(self, text: str) -> Entities:
         text = normalize(text).replace("’", "'")
-        numbers = frozenset(_number_key(m) for m in NUMBER.finditer(text))
+        # Numbers are read outside lexicon phrases, so "two-wheeler" stays a vehicle, not the number 2.
+        outside_terms = self._pattern.sub(" ", text) if self._pattern else text
+        numbers = frozenset(_number_key(m) for m in NUMBER.finditer(_digits(outside_terms)))
         negated = any(w in NEGATIONS or w.endswith("n't") for w in WORD.findall(text))
         terms = (frozenset(self._term_of[m.group(0)] for m in self._pattern.finditer(text))
                  if self._pattern else frozenset())

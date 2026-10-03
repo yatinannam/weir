@@ -132,7 +132,9 @@ class Pipeline:
         vector = None
         if reason is None:
             try:
-                hit, vector = await self._lookup(req.namespace, normalized, versions, row)
+                hit, vector = await asyncio.wait_for(
+                    self._lookup(req.namespace, normalized, versions, row),
+                    self._cfg.cache.lookup_timeout_ms / 1000)
             except Exception:  # noqa: BLE001 - a cache outage must never become a user outage
                 log.exception("cache lookup failed; bypassing the cache")
                 reason = "error"
@@ -166,6 +168,9 @@ class Pipeline:
             self._log.submit(row)
             raise PipelineError(500, "internal", str(row.request_id)) from e
 
+        if retrieved.kb_version and generated.finish_reason != "skipped":
+            # A document edit shows up here first: switch the cache key now, not at the next /info refresh.
+            self._cache.versions.observe(req.namespace, retrieved.kb_version, generated.prompt_version)
         row.model = generated.model
         row.model_calls = 0 if generated.finish_reason == "skipped" else 1
         row.tokens_in, row.tokens_out = generated.tokens_in, generated.tokens_out

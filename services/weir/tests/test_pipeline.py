@@ -282,3 +282,35 @@ async def test_unexpected_error_returns_500_with_request_id_and_logs():
 def test_blank_query_rejected():
     with pytest.raises(ValueError):
         QueryRequest(query="   ", namespace=PUBLIC)
+
+
+async def test_hung_lookup_times_out_and_bypasses_quickly():  # final-review finding I2
+    import time
+
+    h = harness(fake_rag())
+    h.store.hang_lookup = True
+    h.cfg.cache.lookup_timeout_ms = 50
+    started = time.perf_counter()
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert resp.answer == "Answer." and h.sink.rows[0].bypass_reason == "error"
+    assert time.perf_counter() - started < 2
+
+
+async def test_miss_reveals_new_kb_version_and_stops_old_hits():  # final-review finding I3
+    def rag_v(kb):
+        client = fake_rag()
+        orig = client.retrieve
+
+        async def retrieve(*a, **kw):
+            r = await orig(*a, **kw)
+            return r.model_copy(update={"kb_version": kb})
+        client.retrieve = retrieve
+        return client
+
+    h = harness(rag_v("v1"))
+    await h.p.handle(ask("When can I visit?"))
+    await h.writer.drain()                                   # entry stored under v1
+    h.p._rag = rag_v("v2")                                   # documents re-ingested
+    await h.p.handle(ask("How much is parking?"))            # any miss reveals v2
+    assert h.p._cache.versions.get(PUBLIC) == ("v2", "p1")
+    assert (await h.p.handle(ask("When can I visit?"))).meta.cache_status == "miss"

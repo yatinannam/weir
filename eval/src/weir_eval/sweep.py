@@ -60,12 +60,23 @@ def _alternatives(q: EvalQuery) -> set[str]:
     return {norm(alt) for fact in q.required_facts for alt in fact.split("|") if alt.strip()}
 
 
+def _fact_alternatives(fact: str) -> list[str]:
+    return [norm(alt) for alt in fact.split("|") if alt.strip()]
+
+
+def _covered(a: EvalQuery, b: EvalQuery) -> bool:
+    """Every fact `a` needs appears among `b`'s facts (as whole numbers, either containing the other)."""
+    alts_b = _alternatives(b)
+    return all(any(fact_present(x, y) or fact_present(y, x) for x in _fact_alternatives(fact) for y in alts_b)
+               for fact in a.required_facts)
+
+
 def _same_answer(a: EvalQuery, b: EvalQuery) -> bool:
-    """Two questions have compatible answers when one's fact appears in the other's, as whole
-    numbers ("8 pm" in "8 am to 8 pm"; "₹6,500|Rs 6,500" vs "₹6,500|INR 6,500"; never "₹50" in
-    "₹500"). Serving one's answer for the other is then not a wrong hit."""
-    alts_a, alts_b = _alternatives(a), _alternatives(b)
-    return any(fact_present(x, y) or fact_present(y, x) for x in alts_a for y in alts_b)
+    """Serving either question's answer for the other loses nothing only if each side's required
+    facts are covered by the other's ("8 pm" ~ "8 am to 8 pm"; "₹6,500|Rs 6,500" ~ "₹6,500|INR 6,500";
+    never "₹50" ~ "₹500"). A two-part question vs a one-part question is NOT the same answer
+    (final-review finding I1): the shorter answer would miss a required fact."""
+    return _covered(a, b) and _covered(b, a)
 
 
 def sweep(pairs: list[Pair], thresholds: list[float], use_guard: bool) -> list[dict]:

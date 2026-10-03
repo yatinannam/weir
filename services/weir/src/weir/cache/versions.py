@@ -14,6 +14,10 @@ class VersionCache:
     def get(self, namespace: str) -> tuple[str, str] | None:
         return self._versions.get(namespace)
 
+    def observe(self, namespace: str, kb_version: str, prompt_version: str) -> None:
+        """Adopt a version seen on a live response (a miss), without waiting for the next refresh."""
+        self._versions[namespace] = (kb_version, prompt_version)
+
     async def refresh(self) -> None:
         if self._fetch is None:
             return

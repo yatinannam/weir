@@ -1,4 +1,5 @@
 """Test doubles shared by the cache, pipeline and API tests."""
+import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -60,10 +61,13 @@ class FakeStore:
         self.entries = []
         self.hits = {}
         self.fail_lookup = False
+        self.hang_lookup = False
 
     async def lookup(self, namespace, kb_version, prompt_version, embedding, k):
         if self.fail_lookup:
             raise RuntimeError("db down")
+        if self.hang_lookup:
+            await asyncio.sleep(30)  # a stuck database connection
         found = [Candidate(e.id, e.query_text, e.answer, e.sources, e.model, e.tokens_in, e.tokens_out,
                            float(e.embedding @ embedding))
                  for e in self.entries

@@ -63,8 +63,7 @@ groups:
     afternoon: [afternoons]
     evening: [evenings]
     night: [nights, night shift, overnight]
-  copies:
-    first copy: [first]
+  copies:   # "first" is now read as the number 1 (entities.py NUMBER_WORDS), not a lexicon term
     additional copy: [additional, duplicate, extra copy, another copy]
   # Added after the Phase 2 threshold sweep (docs/results/cache-threshold.md): look-alike pairs
   # the first lexicon let through at similarity >= 0.90.

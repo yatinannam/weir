@@ -61,3 +61,23 @@ def test_duplicate_phrase_rejected():
 ])
 def test_sweep_found_look_alikes_conflict(a, b):  # added after the Phase 2 threshold sweep
     assert LEX.conflicts(a, b)
+
+
+@pytest.mark.parametrize(("a", "b"), [
+    ("If I cancel the Executive health checkup three days before, what refund applies?",
+     "If I cancel the Executive health checkup one day before, what refund applies?"),
+    ("Which departments are on the 2nd floor?", "Which departments are on the 3rd floor?"),
+    ("Which departments are on the second floor?", "Which departments are on the third floor?"),
+    ("Can two attendants stay overnight?", "Can one attendant stay overnight?"),
+])
+def test_number_words_and_ordinals_conflict(a, b):  # final-review finding C1
+    assert LEX.conflicts(a, b)
+
+
+@pytest.mark.parametrize(("a", "b"), [
+    ("Cancel three days before?", "Cancel 3 days before?"),
+    ("Which departments are on the 2nd floor?", "Which departments are on the second floor?"),
+    ("What does the first copy cost?", "What does the 1st copy cost?"),
+])
+def test_number_words_equal_digits(a, b):
+    assert not LEX.conflicts(a, b)

@@ -86,3 +86,12 @@ def test_choose_threshold_with_safety_margin():
     assert choose_threshold(rows, margin=0.02) == 0.86
     assert choose_threshold([{"threshold": 0.97, "accepted": 1, "false_hit_rate": 0.0, "trap_false_hits": 0}],
                             margin=0.02) == 0.98  # capped at the top of the sweep range
+
+
+def test_same_answer_requires_each_side_fully_covered():  # final-review finding I1
+    from weir_eval.sweep import _same_answer
+
+    two_part = q("a", "a", facts=("₹3,500", "24 hours"))
+    one_part = q("b", "b", facts=("₹3,500",))
+    assert not _same_answer(two_part, one_part)  # serving b's answer for a would miss "24 hours"
+    assert _same_answer(two_part, q("c", "c", facts=("24 hours", "₹3,500|Rs 3,500")))

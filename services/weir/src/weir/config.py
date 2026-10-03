@@ -29,6 +29,7 @@ class CacheConfig(_Strict):
     min_retrieval_score: float = 0.30
     cleanup_interval_minutes: float = 60.0
     embed_model: str = "BAAI/bge-small-en-v1.5"
+    lookup_timeout_ms: int = 500  # give up on the cache (bypass) rather than stall the request
 
 
 class BypassConfig(_Strict):

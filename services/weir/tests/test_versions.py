@@ -24,3 +24,9 @@ async def test_refresh_failure_keeps_old_versions():
     with pytest.raises(RuntimeError):
         await vc.refresh()
     assert vc.get("ns") == ("v1", "p1")
+
+
+def test_observe_updates_one_namespace_immediately():  # final-review finding I3
+    vc = VersionCache(fetch=None, initial={"ns": ("v1", "p1"), "other": ("x", "p1")})
+    vc.observe("ns", "v2", "p1")
+    assert vc.get("ns") == ("v2", "p1") and vc.get("other") == ("x", "p1")
