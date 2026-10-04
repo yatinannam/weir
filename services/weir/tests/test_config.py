@@ -60,3 +60,34 @@ def test_namespace_ttl_override(tmp_path):
     path = tmp_path / "w.yaml"
     path.write_text(yaml.safe_dump(data), encoding="utf-8")
     assert load_config(path).ttl_hours_for("weir-general/en/staff") == 2
+
+
+def test_phase3_router_and_grounding_config():
+    cfg = load_config(CONFIGS / "weir.yaml")
+    r = cfg.router
+    assert r.enabled is True and r.default_tier == "large" and r.max_model_calls == 2
+    assert 0 < r.low_confidence < r.high_confidence <= 1 and r.short_query_tokens > 0
+    assert {"why", "compare", "pros and cons"} <= set(r.reasoning_words)
+    assert 0 < cfg.grounding.min_overlap <= 1
+
+
+def test_max_model_calls_is_capped_at_two(tmp_path):
+    bad = tmp_path / "w.yaml"
+    text = (CONFIGS / "weir.yaml").read_text(encoding="utf-8").replace("max_model_calls: 2", "max_model_calls: 3")
+    bad.write_text(text, encoding="utf-8")
+    with pytest.raises(ValidationError):
+        load_config(bad)
+
+
+@pytest.mark.parametrize(("overlay", "cache_on", "router_on", "tier", "force_large"), [
+    ("baseline", False, True, "large", True),
+    ("cache_only", True, True, "large", True),
+    ("small_only", False, False, "small", False),
+    ("router_only", False, True, "large", False),
+    ("full", True, True, "large", False),
+])
+def test_ablation_overlays(overlay, cache_on, router_on, tier, force_large):
+    cfg = load_config(CONFIGS / "weir.yaml", CONFIGS / "ablations" / f"{overlay}.yaml")
+    assert cfg.config_label == overlay
+    assert cfg.cache.enabled is cache_on and cfg.router.enabled is router_on
+    assert cfg.router.default_tier == tier and cfg.kill_switch.force_large is force_large

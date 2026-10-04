@@ -14,7 +14,8 @@ EXPECTED_TABLES = {
 
 
 def test_applies_all_then_is_idempotent(clean_db_url):
-    assert apply_migrations(clean_db_url, MIGRATIONS) == ["001_init.sql", "002_phase2_cache.sql"]
+    assert apply_migrations(clean_db_url, MIGRATIONS) == ["001_init.sql", "002_phase2_cache.sql",
+                                                          "003_phase3_router.sql"]
     assert apply_migrations(clean_db_url, MIGRATIONS) == []
 
 
@@ -43,3 +44,13 @@ def test_feedback_fk_dropped(clean_db_url):
             "select count(*) from pg_constraint where conrelid = 'weir.feedback'::regclass and contype = 'f'"
         ).fetchone()[0]
     assert fks == 0
+
+
+def test_phase3_router_columns(clean_db_url):
+    apply_migrations(clean_db_url, MIGRATIONS)
+    with psycopg.connect(clean_db_url) as conn:
+        cols = dict(conn.execute(
+            "select column_name, data_type from information_schema.columns "
+            "where table_schema = 'weir' and table_name = 'request_log' "
+            "and column_name in ('route_reason', 'grounding_reason', 'grounding_overlap')").fetchall())
+    assert cols == {"route_reason": "text", "grounding_reason": "text", "grounding_overlap": "real"}

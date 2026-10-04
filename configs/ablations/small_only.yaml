@@ -1,0 +1,8 @@
+# Small-model trial (Phase 3 addendum §7.1): no cache, router off, every request to the small model.
+# A disabled router never falls back or escalates, so every answer is the small model's own.
+config_label: small_only
+cache:
+  enabled: false
+router:
+  enabled: false
+  default_tier: small

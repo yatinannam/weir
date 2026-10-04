@@ -52,3 +52,18 @@ async def test_full_queue_drops_instead_of_blocking():
     writer.submit(row())
     writer.submit(row())
     assert writer.dropped == 1
+
+
+@pytest.mark.db
+async def test_router_fields_are_written(migrated_db_url):
+    pool = await open_pool(migrated_db_url)
+    writer = LogWriter(pool, flush_interval_s=0.05)
+    writer.start()
+    writer.submit(row(route="small", route_reason="simple", escalated=True, model_calls=2,
+                      grounding_passed=False, grounding_reason="low_overlap", grounding_overlap=0.25))
+    await writer.stop()
+    await pool.close()
+    with psycopg.connect(migrated_db_url) as conn:
+        got = conn.execute("select route_reason, escalated, model_calls, grounding_passed, grounding_reason, "
+                           "grounding_overlap from weir.request_log").fetchone()
+    assert got == ("simple", True, 2, False, "low_overlap", 0.25)

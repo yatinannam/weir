@@ -1,0 +1,6 @@
+# Router only (Phase 3 addendum §5): no cache, router on.
+config_label: router_only
+cache:
+  enabled: false
+router:
+  enabled: true

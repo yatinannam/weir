@@ -2,7 +2,9 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+Tier = Literal["small", "large"]
 
 
 class _Strict(BaseModel):
@@ -19,6 +21,17 @@ class RagConfig(_Strict):
 class RouterConfig(_Strict):
     small_model: str
     large_model: str
+    enabled: bool = False
+    default_tier: Tier = "large"            # the tier used when the router is disabled
+    short_query_tokens: int = 20            # tuned offline (addendum §7.3)
+    high_confidence: float = 0.75           # tuned offline
+    low_confidence: float = 0.40            # tuned offline
+    max_model_calls: int = Field(2, ge=1, le=2)
+    reasoning_words: list[str] = []
+
+
+class GroundingConfig(_Strict):
+    min_overlap: float = 0.5                # share of answer content words found in the cited chunks
 
 
 class CacheConfig(_Strict):
@@ -59,6 +72,7 @@ class WeirConfig(_Strict):
     config_label: str
     rag: RagConfig
     router: RouterConfig
+    grounding: GroundingConfig = GroundingConfig()
     cache: CacheConfig = CacheConfig()
     kill_switch: KillSwitch = KillSwitch()
     bypass: BypassConfig = BypassConfig()
@@ -76,7 +90,7 @@ class WeirConfig(_Strict):
         ns = self.namespaces.get(namespace)
         return ns.cache.ttl_hours if ns is not None and ns.cache.ttl_hours is not None else self.cache.ttl_hours
 
-    def model_for(self, tier: Literal["small", "large"]) -> str:
+    def model_for(self, tier: Tier) -> str:
         return self.router.small_model if tier == "small" else self.router.large_model
 
 

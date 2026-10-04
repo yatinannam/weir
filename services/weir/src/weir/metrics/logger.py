@@ -26,6 +26,7 @@ class RequestLogRow:
     latency_total_ms: int
     query_hash: str
     bypass_reason: str | None = None
+    route_reason: str | None = None
     similarity: float | None = None
     cache_entry_id: UUID | None = None
     escalated: bool = False
@@ -36,6 +37,8 @@ class RequestLogRow:
     embed_tokens: int | None = None
     retrieval_top_score: float | None = None
     grounding_passed: bool | None = None
+    grounding_reason: str | None = None
+    grounding_overlap: float | None = None
     latency_embed_ms: int | None = None
     latency_cache_ms: int | None = None
     latency_retrieval_ms: int | None = None

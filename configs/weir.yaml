@@ -8,9 +8,19 @@ rag:
   retrieve_k: 4
   info_refresh_seconds: 30   # how often kb/prompt versions are refreshed from hospital-rag /info
 
-router:
+router:                      # Phase 3 addendum §3.2 / §5
+  enabled: true
+  default_tier: large        # used when the router is disabled
   small_model: openai/gpt-oss-20b
   large_model: openai/gpt-oss-120b
+  short_query_tokens: 20     # starting value; tuned offline in Task 10 (addendum §7.3)
+  high_confidence: 0.75      # starting value; tuned offline
+  low_confidence: 0.40       # starting value; tuned offline
+  max_model_calls: 2         # never more than 2 model calls per request
+  reasoning_words: [compare, why, explain, difference, steps, calculate, versus, vs, "pros and cons", better, which is cheaper, both]
+
+grounding:
+  min_overlap: 0.5           # starting value; tuned offline in Task 10
 
 cache:
   enabled: true              # Phase 2: on (addendum §5)

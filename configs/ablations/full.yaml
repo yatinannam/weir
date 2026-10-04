@@ -1,0 +1,6 @@
+# Full Weir (Phase 3 addendum §5): semantic cache and router both on.
+config_label: full
+cache:
+  enabled: true
+router:
+  enabled: true
