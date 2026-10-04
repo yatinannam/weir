@@ -126,3 +126,14 @@ A running log of what was done, what was learned, and what's next. Newest at the
 - Wrote the Phase 3 addendum: `superpowers/specs/2026-10-04-phase-3-router-design.md`. Added `backlog.md` (product ideas + the 11 deferred Phase 2 review findings). Work is on branch `phase-3`.
 - The user approved the addendum.
 - **Next:** write the Phase 3 implementation plan.
+
+## 2026-10-04: Phase 3 (router) build, in progress
+
+- Plan written and approved: `superpowers/plans/2026-10-04-phase-3-router.md` (13 tasks). Executed in-session, with a commit after each task once the user approves it.
+- **Task 1:** router and grounding settings in `configs/weir.yaml` (starting values 20 tokens / 0.75 / 0.40 / overlap 0.5; at most 2 model calls, enforced by config validation). Migration `003_phase3_router.sql` (`route_reason`, `grounding_reason`, `grounding_overlap`). New overlays `small_only`, `router_only`, `full`.
+- **Task 2:** `weir/router/features.py`: tokens, reasoning words (whole-word match), number of questions ("? and when" is not double-counted), retrieval scores, clinical flag.
+- **Task 3:** `weir/router/rules.py`: `route()` with reasons kill_switch → force_model → router_disabled → clinical → weak_retrieval → simple → default_large. Only the last four ("router decisions") may fall back or escalate.
+- **Task 4:** `weir/router/grounding.py`: rule-based check (not found, unfinished, no/invalid/unknown citations, partial answer, no content words, low overlap). The overlap is logged even on failure, so tuning can replay other cut-offs offline.
+- **Audit before Task 5:** all suites green (weir 200, hospital-rag 39, eval 61), CI green on `phase-3` and `main`, lint clean on new code. hospital-rag accepts both model names and already strips citation markers, so grounding's marker stripping is only a safety net. No defects found.
+- README rewritten: Mermaid architecture, request-lifecycle and router diagrams (replacing ASCII art that misaligned on GitHub), badges, the threshold-sweep chart, cleaner tables.
+- **Next:** Task 5, pipeline integration (route, fallback, escalation, 2-call cap, grounding-gated cache).
