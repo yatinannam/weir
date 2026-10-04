@@ -136,4 +136,13 @@ A running log of what was done, what was learned, and what's next. Newest at the
 - **Task 4:** `weir/router/grounding.py`: rule-based check (not found, unfinished, no/invalid/unknown citations, partial answer, no content words, low overlap). The overlap is logged even on failure, so tuning can replay other cut-offs offline.
 - **Audit before Task 5:** all suites green (weir 200, hospital-rag 39, eval 61), CI green on `phase-3` and `main`, lint clean on new code. hospital-rag accepts both model names and already strips citation markers, so grounding's marker stripping is only a safety net. No defects found.
 - README rewritten: Mermaid architecture, request-lifecycle and router diagrams (replacing ASCII art that misaligned on GitHub), badges, the threshold-sweep chart, cleaner tables.
-- **Next:** Task 5, pipeline integration (route, fallback, escalation, 2-call cap, grounding-gated cache).
+- **Task 5:** the pipeline routes every non-cached question after retrieval. A small answer that fails grounding is retried once on large; a rate-limited or timed-out tier falls back to the other; at most 2 model calls; cost is summed over every call; only grounded answers are cached; `force_model` requests bypass the cache (resolves backlog M9). Weir suite: 218 tests.
+- **Task 6, live smoke test** (real Groq, `config_label = dev`, starting cut-offs, migration 003 applied to the dev DB):
+
+  | Question | Route (reason) | Model | Top retrieval score | Grounding overlap | Latency | Cost |
+  | --- | --- | --- | --: | --: | --: | --: |
+  | "What are the ICU visiting hours?" | small (simple) | gpt-oss-20b | 0.911 | 0.89 ✓ | 694 ms | $0.000055 |
+  | "Compare the general ward and private ward visiting rules, and explain why the ICU differs." | large (default_large) | gpt-oss-120b | 0.769 | 0.59 ✓ | 704 ms | $0.000194 |
+
+  Both answers were correct and grounded, and `route_reason`, `grounding_*` and `model_calls` were logged. Note: the longer, reworded large answer scored 0.59 overlap, close to the 0.5 starting cut-off, so tuning `min_overlap` on real data (Tasks 9–10) matters.
+- **Next:** Task 7, the eval `features` command.
