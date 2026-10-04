@@ -145,4 +145,5 @@ A running log of what was done, what was learned, and what's next. Newest at the
   | "Compare the general ward and private ward visiting rules, and explain why the ICU differs." | large (default_large) | gpt-oss-120b | 0.769 | 0.59 ✓ | 704 ms | $0.000194 |
 
   Both answers were correct and grounded, and `route_reason`, `grounding_*` and `model_calls` were logged. Note: the longer, reworded large answer scored 0.59 overlap, close to the 0.5 starting cut-off, so tuning `min_overlap` on real data (Tasks 9–10) matters.
-- **Next:** Task 7, the eval `features` command.
+- **Task 7:** `weir_eval features` asks hospital-rag `/retrieve` for every question and records the router's inputs with Weir's own `FeatureExtractor` (same tokenizer, reasoning words and clinical list as live), into `eval/datasets/features.jsonl`. No LLM calls. Eval suite: 63 tests.
+- **Next:** Task 8, `export-grounding` and the offline `simulate` command.

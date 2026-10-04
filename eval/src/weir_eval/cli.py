@@ -159,6 +159,29 @@ def cmd_sweep(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _features(args: argparse.Namespace) -> int:
+    from weir.cache.embedder import Embedder
+    from weir.cache.guards import BypassRules
+    from weir.config import load_config
+    from weir.rag.adapter import RagClient
+    from weir.router.features import FeatureExtractor
+
+    from .features import collect_features
+
+    cfg = load_config(CONFIGS_DIR / "weir.yaml")
+    embedder = Embedder(cfg.cache.embed_model)
+    extractor = FeatureExtractor(embedder.count_tokens, BypassRules(cfg.bypass), cfg.router.reasoning_words)
+    rag = RagClient(args.rag_url, cfg.rag.timeout_seconds)
+    try:
+        rows = await collect_features(load_queries(QUERIES), rag, extractor, cfg.rag.retrieve_k)
+    finally:
+        await rag.aclose()
+    out = EVAL_DIR / "datasets" / "features.jsonl"
+    out.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    print(f"{out}: {len(rows)} questions")
+    return 0
+
+
 def _write_report(out_dir: Path, header: dict, records: list[dict]) -> None:
     summary = summarize(records)
     (out_dir / "summary.json").write_text(json.dumps({"header": header, "summary": summary}, indent=2), encoding="utf-8")
@@ -197,5 +220,8 @@ def main() -> None:
     rejudge_cmd = sub.add_parser("rejudge", help="re-score rows without a judge verdict; no Weir calls")
     rejudge_cmd.add_argument("report_dir")
     rejudge_cmd.set_defaults(func=lambda a: asyncio.run(_rejudge(a)))
+    feat = sub.add_parser("features", help="router features for every question via /retrieve (no LLM)")
+    feat.add_argument("--rag-url", default=os.environ.get("RAG_URL", "http://127.0.0.1:8001"))
+    feat.set_defaults(func=lambda a: asyncio.run(_features(a)))
     args = parser.parse_args()
     sys.exit(args.func(args))
