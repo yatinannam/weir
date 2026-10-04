@@ -115,3 +115,14 @@ A running log of what was done, what was learned, and what's next. Newest at the
   - quality equal to baseline on the same mix
 - Over both runs 67% of LLM cost was saved (list prices). Full write-up: `results/cache-only.md`.
 - **Next:** merge Phase 2 to main; then plan Phase 3 (router).
+
+## 2026-10-04: Phase 3 (router) design
+
+- Agreed with the user:
+  - quality bar "no visible loss" (D33)
+  - measure-first tuning via a small-model trial and offline simulation (D34)
+  - only grounded answers cached; `force_model` bypasses the cache (D35)
+  - demo chat page deferred to Phase 6; Grafana is the metrics display in Phase 4 (D36)
+- Wrote the Phase 3 addendum: `superpowers/specs/2026-10-04-phase-3-router-design.md`. Added `backlog.md` (product ideas + the 11 deferred Phase 2 review findings). Work is on branch `phase-3`.
+- The user approved the addendum.
+- **Next:** write the Phase 3 implementation plan.
