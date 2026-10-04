@@ -230,6 +230,30 @@ def cmd_simulate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_gate(args: argparse.Namespace) -> int:
+    from .gate import gate
+
+    g = gate(_load_results(Path(args.report_dir)), _first_by_id(_load_results(Path(args.baseline))))
+    print(json.dumps(g, indent=2))
+    return 0 if g["passed"] else 1
+
+
+def cmd_derive_workload(args: argparse.Namespace) -> int:
+    from .workload import project_onto_workload
+
+    ids = [r["id"] for r in _read_jsonl(Path(args.workload))]
+    records = project_onto_workload(_load_results(Path(args.report_dir)), ids)
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "results.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records),
+                                           encoding="utf-8")
+    _write_report(out_dir, {"derived_from": Path(args.report_dir).name, "workload": Path(args.workload).name,
+                            "queries": len(records), "workload_repeat_rate": round(repeat_rate(ids), 3),
+                            "note": "derived: each request reuses its question's measured result (no cache)"},
+                  records)
+    return 0
+
+
 def _write_report(out_dir: Path, header: dict, records: list[dict]) -> None:
     summary = summarize(records)
     (out_dir / "summary.json").write_text(json.dumps({"header": header, "summary": summary}, indent=2), encoding="utf-8")
@@ -279,5 +303,14 @@ def main() -> None:
     sim.add_argument("--baseline", default=str(EVAL_DIR / "reports" / "baseline-v3"))
     sim.add_argument("--small", required=True, help="small-model trial report dir (with grounding.jsonl)")
     sim.set_defaults(func=cmd_simulate)
+    gt = sub.add_parser("gate", help="Phase 3 exit gate: report vs baseline v3 on the same questions")
+    gt.add_argument("report_dir")
+    gt.add_argument("--baseline", default=str(EVAL_DIR / "reports" / "baseline-v3"))
+    gt.set_defaults(func=cmd_gate)
+    dw = sub.add_parser("derive-workload", help="lay a per-question report onto a replay order (no-cache configs)")
+    dw.add_argument("report_dir")
+    dw.add_argument("--workload", required=True)
+    dw.add_argument("--out", required=True)
+    dw.set_defaults(func=cmd_derive_workload)
     args = parser.parse_args()
     sys.exit(args.func(args))

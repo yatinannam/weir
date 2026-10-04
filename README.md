@@ -283,6 +283,13 @@ uv run --env-file ../.env python -m weir_eval run --config baseline --split all 
 uv run --env-file ../.env python -m weir_eval rejudge reports/<run>       # grade later; resumable
 uv run python -m weir_eval sweep                                          # threshold sweep, no LLM calls
 uv run python -m weir_eval make-workload --n 300 --seed 7                 # Zipf-skewed replay order
+
+# Phase 3 router tuning and checks (no model calls)
+uv run python -m weir_eval features                                       # router inputs for every question
+uv run python -m weir_eval export-grounding reports/<small-trial>         # grounding results from the request log
+uv run python -m weir_eval simulate --small reports/<small-trial>         # replay both models over the rule grid
+uv run python -m weir_eval gate reports/<run>                             # exit gate vs baseline v3, same questions
+uv run python -m weir_eval derive-workload reports/<run> --workload datasets/workload-300-seed7.jsonl --out reports/<name>
 ```
 
 | Question group | Count | Purpose |
@@ -298,9 +305,9 @@ The set is split 70/30 by cluster into tune and holdout. Every run's raw `result
 
 ```bash
 docker compose up -d postgres                       # DB tests use 127.0.0.1:5432/weir_test
-cd services/weir         && uv run pytest -q        # 200 tests
+cd services/weir         && uv run pytest -q        # 219 tests
 cd services/hospital-rag && uv run pytest -q        #  39 tests
-cd eval                  && uv run pytest -q        #  61 tests
+cd eval                  && uv run pytest -q        # 105 tests
 ```
 
 CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push.

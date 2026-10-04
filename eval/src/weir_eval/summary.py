@@ -57,6 +57,18 @@ def summarize(records: list[dict]) -> dict:
         "by_group": {g: _group_stats(rs) for g, rs in sorted(by_group.items())},
         "by_difficulty": {d: _group_stats(rs) for d, rs in sorted(by_difficulty.items())},
     })
+    by_route: dict[str, list[dict]] = defaultdict(list)
+    for r in ok:
+        by_route[r["meta"]["route"]].append(r)
+    small = by_route.get("small", [])
+    summary["by_route"] = {
+        route: {**_group_stats(rs),
+                "cost_per_1k_usd": sum(r["meta"]["cost_usd"] for r in rs) / len(rs) * 1000,
+                "p50": percentile([r["client_latency_ms"] for r in rs], 50),
+                "p95": percentile([r["client_latency_ms"] for r in rs], 95)}
+        for route, rs in sorted(by_route.items())}
+    summary["escalation_rate"] = (sum(bool(r["meta"].get("escalated")) for r in small) / len(small)
+                                  if small else None)
     return summary
 
 
@@ -88,6 +100,13 @@ def render_markdown(summary: dict, header: dict, spot_checks: list[dict]) -> str
         lines += [f"| {d} | {s['n']} | {s['judge_mean']} | {s['fact_mean']} |" for d, s in summary["by_difficulty"].items()]
         lines += ["", "## Latency by cache status", "", "| Status | n | p50 (ms) | p95 (ms) |", "| --- | --- | --- | --- |"]
         lines += [f"| {s} | {v['n']} | {v['p50']} | {v['p95']} |" for s, v in summary["latency_by_cache_status"].items()]
+        if len(summary.get("by_route", {})) > 1:
+            lines += ["", "## By route", "", "| Route | n | Judge | Facts | Cost / 1k | p50 (ms) | p95 (ms) |",
+                      "| --- | --- | --- | --- | --- | --- | --- |"]
+            lines += [f"| {k} | {v['n']} | {v['judge_mean']} | {v['fact_mean']} | ${v['cost_per_1k_usd']:.4f} | "
+                      f"{v['p50']} | {v['p95']} |" for k, v in summary["by_route"].items()]
+            if summary.get("escalation_rate") is not None:
+                lines += ["", f"Escalation rate (of requests routed small): {summary['escalation_rate']:.1%}"]
     if spot_checks:
         lines += ["", "## Human spot check (judge vs key-fact disagreement first)", "",
                   "| id | judge | facts | your verdict |", "| --- | --- | --- | --- |"]

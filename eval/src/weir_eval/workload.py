@@ -12,3 +12,12 @@ def make_workload(query_ids: list[str], n: int, seed: int, exponent: float = 1.1
 
 def repeat_rate(ids: list[str]) -> float:
     return 1 - len(set(ids)) / len(ids) if ids else 0.0
+
+
+def project_onto_workload(records: list[dict], ids: list[str]) -> list[dict]:
+    """Per-question results laid onto a replay order (first occurrence of each id wins).
+    For configs without a cache every request is independent, so this is the replay's derived result."""
+    by_id: dict[str, dict] = {}
+    for r in records:
+        by_id.setdefault(r["id"], r)
+    return [by_id[i] for i in ids]

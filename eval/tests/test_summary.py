@@ -56,3 +56,27 @@ def test_cache_metrics_and_wrong_hits():
     assert s["hits"] == 3 and s["wrong_hits"] == 2
     assert s["hit_rate_by_group"] == {"paraphrase": 2 / 3, "trap": 0.5}
     assert s["latency_by_cache_status"]["hit"]["n"] == 3 and s["latency_by_cache_status"]["miss"]["p50"] == 900
+
+
+def _rrec(route, judge, cost, latency, escalated=False, status="miss"):
+    return {"id": "q", "group": "distinct", "difficulty": "easy", "status_code": 200, "client_latency_ms": latency,
+            "fact_score": 1.0, "judge_score": judge,
+            "meta": {"route": route, "escalated": escalated, "cost_usd": cost, "cache_status": status}}
+
+
+def test_by_route_breakdown_and_escalation_rate():
+    import pytest
+
+    s = summarize([_rrec("small", 5, 0.0002, 300), _rrec("small", 4, 0.0006, 900, escalated=True),
+                   _rrec("large", 5, 0.0004, 700), _rrec("none", 5, 0.0, 50, status="hit")])
+    assert s["by_route"]["small"] == pytest.approx({"n": 2, "judge_mean": 4.5, "fact_mean": 1.0,
+                                                    "cost_per_1k_usd": 0.4, "p50": 300, "p95": 900})
+    assert s["by_route"]["large"]["n"] == 1 and s["by_route"]["none"]["cost_per_1k_usd"] == 0
+    assert s["escalation_rate"] == 0.5
+    md = render_markdown(s, {}, [])
+    assert "## By route" in md and "Escalation rate (of requests routed small): 50.0%" in md
+
+
+def test_escalation_rate_none_without_small_routes():
+    s = summarize([_rrec("large", 5, 0.0004, 700)])
+    assert s["escalation_rate"] is None and "## By route" not in render_markdown(s, {}, [])

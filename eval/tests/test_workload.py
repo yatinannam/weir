@@ -12,3 +12,15 @@ def test_workload_is_deterministic_skewed_and_sized():
 
 def test_repeat_rate_edges():
     assert repeat_rate([]) == 0.0 and repeat_rate(["a", "a", "b", "c"]) == 0.25
+
+
+def test_project_onto_workload_keeps_order_and_repeats():
+    import pytest
+
+    from weir_eval.workload import project_onto_workload
+
+    records = [{"id": "a", "x": 1}, {"id": "b", "x": 2}, {"id": "a", "x": 9}]  # first occurrence wins
+    assert project_onto_workload(records, ["b", "a", "a"]) == [{"id": "b", "x": 2}, {"id": "a", "x": 1},
+                                                               {"id": "a", "x": 1}]
+    with pytest.raises(KeyError):
+        project_onto_workload(records, ["c"])
