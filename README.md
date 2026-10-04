@@ -37,7 +37,7 @@ These are measured on *Weir General Hospital*, a fictional hospital FAQ: 40 docu
 | Configuration | Requests | Cache hits | Cost / 1k req | p50 | Judge (1–5) | Key facts | Wrong cache hits |
 | :-- | --: | --: | --: | --: | --: | --: | --: |
 | Baseline: no cache, always large model | 158 | 0% | $0.0980 | 617 ms | 4.90 | 0.981 | — |
-| Cache only, cold pass | 158 | 14.6% | $0.0847 | 686 ms | 4.91 | 0.978 | **0** |
+| Cache only, cold pass | 158 | 14.6% | $0.0847 | 686 ms | 4.91 | 0.981 | **0** |
 | Cache only, warm replay (73.7% repeats) | 300 | **93.3%** | **$0.0050** | **56 ms** | 4.79 | 0.948 | **0** |
 
 - **−95% cost and 11× lower median latency on repeat-heavy traffic, with no quality loss.** The baseline scores the same 4.79 / 0.948 on that 300-request mix; the lower average comes from the mix, not the cache.

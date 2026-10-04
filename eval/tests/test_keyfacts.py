@@ -48,3 +48,35 @@ def test_numbers_do_not_match_inside_other_numbers(answer, fact):
 def test_numbers_match_before_punctuation():
     assert fact_present("The fee is ₹50, payable at the desk.", "₹50")
     assert fact_present("Pay ₹1,200.", "₹1,200")
+
+
+@pytest.mark.parametrize("answer", [
+    "You would receive a 90 % refund.",           # q-151: a space before "%" (D38)
+    "You would receive a 90% refund.",
+    "You would receive a 90 percent refund.",
+    "You would receive a 90 per cent refund.",
+])
+def test_percent_spellings_match_every_alternative(answer):
+    assert fact_present(answer, "90 percent")
+    assert fact_present(answer, "90%")
+
+
+def test_percent_still_needs_the_whole_number():
+    assert not fact_present("You get a 190 % refund.", "90%")
+    assert not fact_present("You get a 9 % refund.", "90 percent")
+
+
+@pytest.mark.parametrize("answer", [
+    "The pediatric ward desk extension is 2171.",  # q-129: no "ext." prefix (D38)
+    "Call ext. 2171.",
+    "Call ext 2171.",
+    "It can be reached at extension 2171.",
+    "Extension number: 2171",
+])
+def test_extension_spellings_match(answer):
+    assert fact_present(answer, "ext. 2171|ext 2171|extension 2171")
+
+
+def test_extension_still_needs_the_right_number():
+    assert not fact_present("The desk extension is 2172.", "ext. 2171|extension 2171")
+    assert not fact_present("Call extension 21710.", "ext. 2171")

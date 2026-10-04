@@ -22,7 +22,7 @@
     },
     "judge_mean": 4.905,
     "judge_errors": 0,
-    "fact_mean": 0.978,
+    "fact_mean": 0.981,
     "cache_hit_rate": 0.14556962025316456,
     "hits": 23,
     "wrong_hits": 0,
@@ -52,7 +52,7 @@
       "distinct": {
         "n": 35,
         "judge_mean": 4.714,
-        "fact_mean": 0.929
+        "fact_mean": 0.943
       },
       "paraphrase": {
         "n": 65,
@@ -79,7 +79,7 @@
       "hard": {
         "n": 15,
         "judge_mean": 4.333,
-        "fact_mean": 0.833
+        "fact_mean": 0.867
       },
       "medium": {
         "n": 48,

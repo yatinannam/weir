@@ -14,13 +14,13 @@ Raw data:
 | Configuration | Requests | Cache hit rate | Cost per 1,000 requests | p50 | p95 | Judge (1–5) | Facts | Wrong hits |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Baseline v3 (no cache) | 158 | 0% | $0.0980 | 617 ms | 3.5 s | 4.90 | 0.981 | — |
-| Cache only, cold pass | 158 | 14.6% | $0.0847 | 686 ms | 1.3 s | **4.91** | 0.978‡ | **0** |
+| Cache only, cold pass | 158 | 14.6% | $0.0847 | 686 ms | 1.3 s | **4.91** | 0.981‡ | **0** |
 | Cache only, warm replay | 300 | **93.3%** | **$0.0050** | **56 ms** | 579 ms | 4.79* | 0.948* | **0**† |
 
 - **On repeat-heavy traffic (73.7% repeats), the cache cut cost per 1,000 requests by 95% ($0.098 → $0.0050) and typical latency by 11× (617 ms → 56 ms), with no quality loss.**
 - \* **The replay's quality matches the baseline on the same mix.** Scoring the same 300-request mix with the baseline's grades gives judge 4.79 and facts 0.948, identical to the cache. The lower average comes from the popularity draw repeating q-143 15 times, a hard two-document question the baseline itself fails.
 - † **The one flagged hit isn't a cache error.** The fact check flags one hit, q-141 (judge 2). That is the question replaying its *own* answer from the cold pass (similarity 1.0), which was already incomplete when the model wrote it. The baseline scores q-141 the same way. Wrong answers caused by the cache: **0**.
-- ‡ **The small facts difference against the baseline (0.978 vs 0.981) comes from one miss, not from the cache.** On q-019 the model freshly wrote "50 %" instead of "50 percent", which the fact matcher doesn't recognise. The answer is correct (judge 5/5). Every cache hit kept all of its facts.
+- ‡ **Facts equal the baseline (0.981) after the fact-matcher fix (D38, 2026-10-05).** As first reported, this was 0.978: on q-019 the model freshly wrote "50 %" with a space, which the matcher then didn't accept, although the answer was correct (judge 5/5). The matcher now treats "50 %", "50%" and "50 percent" alike, and the report was re-scored (no new model calls). Every cache hit kept all of its facts.
 
 ## Phase 2 exit gate (addendum §7.4)
 
@@ -28,7 +28,7 @@ Raw data:
 | --- | --- | --- |
 | Trap pairs at the chosen threshold (sweep) | 0, false-hit rate under 1% on every split | **0 of 24 / 0%** (see `cache-threshold.md`) |
 | Wrong hits on trap questions (cache run) | 0 | **0** |
-| Cold-pass quality vs the baseline, same 158 questions | judge within 0.1, facts no lower | **judge 4.91 vs 4.90; facts 0.978 vs 0.981.** The 0.003 difference is the q-019 wording on a *miss* (see ‡). The cache itself caused no fact losses. |
+| Cold-pass quality vs the baseline, same 158 questions | judge within 0.1, facts no lower | **judge 4.91 vs 4.90; facts 0.981 vs 0.981** (after the D38 matcher fix; 0.978 as first reported, see ‡). The cache itself caused no fact losses. |
 
 **Passed.** Only one question's grade differed from the baseline: q-078 went from 4 to 5, on a miss. That's normal variation.
 

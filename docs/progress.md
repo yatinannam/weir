@@ -156,4 +156,9 @@ A running log of what was done, what was learned, and what's next. Newest at the
   - Result: 720/5,400 settings pass. Chosen: 16 tokens / 0.86 / 0.50 / overlap 0.6.
   - Simulated −6% cost, 13% routed small, zero quality loss on tune *and* holdout.
   - The rejected option B (looser bar) would have saved ~38% with 2 answers worse. Decision D37.
+- **Fact-matcher fix (D38, user chose to fix it before the live runs):**
+  - The key-fact matcher now treats "90 %", "90%", "90 percent" and "90 per cent" alike.
+  - It reads "ext. 2171", "extension 2171", "extension is 2171" and "Extension number: 2171" as the number 2171. Whole-number matching still applies, so 2172 and 21710 don't match.
+  - Facts were re-scored, with no model calls, on baseline v3 (unchanged, 0.981), the Phase 2 cache runs (cold pass 0.978 → **0.981**, now equal to baseline: q-019 "50 %"; replay unchanged) and the small trial (0.953 → **0.972**: q-129, q-151, q-152).
+  - The cache sweep labels are unchanged (threshold still 0.90). The router simulation is identical (same 720 passing settings, same choice).
 - **Next:** Task 11, eval reporting for the live runs (route breakdown, gate check, derived replays).

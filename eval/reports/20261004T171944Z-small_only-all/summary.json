@@ -22,7 +22,7 @@
     },
     "judge_mean": 4.867,
     "judge_errors": 0,
-    "fact_mean": 0.953,
+    "fact_mean": 0.972,
     "cache_hit_rate": 0.0,
     "hits": 0,
     "wrong_hits": 0,
@@ -56,7 +56,7 @@
       "trap": {
         "n": 48,
         "judge_mean": 4.854,
-        "fact_mean": 0.917
+        "fact_mean": 0.979
       },
       "unanswerable": {
         "n": 10,
@@ -78,7 +78,7 @@
       "medium": {
         "n": 48,
         "judge_mean": 4.854,
-        "fact_mean": 0.917
+        "fact_mean": 0.979
       }
     }
   }
