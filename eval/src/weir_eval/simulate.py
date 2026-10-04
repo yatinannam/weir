@@ -19,7 +19,9 @@ from .features import FEATURE_KEYS
 
 GRID = {
     "short_query_tokens": [12, 16, 20, 25, 30, 40],
-    "high_confidence": [0.60, 0.65, 0.70, 0.75, 0.80, 0.85],
+    # 0.60–0.95 in 0.01 steps (D37): the addendum's 0.60–0.85 left no passing setting, because an easy-looking
+    # question the small model answers incompletely (q-036, top score 0.855) was routed small at every setting.
+    "high_confidence": [round(0.60 + 0.01 * i, 2) for i in range(36)],
     "low_confidence": [0.30, 0.35, 0.40, 0.45, 0.50],
     "min_overlap": [0.3, 0.4, 0.5, 0.6, 0.7],
 }
@@ -161,7 +163,26 @@ def build_rows(queries: list[EvalQuery], features: dict[str, dict], baseline: di
     return rows
 
 
-HEAD = ["n", "cost / 1k (baseline)", "judge (baseline)", "facts (baseline)", "routed small", "escalated",
+def _round(x):
+    if isinstance(x, float):
+        return round(x, 6)
+    if isinstance(x, dict):
+        return {k: _round(v) for k, v in x.items()}
+    return x
+
+
+def dump(results: list[tuple[Setting, dict[str, dict]]], chosen: tuple[Setting, dict] | None, header: dict) -> dict:
+    """What simulate.json keeps: the chosen setting and every setting passing on tune. The full grid is not
+    saved (it regenerates in under a second from the committed inputs)."""
+    def entry(s: Setting, m: dict) -> dict:
+        return {"setting": asdict(s), **{k: _round(v) for k, v in m.items() if k != "_sim"}}
+
+    passing = [entry(s, m) for s, m in results if "tune" in m and meets_bar(m["tune"])]
+    return {"header": header, "settings_total": len(results), "settings_passing": len(passing),
+            "chosen": entry(*chosen) if chosen else None, "passing": passing}
+
+
+HEAD = ["n","cost / 1k (baseline)", "judge (baseline)", "facts (baseline)", "routed small", "escalated",
         "small-route judge vs large", "bar"]
 
 

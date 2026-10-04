@@ -211,7 +211,7 @@ def cmd_export_grounding(args: argparse.Namespace) -> int:
 def cmd_simulate(args: argparse.Namespace) -> int:
     from weir.config import load_config
 
-    from .simulate import build_rows, choose, render, run_grid
+    from .simulate import build_rows, choose, dump, render, run_grid
 
     cfg = load_config(CONFIGS_DIR / "weir.yaml")
     small_dir = Path(args.small)
@@ -223,8 +223,7 @@ def cmd_simulate(args: argparse.Namespace) -> int:
     out_dir = EVAL_DIR / "reports" / f"simulate-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
     out_dir.mkdir(parents=True)
     header = {"baseline": Path(args.baseline).name, "small": small_dir.name}
-    dump = [{"setting": vars(s), **{k: v for k, v in m.items() if k != "_sim"}} for s, m in results]
-    (out_dir / "simulate.json").write_text(json.dumps({"header": header, "results": dump}, indent=1),
+    (out_dir / "simulate.json").write_text(json.dumps(dump(results, chosen, header), separators=(",", ":")),
                                            encoding="utf-8")
     (out_dir / "summary.md").write_text(render(chosen, results, header), encoding="utf-8")
     print(f"chosen: {vars(chosen[0]) if chosen else None}; report: {out_dir}")

@@ -13,14 +13,14 @@ router:                      # Phase 3 addendum §3.2 / §5
   default_tier: large        # used when the router is disabled
   small_model: openai/gpt-oss-20b
   large_model: openai/gpt-oss-120b
-  short_query_tokens: 20     # starting value; tuned offline in Task 10 (addendum §7.3)
-  high_confidence: 0.75      # starting value; tuned offline
-  low_confidence: 0.40       # starting value; tuned offline
+  short_query_tokens: 16     # tuned offline, D37 (docs/results/router-tuning.md)
+  high_confidence: 0.86      # tuned offline, D37: only very strong retrieval matches go small
+  low_confidence: 0.50       # tuned offline, D37 (no eval question scores below 0.62)
   max_model_calls: 2         # never more than 2 model calls per request
   reasoning_words: [compare, why, explain, difference, steps, calculate, versus, vs, "pros and cons", better, which is cheaper, both]
 
 grounding:
-  min_overlap: 0.5           # starting value; tuned offline in Task 10
+  min_overlap: 0.6           # tuned offline, D37
 
 cache:
   enabled: true              # Phase 2: on (addendum §5)

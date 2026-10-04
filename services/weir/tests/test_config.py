@@ -91,3 +91,9 @@ def test_ablation_overlays(overlay, cache_on, router_on, tier, force_large):
     assert cfg.config_label == overlay
     assert cfg.cache.enabled is cache_on and cfg.router.enabled is router_on
     assert cfg.router.default_tier == tier and cfg.kill_switch.force_large is force_large
+
+
+def test_phase3_tuned_values():  # D37: from the offline router simulation (docs/results/router-tuning.md)
+    cfg = load_config(CONFIGS / "weir.yaml")
+    assert (cfg.router.short_query_tokens, cfg.router.high_confidence, cfg.router.low_confidence) == (16, 0.86, 0.50)
+    assert cfg.grounding.min_overlap == 0.6

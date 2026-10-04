@@ -129,3 +129,21 @@ def test_render_reports_the_choice_or_that_none_passed():
     results = run_grid(rows, CFG)
     assert "Chosen setting" in render(choose(results), results, {"baseline": "b", "small": "s"})
     assert "router ships disabled" in render(None, results, {"baseline": "b", "small": "s"})
+
+
+def test_grid_reaches_strict_cut_offs():  # D37: q-036 (top 0.855) must be keepable off the small route
+    assert max(GRID["high_confidence"]) >= 0.95 and min(GRID["high_confidence"]) <= 0.60
+    steps = GRID["high_confidence"]
+    assert all(round(b - a, 2) == 0.01 for a, b in zip(steps, steps[1:], strict=False))
+
+
+def test_dump_keeps_only_passing_settings_and_counts():
+    from weir_eval.simulate import dump
+
+    rows = [row("q-1"), row("q-2", f=feats(tokens=99))]
+    results = run_grid(rows, CFG)
+    out = dump(results, choose(results), {"baseline": "b", "small": "s"})
+    assert out["settings_total"] == len(results) and out["settings_passing"] == len(out["passing"]) > 0
+    assert out["chosen"]["setting"]["short_query_tokens"] in GRID["short_query_tokens"]
+    assert all("_sim" not in p and p["tune"]["share_small"] > 0 for p in out["passing"])
+    assert dump(results, None, {})["chosen"] is None
