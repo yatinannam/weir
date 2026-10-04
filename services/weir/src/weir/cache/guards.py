@@ -12,7 +12,8 @@ MY_RECORD = re.compile(
     r"\bmy (?:appointment|bill|report|result|record|prescription|admission|account|booking|payment|claim)s?\b")
 
 
-def _phrases(terms: list[str]) -> re.Pattern | None:
+def phrase_pattern(terms: list[str]) -> re.Pattern | None:
+    """One regex matching any of the phrases as whole words; a trailing "*" means prefix match."""
     parts = []
     for term in terms:
         t = normalize(term)
@@ -22,8 +23,8 @@ def _phrases(terms: list[str]) -> re.Pattern | None:
 
 class BypassRules:
     def __init__(self, cfg: BypassConfig):
-        self._time = _phrases(cfg.time_sensitive)
-        self._clinical = _phrases(cfg.clinical)
+        self._time = phrase_pattern(cfg.time_sensitive)
+        self._clinical = phrase_pattern(cfg.clinical)
         prefixes = [re.escape(normalize(p)) for p in cfg.followup_prefixes]
         self._prefix = re.compile(r"^(?:" + "|".join(prefixes) + r")(?!\w)") if prefixes else None
         self._pronouns = frozenset(normalize(p) for p in cfg.followup_pronouns)
