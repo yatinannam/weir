@@ -182,6 +182,55 @@ async def _features(args: argparse.Namespace) -> int:
     return 0
 
 
+DEFAULT_DB = os.environ.get("WEIR_DB_URL", "postgresql://weir:weir@127.0.0.1:5432/weir")
+
+
+def _first_by_id(rows: list[dict]) -> dict[str, dict]:
+    by_id: dict[str, dict] = {}
+    for r in rows:
+        by_id.setdefault(r["id"], r)
+    return by_id
+
+
+def _read_jsonl(path: Path) -> list[dict]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def cmd_export_grounding(args: argparse.Namespace) -> int:
+    from .request_log import attach, fetch_grounding
+
+    out_dir = Path(args.report_dir)
+    results = _load_results(out_dir)
+    ids = [r["meta"]["request_id"] for r in results if r.get("status_code") == 200]
+    rows, missing = attach(results, fetch_grounding(args.db_url, ids))
+    (out_dir / "grounding.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    print(f"{out_dir / 'grounding.jsonl'}: {len(rows)} rows; missing from request_log: {missing or 'none'}")
+    return 1 if missing else 0
+
+
+def cmd_simulate(args: argparse.Namespace) -> int:
+    from weir.config import load_config
+
+    from .simulate import build_rows, choose, render, run_grid
+
+    cfg = load_config(CONFIGS_DIR / "weir.yaml")
+    small_dir = Path(args.small)
+    rows = build_rows(load_queries(QUERIES), _first_by_id(_read_jsonl(EVAL_DIR / "datasets" / "features.jsonl")),
+                      _first_by_id(_load_results(Path(args.baseline))), _first_by_id(_load_results(small_dir)),
+                      _first_by_id(_read_jsonl(small_dir / "grounding.jsonl")), cfg.router.small_model)
+    results = run_grid(rows, cfg)
+    chosen = choose(results)
+    out_dir = EVAL_DIR / "reports" / f"simulate-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
+    out_dir.mkdir(parents=True)
+    header = {"baseline": Path(args.baseline).name, "small": small_dir.name}
+    dump = [{"setting": vars(s), **{k: v for k, v in m.items() if k != "_sim"}} for s, m in results]
+    (out_dir / "simulate.json").write_text(json.dumps({"header": header, "results": dump}, indent=1),
+                                           encoding="utf-8")
+    (out_dir / "summary.md").write_text(render(chosen, results, header), encoding="utf-8")
+    print(f"chosen: {vars(chosen[0]) if chosen else None}; report: {out_dir}")
+    return 0
+
+
 def _write_report(out_dir: Path, header: dict, records: list[dict]) -> None:
     summary = summarize(records)
     (out_dir / "summary.json").write_text(json.dumps({"header": header, "summary": summary}, indent=2), encoding="utf-8")
@@ -223,5 +272,13 @@ def main() -> None:
     feat = sub.add_parser("features", help="router features for every question via /retrieve (no LLM)")
     feat.add_argument("--rag-url", default=os.environ.get("RAG_URL", "http://127.0.0.1:8001"))
     feat.set_defaults(func=lambda a: asyncio.run(_features(a)))
+    eg = sub.add_parser("export-grounding", help="copy a report's grounding results from weir.request_log")
+    eg.add_argument("report_dir")
+    eg.add_argument("--db-url", default=DEFAULT_DB)
+    eg.set_defaults(func=cmd_export_grounding)
+    sim = sub.add_parser("simulate", help="offline router simulation over the rule grid (no model calls)")
+    sim.add_argument("--baseline", default=str(EVAL_DIR / "reports" / "baseline-v3"))
+    sim.add_argument("--small", required=True, help="small-model trial report dir (with grounding.jsonl)")
+    sim.set_defaults(func=cmd_simulate)
     args = parser.parse_args()
     sys.exit(args.func(args))
