@@ -1,8 +1,9 @@
-"""Request pipeline (main spec §5.3, Phase 2 addendum §2).
+"""Request pipeline (main spec §5.3, Phase 2 addendum §2, Phase 3 addendum §2).
 
 bypass rules → embed → cache lookup → entity guard → HIT: replay the stored answer
-                                                    → MISS/BYPASS: retrieve → generate → store if eligible
-Phase 3 replaces _choose_tier with the router.
+                                                    → MISS/BYPASS: retrieve → features → route → generate
+                                                      → grounding check → (small failed: escalate once to large)
+                                                      → store if grounded and eligible
 """
 import asyncio
 import logging
@@ -20,16 +21,19 @@ from .cache.entities import Lexicon
 from .cache.guards import BypassRules, bypass_reason, store_block_reason
 from .cache.store import CacheEntry, Candidate
 from .cache.versions import VersionCache
-from .config import WeirConfig
+from .config import Tier, WeirConfig
 from .llm.pricing import PriceTable
 from .metrics.logger import LogSink, RequestLogRow
-from .rag.adapter import RagClient, RagError, RetrievedChunk
+from .rag.adapter import GenerateResult, RagClient, RagError, RetrievedChunk, RetrieveResult
+from .router.features import FeatureExtractor
+from .router.grounding import Grounding, check
+from .router.rules import ROUTER_DECISIONS, route
 from .text import normalize, query_hash
 
 log = logging.getLogger("weir.pipeline")
 
-Tier = Literal["small", "large"]
 ERROR_STATUS = {"rate_limited": 503, "timeout": 504, "unavailable": 502, "bad_response": 502}
+FALLBACK_KINDS = frozenset({"rate_limited", "timeout", "bad_response"})  # provider trouble; not "unavailable"
 
 
 class QueryOptions(BaseModel):
@@ -95,6 +99,15 @@ class CacheDeps:
     rules: BypassRules
 
 
+@dataclass
+class Outcome:
+    generated: GenerateResult                      # the answer returned to the caller
+    grounding: Grounding                           # its grounding check
+    billed: list[tuple[str, GenerateResult]]       # (requested model, result) for every call that returned
+    escalated: bool = False
+    fallback: bool = False
+
+
 def _ms(started: float) -> int:
     return int((time.perf_counter() - started) * 1000)
 
@@ -108,6 +121,7 @@ class Pipeline:
         self._log = log
         self._cache = cache
         self._now = now
+        self._features = FeatureExtractor(cache.embedder.count_tokens, cache.rules, cfg.router.reasoning_words)
 
     async def handle(self, req: QueryRequest) -> QueryResponse:
         started = time.perf_counter()
@@ -123,7 +137,8 @@ class Pipeline:
         )
         reason = bypass_reason(query=req.query, namespace=req.namespace, session_id=req.session_id,
                                personalized=req.personalized, bypass_cache=req.options.bypass_cache,
-                               cfg=self._cfg, rules=self._cache.rules)
+                               cfg=self._cfg, rules=self._cache.rules,
+                               force_model=req.options.force_model is not None)
         versions = None
         if reason is None:
             versions = self._cache.versions.get(req.namespace)
@@ -149,12 +164,9 @@ class Pipeline:
             retrieved = await self._rag.retrieve(req.query, req.namespace, self._cfg.rag.retrieve_k)
             row.latency_retrieval_ms = _ms(t)
             row.retrieval_top_score = retrieved.top_score
-            tier = self._choose_tier(req)
-            model = self._cfg.model_for(tier)
-            row.route = tier
-            t = time.perf_counter()
-            generated = await self._rag.generate(req.query, req.namespace, retrieved.chunks, model)
-            row.latency_llm_ms = _ms(t)
+            features = self._features.extract(req.query, retrieved, req.options.force_model)
+            row.route, row.route_reason = route(features, self._cfg)
+            outcome = await self._answer(req, retrieved, row)
         except RagError as e:
             row.status = "timeout" if e.kind == "timeout" else "error"
             row.error_detail = str(e)[:500]
@@ -168,19 +180,27 @@ class Pipeline:
             self._log.submit(row)
             raise PipelineError(500, "internal", str(row.request_id)) from e
 
+        generated = outcome.generated
         if retrieved.kb_version and generated.finish_reason != "skipped":
             # A document edit shows up here first: switch the cache key now, not at the next /info refresh.
             self._cache.versions.observe(req.namespace, retrieved.kb_version, generated.prompt_version)
+        if outcome.fallback:
+            row.route_reason = f"{row.route_reason}+fallback"
+        row.escalated = outcome.escalated
         row.model = generated.model
-        row.model_calls = 0 if generated.finish_reason == "skipped" else 1
-        row.tokens_in, row.tokens_out = generated.tokens_in, generated.tokens_out
-        row.cost_usd = (self._prices.cost(model, generated.tokens_in, generated.tokens_out, today)
+        row.tokens_in = sum(g.tokens_in for _, g in outcome.billed)
+        row.tokens_out = sum(g.tokens_out for _, g in outcome.billed)
+        row.cost_usd = (sum((self._prices.cost(m, g.tokens_in, g.tokens_out, today) for m, g in outcome.billed),
+                            Decimal(0))
                         + self._embed_cost(row, today))
         row.counterfactual_cost_usd = self._prices.cost(
             self._cfg.router.large_model, generated.tokens_in, generated.tokens_out, today)
+        row.grounding_passed = outcome.grounding.passed
+        row.grounding_reason = outcome.grounding.reason
+        row.grounding_overlap = outcome.grounding.overlap
         row.answer_len = len(generated.answer)
         sources = _sources(retrieved.chunks, generated.cited_chunk_ids)
-        if row.cache_status == "miss":
+        if row.cache_status == "miss" and outcome.grounding.passed:  # D35: only grounded answers are cached
             row.cache_entry_id = self._maybe_store(req, normalized, vector, versions, retrieved, generated,
                                                    sources, now)
         row.latency_total_ms = _ms(started)
@@ -189,7 +209,7 @@ class Pipeline:
         return QueryResponse(
             answer=generated.answer, sources=sources,
             meta=QueryMeta(request_id=str(row.request_id), cache_status=row.cache_status,
-                           similarity=row.similarity, route=row.route, escalated=False, model=row.model,
+                           similarity=row.similarity, route=row.route, escalated=row.escalated, model=row.model,
                            latency_ms=row.latency_total_ms, cost_usd=float(row.cost_usd)),
         )
 
@@ -258,10 +278,54 @@ class Pipeline:
             return Decimal(0)
         return self._prices.cost(self._cfg.cache.embed_model, row.embed_tokens, 0, today)
 
-    def _choose_tier(self, req: QueryRequest) -> Tier:
-        if self._cfg.kill_switch.force_large:
-            return "large"
-        return req.options.force_model or "large"
+    async def _answer(self, req: QueryRequest, retrieved: RetrieveResult, row: RequestLogRow) -> Outcome:
+        """One call on the routed tier; on provider trouble try the other tier once; a small answer that fails
+        grounding is retried once on large. Only router decisions adapt; forced and disabled routes keep to
+        one tier and one call."""
+        adaptive = row.route_reason in ROUTER_DECISIONS
+        cap = self._cfg.router.max_model_calls
+        tier: Tier = row.route  # type: ignore[assignment]
+        fallback = False
+        try:
+            generated = await self._call(req, retrieved, tier, row)
+        except RagError as e:
+            if not (adaptive and e.kind in FALLBACK_KINDS and row.model_calls < cap):
+                raise
+            log.warning("%s model failed (%s); falling back to the other tier", tier, e.kind)
+            tier, fallback = ("large" if tier == "small" else "small"), True
+            generated = await self._call(req, retrieved, tier, row)
+        billed = [(self._cfg.model_for(tier), generated)]
+        grounding = self._ground(generated, retrieved)
+        escalated = False
+        if (adaptive and tier == "small" and not grounding.passed and generated.finish_reason != "skipped"
+                and row.model_calls < cap):
+            try:
+                large = await self._call(req, retrieved, "large", row)
+            except RagError as e:
+                log.warning("escalation to the large model failed (%s); returning the small answer", e.kind)
+                row.error_detail = f"escalation_failed:{e.kind}"
+            else:
+                billed.append((self._cfg.model_for("large"), large))
+                generated, grounding, escalated = large, self._ground(large, retrieved), True
+        return Outcome(generated, grounding, billed, escalated, fallback)
+
+    async def _call(self, req: QueryRequest, retrieved: RetrieveResult, tier: Tier,
+                    row: RequestLogRow) -> GenerateResult:
+        t = time.perf_counter()
+        try:
+            generated = await self._rag.generate(req.query, req.namespace, retrieved.chunks,
+                                                 self._cfg.model_for(tier))
+        except RagError:
+            row.model_calls += 1  # the provider was asked, even though it failed
+            raise
+        finally:
+            row.latency_llm_ms = (row.latency_llm_ms or 0) + _ms(t)
+        if generated.finish_reason != "skipped":  # no chunks: hospital-rag answers without calling a model
+            row.model_calls += 1
+        return generated
+
+    def _ground(self, generated: GenerateResult, retrieved: RetrieveResult) -> Grounding:
+        return check(generated, retrieved.chunks, self._cfg.grounding.min_overlap)
 
 
 def _sources(chunks: list[RetrievedChunk], cited_ids: list[str]) -> list[Source]:

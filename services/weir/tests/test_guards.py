@@ -16,10 +16,11 @@ def cfg(**cache):
     return c
 
 
-def reason(query="When can I visit?", namespace=PUBLIC, session_id=None, personalized=False, bypass_cache=False, config=None):
+def reason(query="When can I visit?", namespace=PUBLIC, session_id=None, personalized=False, bypass_cache=False,
+           config=None, force_model=False):
     c = config or cfg()
     return bypass_reason(query=query, namespace=namespace, session_id=session_id, personalized=personalized,
-                         bypass_cache=bypass_cache, cfg=c, rules=BypassRules(c.bypass))
+                         bypass_cache=bypass_cache, cfg=c, rules=BypassRules(c.bypass), force_model=force_model)
 
 
 def test_plain_question_is_cacheable():
@@ -92,3 +93,9 @@ def test_store_block_reason(over, top, query, expected):
 def test_partial_answer_with_stray_not_found_is_not_stored():
     partial = gen(answer="The fee is ₹1,200.\nNOT_FOUND")
     assert store_block_reason(generated=partial, top_score=0.9, query="q", min_retrieval_score=0.3) == "partial_answer"
+
+
+def test_force_model_bypasses_after_request_option():
+    assert reason(force_model=True) == "force_model"
+    assert reason(force_model=True, bypass_cache=True) == "request_option"
+    assert reason(force_model=True, config=cfg(enabled=False)) == "force_model"

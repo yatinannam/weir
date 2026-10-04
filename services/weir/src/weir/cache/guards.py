@@ -47,11 +47,13 @@ class BypassRules:
 
 
 def bypass_reason(*, query: str, namespace: str, session_id: str | None, personalized: bool,
-                  bypass_cache: bool, cfg: WeirConfig, rules: BypassRules) -> str | None:
+                  bypass_cache: bool, cfg: WeirConfig, rules: BypassRules, force_model: bool = False) -> str | None:
     if personalized:
         return "personalized"
     if bypass_cache:
         return "request_option"
+    if force_model:  # D35: a forced tier's answer must not be served to other callers (backlog M9)
+        return "force_model"
     if cfg.kill_switch.disable_cache:
         return "kill_switch"
     if not cfg.cache.enabled:

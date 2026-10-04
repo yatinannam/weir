@@ -20,15 +20,22 @@ from .fakes import FakeEmbedder, FakeStore, InlineQueue, ListSink
 PUBLIC = "weir-general/en/public"
 STAFF = "weir-general/en/staff"
 CHUNKS = [
-    {"id": "pub-a#0", "doc_id": "pub-a", "title": "Visiting", "text": "t", "score": 0.9, "token_count": 3},
-    {"id": "pub-a#1", "doc_id": "pub-a", "title": "Visiting", "text": "t", "score": 0.8, "token_count": 3},
-    {"id": "pub-b#0", "doc_id": "pub-b", "title": "ICU", "text": "t", "score": 0.7, "token_count": 3},
+    {"id": "pub-a#0", "doc_id": "pub-a", "title": "Visiting", "text": "Answer text", "score": 0.9, "token_count": 3},
+    {"id": "pub-a#1", "doc_id": "pub-a", "title": "Visiting", "text": "Answer text", "score": 0.8, "token_count": 3},
+    {"id": "pub-b#0", "doc_id": "pub-b", "title": "ICU", "text": "Answer text", "score": 0.7, "token_count": 3},
 ]
+SMALL, LARGE = "openai/gpt-oss-20b", "openai/gpt-oss-120b"
+UNGROUNDED = "Something unrelated entirely."
+LIMITED = httpx.Response(503, json={"error": "rate_limited", "retry_after": 12.0})
+# Router on, with cut-offs pinned so offline tuning (Task 10) never changes these tests.
+ROUTER_ON = dict(router__enabled=True, router__short_query_tokens=20, router__high_confidence=0.75,
+                 router__low_confidence=0.40, router__max_model_calls=2, grounding__min_overlap=0.5)
 VERSIONS = {PUBLIC: ("v1", "p1"), STAFF: ("v1", "p1")}
 FIXED_NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 
 
-def fake_rag(generate_response=None, chunks=CHUNKS, seen=None, calls=None, top_score=0.9, cited=None, answer="Answer."):
+def fake_rag(generate_response=None, chunks=CHUNKS, seen=None, calls=None, top_score=0.9, cited=None, answer="Answer.",
+             answers=None, responses=None):
     def handler(request):
         if calls is not None:
             calls.append(request.url.path)
@@ -39,12 +46,18 @@ def fake_rag(generate_response=None, chunks=CHUNKS, seen=None, calls=None, top_s
                                              "kb_version": "v1" if chunks else None, "latency_ms": 3})
         if seen is not None:
             seen.append(body)
+        per_model = (responses or {}).get(body["model"])
+        if isinstance(per_model, Exception):
+            raise per_model
+        if per_model is not None:  # a fresh copy: one Response object must not be served twice
+            return httpx.Response(per_model.status_code, content=per_model.content, headers=per_model.headers)
         if generate_response is not None:
             return generate_response
         has = bool(body["chunks"])
         ids = (["pub-a#1", "pub-b#0", "pub-a#0"] if cited is None else cited) if has else []
+        text = (answers or {}).get(body["model"], answer)
         return httpx.Response(200, json={
-            "answer": answer if has else "Sorry, not found.", "cited_chunk_ids": ids, "invalid_citations": 0,
+            "answer": text if has else "Sorry, not found.", "cited_chunk_ids": ids, "invalid_citations": 0,
             "not_found": not has, "finish_reason": "stop" if has else "skipped",
             "tokens_in": 1000 if has else 0, "tokens_out": 500 if has else 0,
             "model": body["model"], "prompt_version": "p1", "latency_ms": 7})
@@ -62,6 +75,7 @@ class Harness:
 
 
 def harness(rag, overlay=None, versions=VERSIONS, aliases=None, **config_overrides) -> Harness:
+    config_overrides.setdefault("router__enabled", False)  # Phase 2 tests; router tests pass ROUTER_ON
     cfg = load_config(CONFIGS / "weir.yaml", overlay)
     for path, value in config_overrides.items():
         section, key = path.split("__")
@@ -85,6 +99,8 @@ async def test_first_ask_is_a_miss_with_cost_log_and_store():
     assert resp.answer == "Answer." and [s.id for s in resp.sources] == ["pub-a", "pub-b"]
     assert resp.meta.cache_status == "miss" and resp.meta.route == "large"
     [row] = h.sink.rows
+    assert row.route_reason == "router_disabled" and row.model_calls == 1 and row.escalated is False
+    assert row.grounding_passed is True and row.grounding_reason is None and row.grounding_overlap == 1.0
     assert row.bypass_reason is None and row.status == "ok" and row.embed_tokens == 4
     assert row.cost_usd == Decimal("0.00045") == row.counterfactual_cost_usd
     assert row.query_text == "When can I visit?" and row.config_label == "dev"
@@ -225,12 +241,16 @@ async def test_ineligible_answers_are_not_stored(rag_kwargs):
 
 # --- Phase 1 behaviour kept -------------------------------------------------------------------
 
-async def test_force_small_is_cheaper_than_counterfactual():
+async def test_force_small_is_cheaper_than_counterfactual_and_bypasses_cache():
     seen = []
     h = harness(fake_rag(seen=seen))
     resp = await h.p.handle(ask("q", options=QueryOptions(force_model="small")))
-    assert seen[0]["model"] == "openai/gpt-oss-20b" and resp.meta.route == "small"
-    assert h.sink.rows[0].cost_usd == Decimal("0.000225") and h.sink.rows[0].counterfactual_cost_usd == Decimal("0.00045")
+    assert seen[0]["model"] == SMALL and resp.meta.route == "small"
+    row = h.sink.rows[0]
+    assert row.cost_usd == Decimal("0.000225") and row.counterfactual_cost_usd == Decimal("0.00045")
+    assert row.bypass_reason == "force_model" and row.route_reason == "force_model"
+    await h.writer.drain()
+    assert h.store.entries == []  # D35: forced answers are never cached (backlog M9)
 
 
 async def test_kill_switch_force_large_beats_force_model():
@@ -238,7 +258,7 @@ async def test_kill_switch_force_large_beats_force_model():
     h = harness(fake_rag(seen=seen), overlay=CONFIGS / "ablations" / "baseline.yaml")
     resp = await h.p.handle(ask("q", options=QueryOptions(force_model="small")))
     assert resp.meta.route == "large" and seen[0]["model"] == "openai/gpt-oss-120b"
-    assert h.sink.rows[0].bypass_reason == "cache_disabled"
+    assert h.sink.rows[0].bypass_reason == "force_model" and h.sink.rows[0].route_reason == "kill_switch"
 
 
 async def test_no_chunks_returns_not_found_answer():
@@ -314,3 +334,164 @@ async def test_miss_reveals_new_kb_version_and_stops_old_hits():  # final-review
     await h.p.handle(ask("How much is parking?"))            # any miss reveals v2
     assert h.p._cache.versions.get(PUBLIC) == ("v2", "p1")
     assert (await h.p.handle(ask("When can I visit?"))).meta.cache_status == "miss"
+
+
+# --- router (Phase 3) -------------------------------------------------------------------------
+
+async def test_simple_question_goes_small_and_is_cached():
+    seen = []
+    h = harness(fake_rag(seen=seen), **ROUTER_ON)
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert [b["model"] for b in seen] == [SMALL]
+    assert resp.meta.route == "small" and resp.meta.model == SMALL and resp.meta.escalated is False
+    row = h.sink.rows[0]
+    assert row.route_reason == "simple" and row.model_calls == 1 and row.grounding_passed is True
+    assert row.cost_usd == Decimal("0.000225") and row.counterfactual_cost_usd == Decimal("0.00045")
+    await h.writer.drain()
+    [entry] = h.store.entries
+    assert entry.model == SMALL
+
+
+async def test_ungrounded_small_answer_escalates_to_large():
+    seen = []
+    h = harness(fake_rag(seen=seen, answers={SMALL: UNGROUNDED}), **ROUTER_ON)
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert [b["model"] for b in seen] == [SMALL, LARGE]
+    assert resp.answer == "Answer." and resp.meta.route == "small" and resp.meta.escalated is True
+    assert resp.meta.model == LARGE
+    row = h.sink.rows[0]
+    assert row.route_reason == "simple" and row.escalated is True and row.model_calls == 2
+    assert (row.tokens_in, row.tokens_out) == (2000, 1000)
+    assert row.cost_usd == Decimal("0.000675")                 # small + large calls
+    assert row.counterfactual_cost_usd == Decimal("0.00045")   # the answering (large) call at the large price
+    assert row.grounding_passed is True                        # the large answer's check
+
+
+async def test_answer_that_fails_grounding_is_returned_but_never_cached():
+    h = harness(fake_rag(answer=UNGROUNDED), **ROUTER_ON)
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert resp.answer == UNGROUNDED and resp.meta.escalated is True
+    row = h.sink.rows[0]
+    assert row.grounding_passed is False and row.grounding_reason == "low_overlap" and row.grounding_overlap == 0.0
+    await h.writer.drain()
+    assert h.store.entries == [] and row.cache_entry_id is None
+
+
+@pytest.mark.parametrize("query", [
+    "Why are ICU visits limited to two people?",          # reasoning word
+    "When can I visit and how much is parking?",          # two questions
+])
+async def test_harder_questions_go_large(query):
+    seen = []
+    h = harness(fake_rag(seen=seen), **ROUTER_ON)
+    resp = await h.p.handle(ask(query))
+    assert [b["model"] for b in seen] == [LARGE] and resp.meta.route == "large"
+    assert h.sink.rows[0].route_reason == "default_large"
+
+
+async def test_weak_retrieval_goes_large():
+    h = harness(fake_rag(top_score=0.3), **ROUTER_ON)
+    await h.p.handle(ask("When can I visit?"))
+    assert h.sink.rows[0].route == "large" and h.sink.rows[0].route_reason == "weak_retrieval"
+
+
+async def test_clinical_question_goes_large():
+    h = harness(fake_rag(), **ROUTER_ON)
+    await h.p.handle(ask("What dosage of paracetamol is safe?"))
+    row = h.sink.rows[0]
+    assert row.route == "large" and row.route_reason == "clinical" and row.bypass_reason == "clinical"
+
+
+async def test_skipped_small_call_never_escalates():  # Review Focus 3
+    calls = []
+    h = harness(fake_rag(chunks=[], calls=calls), **{**ROUTER_ON, "router__low_confidence": 0.0,
+                                                     "router__high_confidence": 0.0})
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert resp.meta.route == "small" and resp.meta.escalated is False and calls.count("/generate") == 1
+    row = h.sink.rows[0]
+    assert row.model_calls == 0 and row.cost_usd == 0 and row.grounding_reason == "not_found"
+
+
+async def test_rate_limited_small_falls_back_to_large():  # Review Focus 1
+    seen = []
+    h = harness(fake_rag(seen=seen, responses={SMALL: LIMITED}), **ROUTER_ON)
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert [b["model"] for b in seen] == [SMALL, LARGE]
+    assert resp.answer == "Answer." and resp.meta.model == LARGE and resp.meta.escalated is False
+    row = h.sink.rows[0]
+    assert row.route == "small" and row.route_reason == "simple+fallback" and row.model_calls == 2
+    assert row.cost_usd == Decimal("0.00045") and row.status == "ok"   # only the answering call is billed
+
+
+async def test_fallback_to_small_never_makes_a_third_call():
+    seen = []
+    h = harness(fake_rag(seen=seen, top_score=0.3, responses={LARGE: LIMITED}, answers={SMALL: UNGROUNDED}),
+                **ROUTER_ON)
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert [b["model"] for b in seen] == [LARGE, SMALL]          # cap of 2: no escalation after the fallback
+    assert resp.answer == UNGROUNDED and resp.meta.escalated is False
+    row = h.sink.rows[0]
+    assert row.route_reason == "weak_retrieval+fallback" and row.model_calls == 2
+    await h.writer.drain()
+    assert h.store.entries == []
+
+
+async def test_both_tiers_failing_returns_503_with_request_id():
+    seen = []
+    h = harness(fake_rag(seen=seen, responses={SMALL: LIMITED, LARGE: LIMITED}), **ROUTER_ON)
+    with pytest.raises(PipelineError) as exc:
+        await h.p.handle(ask("When can I visit?"))
+    assert exc.value.status_code == 503 and exc.value.retry_after == 12.0
+    assert len(seen) == 2 and exc.value.request_id == str(h.sink.rows[0].request_id)
+    assert h.sink.rows[0].status == "error" and h.sink.rows[0].model_calls == 2
+
+
+async def test_failed_escalation_returns_the_small_answer():  # Review Focus 2
+    h = harness(fake_rag(answers={SMALL: UNGROUNDED}, responses={LARGE: LIMITED}), **ROUTER_ON)
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert resp.answer == UNGROUNDED and resp.meta.model == SMALL and resp.meta.escalated is False
+    row = h.sink.rows[0]
+    assert row.status == "ok" and row.error_detail == "escalation_failed:rate_limited" and row.model_calls == 2
+    assert row.cost_usd == Decimal("0.000225")
+    await h.writer.drain()
+    assert h.store.entries == []
+
+
+async def test_max_model_calls_one_disables_fallback_and_escalation():
+    seen = []
+    h = harness(fake_rag(seen=seen, answers={SMALL: UNGROUNDED}), **{**ROUTER_ON, "router__max_model_calls": 1})
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert [b["model"] for b in seen] == [SMALL] and resp.meta.escalated is False
+
+
+async def test_unreachable_rag_does_not_fall_back():
+    seen = []
+    h = harness(fake_rag(seen=seen, responses={SMALL: httpx.ConnectError("down")}), **ROUTER_ON)
+    with pytest.raises(PipelineError) as exc:
+        await h.p.handle(ask("When can I visit?"))
+    assert exc.value.status_code == 502 and len(seen) == 1
+
+
+async def test_force_model_small_with_router_on_never_escalates():
+    seen = []
+    h = harness(fake_rag(seen=seen, answers={SMALL: UNGROUNDED}), **ROUTER_ON)
+    resp = await h.p.handle(ask("When can I visit?", options=QueryOptions(force_model="small")))
+    assert [b["model"] for b in seen] == [SMALL] and resp.meta.escalated is False
+    assert h.sink.rows[0].route_reason == "force_model" and h.sink.rows[0].bypass_reason == "force_model"
+
+
+async def test_kill_switch_force_large_never_falls_back():
+    seen = []
+    h = harness(fake_rag(seen=seen, responses={LARGE: LIMITED}), **{**ROUTER_ON, "kill_switch__force_large": True})
+    with pytest.raises(PipelineError):
+        await h.p.handle(ask("When can I visit?"))
+    assert [b["model"] for b in seen] == [LARGE] and h.sink.rows[0].route_reason == "kill_switch"
+
+
+async def test_disabled_router_uses_default_tier_without_escalation():
+    seen = []
+    h = harness(fake_rag(seen=seen, answers={SMALL: UNGROUNDED}), router__default_tier="small")
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert [b["model"] for b in seen] == [SMALL] and resp.answer == UNGROUNDED
+    row = h.sink.rows[0]
+    assert row.route_reason == "router_disabled" and row.grounding_reason == "low_overlap"
