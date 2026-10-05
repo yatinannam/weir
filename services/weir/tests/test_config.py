@@ -96,4 +96,4 @@ def test_ablation_overlays(overlay, cache_on, router_on, tier, force_large):
 def test_phase3_tuned_values():  # D37: from the offline router simulation (docs/results/router-tuning.md)
     cfg = load_config(CONFIGS / "weir.yaml")
     assert (cfg.router.short_query_tokens, cfg.router.high_confidence, cfg.router.low_confidence) == (16, 0.86, 0.50)
-    assert cfg.grounding.min_overlap == 0.6
+    assert cfg.grounding.min_overlap == 0.3  # D39: 0.6 kept good large answers out of the cache

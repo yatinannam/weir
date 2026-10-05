@@ -186,3 +186,4 @@ A running log of what was done, what was learned, and what's next. Newest at the
   | Router only, replay (derived) | −4% | 4.79 = 4.79 | 0.947 = 0.947 | 5.00 = 5.00 | 0 | pass |
 
   \* The only difference is q-150 on the **large** route (judge 2 → 1), which the large model flipped 3 times in a minute with the plain baseline config: model noise, not Weir (same rule as q-019 in Phase 2).
+- **D39:** `grounding.min_overlap` lowered 0.6 → 0.3 (user chose option A): 0.6 kept 8 good large answers out of the cache. Re-measuring full Weir (cold + 300 replay) with 0.3.

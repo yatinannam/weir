@@ -20,7 +20,7 @@ router:                      # Phase 3 addendum §3.2 / §5
   reasoning_words: [compare, why, explain, difference, steps, calculate, versus, vs, "pros and cons", better, which is cheaper, both]
 
 grounding:
-  min_overlap: 0.6           # tuned offline, D37
+  min_overlap: 0.3           # D37 tuning (0.3-0.6 route identically) + D39: 0.6 kept good large answers out of the cache
 
 cache:
   enabled: true              # Phase 2: on (addendum §5)
