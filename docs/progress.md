@@ -162,4 +162,16 @@ A running log of what was done, what was learned, and what's next. Newest at the
   - Facts were re-scored, with no model calls, on baseline v3 (unchanged, 0.981), the Phase 2 cache runs (cold pass 0.978 → **0.981**, now equal to baseline: q-019 "50 %"; replay unchanged) and the small trial (0.953 → **0.972**: q-129, q-151, q-152).
   - The cache sweep labels are unchanged (threshold still 0.90). The router simulation is identical (same 720 passing settings, same choice).
 - **Task 11, live-run reporting:** every report's `summary.md` now has a **By route** table (judge, facts, cost per 1k, p50/p95 per route) and the escalation rate. `weir_eval gate <report>` checks a run against baseline v3 question by question (cost lower, judge within 0.1, facts no lower, small route ≥ large on its questions, 0 wrong cache hits). `weir_eval derive-workload` lays a per-question report onto the 300-request replay order, for the no-cache configs. Sanity checks on real data: the gate passes the Phase 2 cache cold run; the derived baseline replay reproduces the published 4.79 / 0.948 (repeat rate 73.7%). Eval suite: 105 tests.
-- **Next:** Task 12, the live runs: router only (158, cold), full Weir cold (cache purged) and the 300-request replay, then judging (about 1–2 days of free judge quota).
+- **Task 12, live runs** (2026-10-05, tuned config D37, real Groq; 616 requests, **0 errors**):
+
+  | Run | Report | Cache hits | Routed small | Cost / 1k | p50 / p95 | Judge | Facts |
+  | --- | --- | --: | --: | --: | --: | --: | --: |
+  | Router only, 158 cold | `20261005T074414Z-router_only-all` | 0% | 12.7% | $0.0921 (−6%) | 781 ms / 1.5 s | 4.90 | 0.978 |
+  | Full Weir, 158 cold (cache purged) | `20261005T082403Z-full-all` | 14.6% | 11.4% | $0.0763 (−22%) | 788 ms / 7.2 s | 4.89 | 0.975 |
+  | Full Weir, 300 replay (73.7% repeats) | `20261005T085816Z-full-workload-300-seed7` | 89.7% | — | $0.0090 (−91%) | 16 ms / 709 ms | 4.79 | 0.947 |
+
+  - **Simulation matched live:** router-only cost $0.0921 vs $0.0917 simulated, 12.7% vs 13% routed small. All 20 small-route answers scored 5/5 with full facts; 0 escalations.
+  - **Fallback fired for real:** Groq's large model returned errors (HTTP 502) and slowed down for about 20 minutes during the full cold pass. 6 requests fell back to the small model instead of failing, which explains the 7.2 s p95.
+  - **Replay hits 89.7% vs 93.3% in Phase 2:** 31 misses = 15× q-143 (the large model now says "couldn't find", which is never cached) + 10 from 8 large answers whose grounding overlap (0.38–0.57) was below `min_overlap` 0.6, so they weren't cached, although all 8 were judged 4–5/5 with full facts + 6 one-offs. The simulation tuned `min_overlap` for routing only; it didn't model that the same cut-off gates which large answers are cached.
+  - **Gate vs baseline v3:** cost, judge, small route and 0 wrong hits all pass; "facts no lower" misses by 0.003–0.006. Every drop is on the large route (q-141, q-150). Re-asking with the plain baseline config showed it is the large model, not Weir: q-141 now gets "couldn't find" 3/3 times (it half-answered on Oct 1–3: drift), and q-150 flipped half-answer / couldn't find / half-answer within a minute (noise). Derived replays: `derived-baseline-v3-…` and `derived-router_only-…`.
+  - **User decision:** run a same-day baseline (v4) and gate against it, so model drift affects both sides equally (in progress).

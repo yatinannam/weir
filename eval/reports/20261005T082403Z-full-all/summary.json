@@ -1,0 +1,119 @@
+{
+  "header": {
+    "config": "full",
+    "split": "all",
+    "workload": null,
+    "queries": 158,
+    "judge_model": "groq:qwen/qwen3.8-27b",
+    "rubric": "r1",
+    "git_commit": "2517246",
+    "started_utc": "20261005T082403Z"
+  },
+  "summary": {
+    "n": 158,
+    "ok": 158,
+    "errors": 0,
+    "cost_usd_total": 0.01205865,
+    "cost_per_1k_usd": 0.07632056962025317,
+    "latency_ms": {
+      "p50": 788,
+      "p95": 7180,
+      "p99": 27692
+    },
+    "judge_mean": 4.892,
+    "judge_errors": 0,
+    "fact_mean": 0.975,
+    "cache_hit_rate": 0.14556962025316456,
+    "hits": 23,
+    "wrong_hits": 0,
+    "hit_rate_by_group": {
+      "distinct": 0.0,
+      "paraphrase": 0.2923076923076923,
+      "trap": 0.08333333333333333,
+      "unanswerable": 0.0
+    },
+    "latency_by_cache_status": {
+      "hit": {
+        "n": 23,
+        "p50": 32,
+        "p95": 57
+      },
+      "miss": {
+        "n": 135,
+        "p50": 825,
+        "p95": 7836
+      }
+    },
+    "route_mix": {
+      "large": 0.740506329113924,
+      "small": 0.11392405063291139,
+      "none": 0.14556962025316456
+    },
+    "by_group": {
+      "distinct": {
+        "n": 35,
+        "judge_mean": 4.657,
+        "fact_mean": 0.914
+      },
+      "paraphrase": {
+        "n": 65,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "trap": {
+        "n": 48,
+        "judge_mean": 4.896,
+        "fact_mean": 0.979
+      },
+      "unanswerable": {
+        "n": 10,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      }
+    },
+    "by_difficulty": {
+      "easy": {
+        "n": 95,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "hard": {
+        "n": 15,
+        "judge_mean": 4.2,
+        "fact_mean": 0.8
+      },
+      "medium": {
+        "n": 48,
+        "judge_mean": 4.896,
+        "fact_mean": 0.979
+      }
+    },
+    "by_route": {
+      "large": {
+        "n": 117,
+        "judge_mean": 4.855,
+        "fact_mean": 0.966,
+        "cost_per_1k_usd": 0.09603012820512821,
+        "p50": 839,
+        "p95": 8291
+      },
+      "none": {
+        "n": 23,
+        "judge_mean": 5,
+        "fact_mean": 1.0,
+        "cost_per_1k_usd": 0.0,
+        "p50": 32,
+        "p95": 57
+      },
+      "small": {
+        "n": 18,
+        "judge_mean": 5,
+        "fact_mean": 1.0,
+        "cost_per_1k_usd": 0.04572916666666666,
+        "p50": 691,
+        "p95": 6144
+      }
+    },
+    "escalation_rate": 0.0
+  }
+}

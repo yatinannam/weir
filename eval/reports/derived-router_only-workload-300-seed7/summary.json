@@ -1,0 +1,102 @@
+{
+  "header": {
+    "derived_from": "20261005T074414Z-router_only-all",
+    "workload": "workload-300-seed7.jsonl",
+    "queries": 300,
+    "workload_repeat_rate": 0.737,
+    "note": "derived: each request reuses its question's measured result (no cache)"
+  },
+  "summary": {
+    "n": 300,
+    "ok": 300,
+    "errors": 0,
+    "cost_usd_total": 0.028067625000000002,
+    "cost_per_1k_usd": 0.09355875000000001,
+    "latency_ms": {
+      "p50": 732,
+      "p95": 1469,
+      "p99": 1680
+    },
+    "judge_mean": 4.787,
+    "judge_errors": 0,
+    "fact_mean": 0.947,
+    "cache_hit_rate": 0.0,
+    "hits": 0,
+    "wrong_hits": 0,
+    "hit_rate_by_group": {
+      "distinct": 0.0,
+      "paraphrase": 0.0,
+      "trap": 0.0,
+      "unanswerable": 0.0
+    },
+    "latency_by_cache_status": {
+      "bypass": {
+        "n": 300,
+        "p50": 732,
+        "p95": 1469
+      }
+    },
+    "route_mix": {
+      "large": 0.9366666666666666,
+      "small": 0.06333333333333334
+    },
+    "by_group": {
+      "distinct": {
+        "n": 87,
+        "judge_mean": 4.264,
+        "fact_mean": 0.816
+      },
+      "paraphrase": {
+        "n": 105,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "trap": {
+        "n": 104,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "unanswerable": {
+        "n": 4,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      }
+    },
+    "by_difficulty": {
+      "easy": {
+        "n": 104,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "hard": {
+        "n": 42,
+        "judge_mean": 3.476,
+        "fact_mean": 0.619
+      },
+      "medium": {
+        "n": 154,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      }
+    },
+    "by_route": {
+      "large": {
+        "n": 281,
+        "judge_mean": 4.772,
+        "fact_mean": 0.943,
+        "cost_per_1k_usd": 0.09675533807829181,
+        "p50": 734,
+        "p95": 1469
+      },
+      "small": {
+        "n": 19,
+        "judge_mean": 5,
+        "fact_mean": 1.0,
+        "cost_per_1k_usd": 0.046282894736842106,
+        "p50": 732,
+        "p95": 1057
+      }
+    },
+    "escalation_rate": 0.0
+  }
+}
