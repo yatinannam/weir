@@ -1,0 +1,93 @@
+{
+  "header": {
+    "derived_from": "20261005T091621Z-baseline-all",
+    "workload": "workload-300-seed7.jsonl",
+    "queries": 300,
+    "workload_repeat_rate": 0.737,
+    "note": "derived: each request reuses its question's measured result (no cache)"
+  },
+  "summary": {
+    "n": 300,
+    "ok": 300,
+    "errors": 0,
+    "cost_usd_total": 0.0291126,
+    "cost_per_1k_usd": 0.097042,
+    "latency_ms": {
+      "p50": 747,
+      "p95": 927,
+      "p99": 984
+    },
+    "judge_mean": 4.787,
+    "judge_errors": 0,
+    "fact_mean": 0.947,
+    "cache_hit_rate": 0.0,
+    "hits": 0,
+    "wrong_hits": 0,
+    "hit_rate_by_group": {
+      "distinct": 0.0,
+      "paraphrase": 0.0,
+      "trap": 0.0,
+      "unanswerable": 0.0
+    },
+    "latency_by_cache_status": {
+      "bypass": {
+        "n": 300,
+        "p50": 747,
+        "p95": 927
+      }
+    },
+    "route_mix": {
+      "large": 1.0
+    },
+    "by_group": {
+      "distinct": {
+        "n": 87,
+        "judge_mean": 4.264,
+        "fact_mean": 0.816
+      },
+      "paraphrase": {
+        "n": 105,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "trap": {
+        "n": 104,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "unanswerable": {
+        "n": 4,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      }
+    },
+    "by_difficulty": {
+      "easy": {
+        "n": 104,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "hard": {
+        "n": 42,
+        "judge_mean": 3.476,
+        "fact_mean": 0.619
+      },
+      "medium": {
+        "n": 154,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      }
+    },
+    "by_route": {
+      "large": {
+        "n": 300,
+        "judge_mean": 4.787,
+        "fact_mean": 0.947,
+        "cost_per_1k_usd": 0.097042,
+        "p50": 747,
+        "p95": 927
+      }
+    },
+    "escalation_rate": null
+  }
+}

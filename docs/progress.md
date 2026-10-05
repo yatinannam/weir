@@ -174,4 +174,15 @@ A running log of what was done, what was learned, and what's next. Newest at the
   - **Fallback fired for real:** Groq's large model returned errors (HTTP 502) and slowed down for about 20 minutes during the full cold pass. 6 requests fell back to the small model instead of failing, which explains the 7.2 s p95.
   - **Replay hits 89.7% vs 93.3% in Phase 2:** 31 misses = 15× q-143 (the large model now says "couldn't find", which is never cached) + 10 from 8 large answers whose grounding overlap (0.38–0.57) was below `min_overlap` 0.6, so they weren't cached, although all 8 were judged 4–5/5 with full facts + 6 one-offs. The simulation tuned `min_overlap` for routing only; it didn't model that the same cut-off gates which large answers are cached.
   - **Gate vs baseline v3:** cost, judge, small route and 0 wrong hits all pass; "facts no lower" misses by 0.003–0.006. Every drop is on the large route (q-141, q-150). Re-asking with the plain baseline config showed it is the large model, not Weir: q-141 now gets "couldn't find" 3/3 times (it half-answered on Oct 1–3: drift), and q-150 flipped half-answer / couldn't find / half-answer within a minute (noise). Derived replays: `derived-baseline-v3-…` and `derived-router_only-…`.
-  - **User decision:** run a same-day baseline (v4) and gate against it, so model drift affects both sides equally (in progress).
+  - **User decision:** run a same-day baseline (v4) and gate against it, so model drift affects both sides equally.
+- **Baseline v4** (`20261005T091621Z-baseline-all`, same day, always large, no cache): judge 4.90, facts **0.978** (v3 0.981: q-141 drift confirmed), cost $0.0988 / 1k, p50/p95 767 ms / 1.1 s. Derived replay: `derived-baseline-v4-workload-300-seed7`.
+- **Exit gate vs baseline v4:**
+
+  | Report | Cost | Judge | Facts | Small route vs large | Wrong hits | Gate |
+  | --- | --- | --- | --- | --- | --: | --- |
+  | Router only, cold | −7% | 4.90 = 4.90 | 0.978 = 0.978 | 5.00 = 5.00 | 0 | pass |
+  | Full Weir, cold | −23% | 4.89 vs 4.90 | 0.975 vs 0.978 | 5.00 = 5.00 | 0 | pass* |
+  | Full Weir, 300 replay | −91% | 4.79 = 4.79 | 0.947 = 0.947 | — | 0 | pass |
+  | Router only, replay (derived) | −4% | 4.79 = 4.79 | 0.947 = 0.947 | 5.00 = 5.00 | 0 | pass |
+
+  \* The only difference is q-150 on the **large** route (judge 2 → 1), which the large model flipped 3 times in a minute with the plain baseline config: model noise, not Weir (same rule as q-019 in Phase 2).
