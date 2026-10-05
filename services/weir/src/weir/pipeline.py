@@ -106,6 +106,7 @@ class Outcome:
     billed: list[tuple[str, GenerateResult]]       # (requested model, result) for every call that returned
     escalated: bool = False
     fallback: bool = False
+    tier: Tier = "large"                           # the tier whose answer is returned
 
 
 def _ms(started: float) -> int:
@@ -200,7 +201,8 @@ class Pipeline:
         row.grounding_overlap = outcome.grounding.overlap
         row.answer_len = len(generated.answer)
         sources = _sources(retrieved.chunks, generated.cited_chunk_ids)
-        if row.cache_status == "miss" and outcome.grounding.passed:  # D35: only grounded answers are cached
+        degraded = outcome.fallback and outcome.tier == "small"  # D40: a stand-in answer must not outlive the outage
+        if row.cache_status == "miss" and outcome.grounding.passed and not degraded:  # D35: only grounded answers
             row.cache_entry_id = self._maybe_store(req, normalized, vector, versions, retrieved, generated,
                                                    sources, now)
         row.latency_total_ms = _ms(started)
@@ -307,7 +309,7 @@ class Pipeline:
             else:
                 billed.append((self._cfg.model_for("large"), large))
                 generated, grounding, escalated = large, self._ground(large, retrieved), True
-        return Outcome(generated, grounding, billed, escalated, fallback)
+        return Outcome(generated, grounding, billed, escalated, fallback, "large" if escalated else tier)
 
     async def _call(self, req: QueryRequest, retrieved: RetrieveResult, tier: Tier,
                     row: RequestLogRow) -> GenerateResult:

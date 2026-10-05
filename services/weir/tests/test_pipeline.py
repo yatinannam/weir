@@ -495,3 +495,20 @@ async def test_disabled_router_uses_default_tier_without_escalation():
     assert [b["model"] for b in seen] == [SMALL] and resp.answer == UNGROUNDED
     row = h.sink.rows[0]
     assert row.route_reason == "router_disabled" and row.grounding_reason == "low_overlap"
+
+
+async def test_fallback_down_to_small_is_not_cached():  # D40: a degraded answer must not outlive the outage
+    h = harness(fake_rag(top_score=0.3, responses={LARGE: LIMITED}), **ROUTER_ON)
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert resp.answer == "Answer." and resp.meta.model == SMALL and h.sink.rows[0].grounding_passed is True
+    await h.writer.drain()
+    assert h.store.entries == [] and h.sink.rows[0].cache_entry_id is None
+
+
+async def test_fallback_up_to_large_is_cached():
+    h = harness(fake_rag(responses={SMALL: LIMITED}), **ROUTER_ON)
+    resp = await h.p.handle(ask("When can I visit?"))
+    assert resp.meta.model == LARGE
+    await h.writer.drain()
+    [entry] = h.store.entries
+    assert entry.model == LARGE
