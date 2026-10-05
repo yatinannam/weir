@@ -21,7 +21,7 @@ It logs the **cost, counterfactual cost and latency of every request**, so each 
 > [!NOTE]
 > **Status:**
 > - **Done:** Phases 0–2 (gateway, baseline, semantic cache).
-> - **In progress:** Phase 3 (router). Features, rules and the grounding check are built and tested; pipeline integration and offline tuning are next.
+> - **Phase 3 (router):** built, tuned offline and measured live; the exit gate passes against a same-day baseline. One clean re-measurement of full Weir is pending (after D39/D40), then the final review.
 > - Everything runs on free tiers.
 
 ## Contents
@@ -32,25 +32,39 @@ It logs the **cost, counterfactual cost and latency of every request**, so each 
 
 ## Results
 
-These are measured on *Weir General Hospital*, a fictional hospital FAQ: 40 documents and 158 eval questions, including look-alike trap pairs. Costs are at provider list prices; actual spend is $0.
+These are measured on *Weir General Hospital*, a fictional hospital FAQ: 40 documents and 158 eval questions, including look-alike trap pairs. The models are real Groq models, graded by a Qwen judge plus key-fact checks. Costs are at provider list prices; actual spend is $0.
 
-| Configuration | Requests | Cache hits | Cost / 1k req | p50 | Judge (1–5) | Key facts | Wrong cache hits |
+**Cold pass** (158 questions, each asked once):
+
+| Configuration | Cache hits | Routed small | Cost / 1k req | p50 | Judge (1–5) | Key facts | Wrong cache hits |
 | :-- | --: | --: | --: | --: | --: | --: | --: |
-| Baseline: no cache, always large model | 158 | 0% | $0.0980 | 617 ms | 4.90 | 0.981 | — |
-| Cache only, cold pass | 158 | 14.6% | $0.0847 | 686 ms | 4.91 | 0.981 | **0** |
-| Cache only, warm replay (73.7% repeats) | 300 | **93.3%** | **$0.0050** | **56 ms** | 4.79 | 0.948 | **0** |
+| Baseline: always the large model, no cache | 0% | 0% | $0.0988 | 767 ms | 4.90 | 0.978 | — |
+| Cache only | 14.6% | 0% | $0.0847 (−14%) | 686 ms | 4.91 | 0.981 | **0** |
+| Router only | 0% | 12.7% | $0.0921 (−7%) | 781 ms | 4.90 | 0.978 | — |
+| **Full Weir** (cache + router) | 14.6% | 11.4% | **$0.0763 (−23%)** | 788 ms | 4.89 | 0.975 | **0** |
 
-- **−95% cost and 11× lower median latency on repeat-heavy traffic, with no quality loss.** The baseline scores the same 4.79 / 0.948 on that 300-request mix; the lower average comes from the mix, not the cache.
+**Replay** (300 requests, Zipf-skewed, 73.7% repeats):
+
+| Configuration | Cache hits | Cost / 1k req | p50 | Judge (1–5) | Key facts | Wrong cache hits |
+| :-- | --: | --: | --: | --: | --: | --: |
+| Baseline (derived per question) | 0% | $0.0970 | 747 ms | 4.79 | 0.947 | — |
+| Cache only | 93.3% | $0.0050 | 56 ms | 4.79 | 0.948 | **0** |
+| **Full Weir** | **89.7%** | **$0.0090 (−91%)** | **16 ms** | **4.79** | **0.947** | **0** |
+
+- **On repeat-heavy traffic, Weir cuts cost per 1,000 requests by 91–95% and median latency by about 45×, with quality identical to the baseline on the same mix.**
+- **The router adds a modest, safe saving.** It sends 13% of questions to the small model, which answered every one of them at 5/5 with full facts. That cuts router-only cost by 7% with judge and facts unchanged. The strict "no visible loss" bar limits it; a looser bar would have saved ~38% at the cost of 2 wrong answers in 158 ([`router-tuning.md`](docs/results/router-tuning.md)).
+- **It degrades gracefully.** When Groq's large model failed (HTTP 502s, then a daily rate limit), Weir fell back to the small model: **0 errors across 1,232 live requests on 2026-10-05**.
 - **The entity guard is what makes caching safe.** At the chosen 0.90 threshold, embedding similarity alone would serve the wrong answer for **37%** of accepted matches (for example "ICU visiting hours" vs "general ward visiting hours"). With the guard, that drops to **0%**.
 
 <p align="center">
   <img src="docs/results/cache-threshold.png" alt="Cache threshold sweep: hit rate and false-hit rate with and without the entity guard" width="720">
 </p>
 
-Full write-ups:
-- [`cache-only.md`](docs/results/cache-only.md)
-- [`cache-threshold.md`](docs/results/cache-threshold.md)
-- [`baseline.md`](docs/results/baseline.md)
+Phase 3 rows are compared with a baseline re-run the same day, because the large model drifted between runs. Full write-ups:
+- [`summary.md`](docs/results/summary.md): the four-way ablation, both workloads
+- [`router.md`](docs/results/router.md): live router results, exit gate, the two outage incidents
+- [`router-tuning.md`](docs/results/router-tuning.md): offline tuning and the option not taken
+- [`cache-only.md`](docs/results/cache-only.md), [`cache-threshold.md`](docs/results/cache-threshold.md), [`baseline.md`](docs/results/baseline.md)
 
 ## Architecture
 
@@ -149,10 +163,12 @@ flowchart TD
   - A rate-limited or timed-out tier falls back to the other tier.
   - Never more than 2 model calls per request.
   - Forced and disabled routes never adapt.
-- **Offline tuning.** The cut-offs are tuned without a single model call: the router replays both models' measured answers to all 158 questions over a 900-setting grid. The cheapest setting that meets the quality bar wins. The bar is "no visible loss" (D33):
+  - An answer from a fallback down to the small model is never cached, so a stand-in answer can't outlive an outage (D40).
+- **Offline tuning.** The cut-offs are tuned without a single model call: the router replays both models' measured answers to all 158 questions over a grid of 5,400 settings. The cheapest setting that meets the quality bar wins. The bar is "no visible loss" (D33):
   - judge within 0.1 of the baseline
   - facts no lower
   - the small route no worse than the large model on the same questions
+- **Tuned values** (D37, D39): small only if the question is at most **16 tokens**, a single question with no reasoning words, and its top retrieval score is at least **0.86**; grounding `min_overlap` **0.3**. The live router matched the simulation almost exactly: 12.7% routed small vs 13% predicted, −7% vs −6%.
 
 ## Stack
 
@@ -305,7 +321,7 @@ The set is split 70/30 by cluster into tune and holdout. Every run's raw `result
 
 ```bash
 docker compose up -d postgres                       # DB tests use 127.0.0.1:5432/weir_test
-cd services/weir         && uv run pytest -q        # 219 tests
+cd services/weir         && uv run pytest -q        # 221 tests
 cd services/hospital-rag && uv run pytest -q        #  39 tests
 cd eval                  && uv run pytest -q        # 105 tests
 ```
@@ -319,9 +335,9 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push.
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router) |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | Task-by-task implementation plans |
-| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D36) |
+| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D40) |
 | [`docs/progress.md`](docs/progress.md) | Phase-by-phase log |
-| [`docs/results/`](docs/results/) | Baseline, threshold sweep and cache results |
+| [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary |
 | [`docs/backlog.md`](docs/backlog.md) | Deferred findings and ideas |
 
 ## Limitations
@@ -329,7 +345,8 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push.
 - **Small, synthetic benchmark.** There are 158 questions and 24 trap pairs on a fictional KB. "Zero wrong hits" is strong evidence for this set, not a guarantee.
 - **Hit rate depends on the workload.** 93% is for a 73.7%-repeat replay; a cold pass with only paraphrases repeating hits 15%.
 - **Latency is measured sequentially, not under load.** Load tests come in Phase 5.
-- **Grounding is lexical.** Word overlap catches unsupported answers cheaply, but it doesn't understand meaning.
+- **Grounding is lexical.** It catches unfinished, uncited and "not found" answers, but not a fluent answer that omits or invents a detail using the source's own words. The strict routing cut-offs, not grounding, keep such questions on the large model.
+- **The large model isn't stable over time.** One hard question drifted between runs and another flips between attempts, so every Phase 3 comparison uses a same-day baseline.
 
 ## Roadmap
 
@@ -337,7 +354,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push.
 | :-: | :-- | :-: |
 | 0–1 | Gateway, RAG adapter, request logging, eval set, baseline | ✅ |
 | 2 | Semantic cache, entity guard, threshold sweep, cache eval | ✅ |
-| 3 | Router: features, rules, grounding check, escalation, offline-tuned cut-offs | 🚧 |
+| 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | 🚧 final re-measure + review |
 | 4 | Prometheus metrics, Grafana dashboard, alerts | Planned |
-| 5 | k6 load tests (cold/warm, ramp, spike, soak), four-way ablation | Planned |
+| 5 | k6 load tests (cold/warm, ramp, spike, soak), ablation under load | Planned |
 | 6 | Demo chat page, write-up, optional learned router | Planned |

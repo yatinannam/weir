@@ -16,6 +16,9 @@ The record of everything planned, decided and measured for Weir. Start here.
 | [plans/…phase-2…](superpowers/plans/2026-10-02-phase-2-semantic-cache.md) | Phase 2: semantic cache (13 tasks) |
 | [plans/…phase-3…](superpowers/plans/2026-10-04-phase-3-router.md) | Phase 3: router, grounding check, offline tuning, live runs (13 tasks) |
 | [results/](results/) | Baseline, threshold sweep, ablation and load-test results |
-| [results/baseline.md](results/baseline.md) | Frozen baselines: v1 (50 questions), v2 (150) and v3 (158) |
+| [results/baseline.md](results/baseline.md) | Frozen baselines: v1 (50 questions), v2 (150) and v3 (158); v4 (same-day, Phase 3) is in router.md |
 | [results/cache-threshold.md](results/cache-threshold.md) | Threshold sweep: 0.90, and why the entity guard matters |
 | [results/cache-only.md](results/cache-only.md) | Phase 2 result: cache hit rate, cost, latency, wrong hits |
+| [results/router-tuning.md](results/router-tuning.md) | Phase 3: offline router tuning, the strict bar, the option not taken |
+| [results/router.md](results/router.md) | Phase 3: live router results, exit gate, outage incidents |
+| [results/summary.md](results/summary.md) | The four-way ablation (baseline, cache, router, full) on both workloads |
