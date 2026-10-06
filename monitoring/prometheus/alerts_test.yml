@@ -1,0 +1,181 @@
+# promtool unit tests for alerts.yml (Phase 4 addendum §6). Run:
+#   docker run --rm -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" --entrypoint promtool \
+#     prom/prometheus:v2.55.1 test rules /etc/prometheus/alerts_test.yml
+rule_files: [alerts.yml]
+evaluation_interval: 1m
+
+tests:
+  # --- WeirDown ---------------------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'up{job="weir", instance="weir:8000"}'
+        values: '0x5'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: WeirDown
+        exp_alerts:
+          - exp_labels: {severity: critical, job: weir, instance: "weir:8000"}
+            exp_annotations: {summary: "Weir is down: Prometheus cannot scrape weir:8000/metrics"}
+  - interval: 1m
+    input_series:
+      - series: 'up{job="weir", instance="weir:8000"}'
+        values: '1x5'
+    alert_rule_test:
+      - {eval_time: 3m, alertname: WeirDown, exp_alerts: []}
+
+  # --- HighErrorRate ----------------------------------------------------------------------
+  - interval: 1m
+    input_series:   # 10 ok + 2 errors per minute = 17% errors
+      - series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}'
+        values: '0+10x30'
+      - series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="error"}'
+        values: '0+2x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: HighErrorRate
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations: {summary: "More than 5% of Weir requests are failing"}
+  - interval: 1m
+    input_series:   # 50% errors but only ~4 requests per 10 min: below the traffic guard
+      - series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}'
+        values: '0+0.2x30'
+      - series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="error"}'
+        values: '0+0.2x30'
+    alert_rule_test:
+      - {eval_time: 20m, alertname: HighErrorRate, exp_alerts: []}
+
+  # --- HighLatencyP95 ---------------------------------------------------------------------
+  - interval: 1m
+    input_series:   # every request lands in the (4 s, 8 s] bucket
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="1"}', values: '0x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="4"}', values: '0x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="8"}', values: '0+10x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="+Inf"}', values: '0+10x40'}
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+10x40'}
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: HighLatencyP95
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Weir p95 latency is above 4 s"}
+  - interval: 1m
+    input_series:   # every request under 1 s
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="1"}', values: '0+10x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="4"}', values: '0+10x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="8"}', values: '0+10x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="+Inf"}', values: '0+10x40'}
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+10x40'}
+    alert_rule_test:
+      - {eval_time: 30m, alertname: HighLatencyP95, exp_alerts: []}
+  - interval: 1m
+    input_series:   # all slow, but only ~5 requests per 10 min: below the traffic guard
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="1"}', values: '0x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="4"}', values: '0x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="8"}', values: '0+0.5x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="+Inf"}', values: '0+0.5x40'}
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+0.5x40'}
+    alert_rule_test:
+      - {eval_time: 30m, alertname: HighLatencyP95, exp_alerts: []}
+
+  # --- ModelFallbacks ---------------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'weir_fallbacks_total{routed_tier="large"}'
+        values: '0 0 0 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ModelFallbacks
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "A model tier is failing and Weir is falling back to the other tier"}
+  - interval: 1m
+    input_series:
+      - series: 'weir_fallbacks_total{routed_tier="large"}'
+        values: '0x6'
+    alert_rule_test:
+      - {eval_time: 4m, alertname: ModelFallbacks, exp_alerts: []}
+
+  # --- HighEscalationRate -----------------------------------------------------------------
+  - interval: 1m
+    input_series:   # 2 small-routed per minute, half escalated
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="small", status="ok"}', values: '0+2x60'}
+      - {series: 'weir_escalations_total', values: '0+1x60'}
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: HighEscalationRate
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "More than 20% of small-model answers are being escalated"}
+  - interval: 1m
+    input_series:   # 50% escalated, but only ~6 small-routed requests per 30 min
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="small", status="ok"}', values: '0+0.2x60'}
+      - {series: 'weir_escalations_total', values: '0+0.1x60'}
+    alert_rule_test:
+      - {eval_time: 50m, alertname: HighEscalationRate, exp_alerts: []}
+
+  # --- CacheHitRateDrop -------------------------------------------------------------------
+  - interval: 1m
+    input_series:   # 6 h at 90% hits, then 30 min at 10%
+      - {series: 'weir_requests_total{namespace="p", cache_status="hit", route="none", status="ok"}', values: '0+9x360 3241+1x30'}
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+1x360 361+9x30'}
+    alert_rule_test:
+      - eval_time: 390m
+        alertname: CacheHitRateDrop
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Cache hit rate fell below half its 6-hour average"}
+  - interval: 1m
+    input_series:   # steady 90% hits
+      - {series: 'weir_requests_total{namespace="p", cache_status="hit", route="none", status="ok"}', values: '0+9x390'}
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+1x390'}
+    alert_rule_test:
+      - {eval_time: 390m, alertname: CacheHitRateDrop, exp_alerts: []}
+  - interval: 1m
+    input_series:   # the same drop at 1 request per minute: ~15 per 15 min, below the traffic guard
+      - {series: 'weir_requests_total{namespace="p", cache_status="hit", route="none", status="ok"}', values: '0+0.9x360 324.1+0.1x30'}
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+0.1x360 36.1+0.9x30'}
+    alert_rule_test:
+      - {eval_time: 390m, alertname: CacheHitRateDrop, exp_alerts: []}
+
+  # --- CostAboveBaseline ------------------------------------------------------------------
+  - interval: 1m
+    input_series:   # $0.0002 per request vs the $0.0000988 baseline
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+10x120'}
+      - {series: 'weir_cost_usd_total{namespace="p"}', values: '0+0.002x120'}
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: CostAboveBaseline
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Cost per request is above the always-large baseline"}
+  - interval: 1m
+    input_series:   # $0.00005 per request: well under
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+10x120'}
+      - {series: 'weir_cost_usd_total{namespace="p"}', values: '0+0.0005x120'}
+    alert_rule_test:
+      - {eval_time: 100m, alertname: CostAboveBaseline, exp_alerts: []}
+  - interval: 1m
+    input_series:   # expensive, but only ~12 requests per hour: below the traffic guard
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+0.2x120'}
+      - {series: 'weir_cost_usd_total{namespace="p"}', values: '0+0.00004x120'}
+    alert_rule_test:
+      - {eval_time: 100m, alertname: CostAboveBaseline, exp_alerts: []}
+
+  # --- BackgroundWorkLost -----------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - {series: 'weir_log_rows_dropped_total{job="weir"}', values: '0 0 0 5 5 5'}
+      - {series: 'weir_cache_jobs_failed_total{job="weir"}', values: '0x5'}
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: BackgroundWorkLost
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Weir dropped or failed background work (log rows or cache jobs)"}
+  - interval: 1m
+    input_series:
+      - {series: 'weir_log_rows_dropped_total{job="weir"}', values: '0x5'}
+      - {series: 'weir_cache_jobs_failed_total{job="weir"}', values: '0x5'}
+    alert_rule_test:
+      - {eval_time: 4m, alertname: BackgroundWorkLost, exp_alerts: []}
