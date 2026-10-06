@@ -21,7 +21,7 @@ It logs the **cost, counterfactual cost and latency of every request**, so each 
 > [!NOTE]
 > **Status:**
 > - **Done:** Phases 0–2 (gateway, baseline, semantic cache).
-> - **Phase 3 (router):** built, tuned offline and measured live; the exit gate passes against a same-day baseline. One clean re-measurement of full Weir is pending (after D39/D40), then the final review.
+> - **Phase 3 (router):** built, tuned offline and measured live; every exit-gate check passes. The final whole-branch code review is next.
 > - Everything runs on free tiers.
 
 ## Contents
@@ -41,7 +41,7 @@ These are measured on *Weir General Hospital*, a fictional hospital FAQ: 40 docu
 | Baseline: always the large model, no cache | 0% | 0% | $0.0988 | 767 ms | 4.90 | 0.978 | — |
 | Cache only | 14.6% | 0% | $0.0847 (−14%) | 686 ms | 4.91 | 0.981 | **0** |
 | Router only | 0% | 12.7% | $0.0921 (−7%) | 781 ms | 4.90 | 0.978 | — |
-| **Full Weir** (cache + router) | 14.6% | 11.4% | **$0.0763 (−23%)** | 788 ms | 4.89 | 0.975 | **0** |
+| **Full Weir** (cache + router) | 14.6% | 11.4% | **$0.0786 (−20%)** | 876 ms | **4.90** | **0.978** | **0** |
 
 **Replay** (300 requests, Zipf-skewed, 73.7% repeats):
 
@@ -49,9 +49,9 @@ These are measured on *Weir General Hospital*, a fictional hospital FAQ: 40 docu
 | :-- | --: | --: | --: | --: | --: | --: |
 | Baseline (derived per question) | 0% | $0.0970 | 747 ms | 4.79 | 0.947 | — |
 | Cache only | 93.3% | $0.0050 | 56 ms | 4.79 | 0.948 | **0** |
-| **Full Weir** | **89.7%** | **$0.0090 (−91%)** | **16 ms** | **4.79** | **0.947** | **0** |
+| **Full Weir** | **93.0%** | **$0.0055 (−94%)** | **14 ms** | **4.79** | **0.948** | **0** |
 
-- **On repeat-heavy traffic, Weir cuts cost per 1,000 requests by 91–95% and median latency by about 45×, with quality identical to the baseline on the same mix.**
+- **On repeat-heavy traffic, full Weir cuts cost per 1,000 requests by 94% and median latency by about 50× (747 ms → 14 ms), with quality equal to the baseline on the same mix.** On a cold pass, where only paraphrases repeat, it still saves 20% with identical judge and facts.
 - **The router adds a modest, safe saving.** It sends 13% of questions to the small model, which answered every one of them at 5/5 with full facts. That cuts router-only cost by 7% with judge and facts unchanged. The strict "no visible loss" bar limits it; a looser bar would have saved ~38% at the cost of 2 wrong answers in 158 ([`router-tuning.md`](docs/results/router-tuning.md)).
 - **It degrades gracefully.** When Groq's large model failed (HTTP 502s, then a daily rate limit), Weir fell back to the small model: **0 errors across 1,232 live requests on 2026-10-05**.
 - **The entity guard is what makes caching safe.** At the chosen 0.90 threshold, embedding similarity alone would serve the wrong answer for **37%** of accepted matches (for example "ICU visiting hours" vs "general ward visiting hours"). With the guard, that drops to **0%**.
@@ -60,7 +60,7 @@ These are measured on *Weir General Hospital*, a fictional hospital FAQ: 40 docu
   <img src="docs/results/cache-threshold.png" alt="Cache threshold sweep: hit rate and false-hit rate with and without the entity guard" width="720">
 </p>
 
-Phase 3 rows are compared with a baseline re-run the same day, because the large model drifted between runs. Full write-ups:
+Phase 3 rows are compared with baseline v4, re-run on 2026-10-05 because the large model drifted between runs; full Weir was measured on 2026-10-06 with the final settings (D39, D40). Full write-ups:
 - [`summary.md`](docs/results/summary.md): the four-way ablation, both workloads
 - [`router.md`](docs/results/router.md): live router results, exit gate, the two outage incidents
 - [`router-tuning.md`](docs/results/router-tuning.md): offline tuning and the option not taken
@@ -354,7 +354,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push.
 | :-: | :-- | :-: |
 | 0–1 | Gateway, RAG adapter, request logging, eval set, baseline | ✅ |
 | 2 | Semantic cache, entity guard, threshold sweep, cache eval | ✅ |
-| 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | 🚧 final re-measure + review |
+| 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | 🚧 final review |
 | 4 | Prometheus metrics, Grafana dashboard, alerts | Planned |
 | 5 | k6 load tests (cold/warm, ramp, spike, soak), ablation under load | Planned |
 | 6 | Demo chat page, write-up, optional learned router | Planned |

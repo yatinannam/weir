@@ -7,16 +7,14 @@ These are live runs from 2026-10-05, with real Groq models, the tuned router (D3
 | Run | Report |
 | --- | --- |
 | Router only, 158 questions, cold | `20261005T074414Z-router_only-all` |
-| Full Weir, 158 cold (cache purged) | `20261005T082403Z-full-all` |
-| Full Weir, 300-request replay | `20261005T085816Z-full-workload-300-seed7` |
+| **Full Weir, final settings**, 158 cold (cache purged) | `20261006T045749Z-full-all` |
+| **Full Weir, final settings**, 300-request replay | `20261006T053129Z-full-workload-300-seed7` |
+| Full Weir, cut-off 0.6, 158 cold | `20261005T082403Z-full-all` |
+| Full Weir, cut-off 0.6, 300 replay | `20261005T085816Z-full-workload-300-seed7` |
 | Baseline v4 (same day) | `20261005T091621Z-baseline-all` |
 | Derived replays | `derived-baseline-v4-…`, `derived-router_only-…` (no-cache configs, so each request reuses its question's measured result) |
 
-The full-Weir runs above use `grounding.min_overlap` 0.6. Since then, two changes have been made:
-- **D39:** the cut-off was lowered to 0.3.
-- **D40:** fallback-to-small answers are no longer cached.
-
-A clean re-measurement is pending (see [Outage run](#outage-run-d39-re-run-degraded)).
+The final full-Weir runs (2026-10-06) use the shipped settings: `grounding.min_overlap` 0.3 (D39) and no caching of fallback-to-small answers (D40). The earlier runs at cut-off 0.6 are kept for comparison.
 
 ## Headline: router only vs the same-day baseline (158 questions, cold, no cache)
 
@@ -67,20 +65,24 @@ They are covered by unit tests instead.
 
 ## Full Weir: cache + router
 
-| | Full Weir | Baseline v4 | Change |
+| | Full Weir (final) | Full Weir, cut-off 0.6 | Baseline v4 |
 | --- | --: | --: | --: |
 | **Cold, 158 questions** | | | |
-| Cache hits / routed small | 14.6% / 11.4% | 0% / 0% | |
-| Cost per 1,000 | $0.0763 | $0.0988 | **−23%** |
-| Judge / facts | 4.89 / 0.975 | 4.90 / 0.978 | −0.01 / −0.003* |
+| Cache hits / routed small | 14.6% / 11.4% | 14.6% / 11.4% | 0% / 0% |
+| Cost per 1,000 | **$0.0786 (−20%)** | $0.0763 (−23%) | $0.0988 |
+| p50 / p95 | 876 ms / 1.6 s | 788 ms / 7.2 s | 767 ms / 1.1 s |
+| Judge / facts | **4.90 / 0.978** | 4.89 / 0.975* | 4.90 / 0.978 |
 | **Replay, 300 requests, 73.7% repeats** | | | |
-| Cache hits | 89.7% | 0% | |
-| Cost per 1,000 | **$0.0090** | $0.0970 | **−91%** |
-| p50 latency | **16 ms** | 747 ms | **47× faster** |
-| Judge / facts | 4.79 / 0.947 | 4.79 / 0.947 | equal |
-| Wrong cache hits | **0** | — | |
+| Cache hits | **93.0%** | 89.7% | 0% |
+| Cost per 1,000 | **$0.0055 (−94%)** | $0.0090 (−91%) | $0.0970 |
+| p50 latency | **14 ms** (53× faster) | 16 ms | 747 ms |
+| Judge / facts | 4.79 / 0.948 | 4.79 / 0.947 | 4.79 / 0.947 |
+| Wrong cache hits | **0** | 0 | — |
 
-\* The cold difference is one question, q-150, on the **large** route. The large model flipped it between a half answer and "couldn't find" three times in one minute with the plain baseline configuration, so this is model noise, not Weir.
+- **Lowering the grounding cut-off (D39) did what it was meant to.** The replay hit rate rose from 89.7% to 93.0%, and replay cost fell another 39%, with no quality change.
+- **The final cold pass matches the baseline exactly on judge and facts.**
+
+\* The 0.6 run's cold difference is one question, q-150, on the **large** route. The large model flipped it between a half answer and "couldn't find" three times in one minute with the plain baseline configuration, so it is model noise, not Weir.
 
 ## Simulated vs live
 
@@ -98,8 +100,10 @@ The offline simulation predicted the live router almost exactly.
 | Report | Cost lower | Judge within 0.1 | Facts no lower | Small route ≥ large | 0 wrong hits | Result |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: |
 | Router only, cold | ✅ −7% | ✅ 4.90 = 4.90 | ✅ 0.978 = 0.978 | ✅ 5.00 = 5.00 | ✅ | **pass** |
-| Full Weir, cold | ✅ −23% | ✅ 4.89 vs 4.90 | ⚠️ 0.975 vs 0.978 (q-150, large route, noise) | ✅ 5.00 = 5.00 | ✅ | **pass\*** |
-| Full Weir, replay | ✅ −91% | ✅ 4.79 = 4.79 | ✅ 0.947 = 0.947 | — | ✅ | **pass** |
+| **Full Weir (final), cold** | ✅ −20% | ✅ 4.90 = 4.90 | ✅ 0.978 = 0.978 | ✅ 5.00 = 5.00 | ✅ | **pass** |
+| **Full Weir (final), replay** | ✅ −94% | ✅ 4.79 vs 4.79 | ✅ 0.948 vs 0.947 | — | ✅ | **pass** |
+| Full Weir (cut-off 0.6), cold | ✅ −23% | ✅ 4.89 vs 4.90 | ⚠️ 0.975 vs 0.978 (q-150, large route, noise) | ✅ 5.00 = 5.00 | ✅ | pass\* |
+| Full Weir (cut-off 0.6), replay | ✅ −91% | ✅ 4.79 = 4.79 | ✅ 0.947 = 0.947 | — | ✅ | pass |
 | Router only, replay (derived) | ✅ −4% | ✅ 4.79 = 4.79 | ✅ 0.947 = 0.947 | ✅ 5.00 = 5.00 | ✅ | **pass** |
 
 ### Why baseline v4
@@ -131,7 +135,7 @@ This was the re-measurement after lowering `min_overlap` to 0.3 (D39). Reports: 
 
 **This is not a clean test of D39.** It did, however, expose a design gap: the stand-in small answers were **cached**, including the two known small-model mistakes, and would have been served for 24 hours after the outage. **D40 fixes this:** answers from a fallback down to the small model are no longer cached.
 
-A clean re-run of full Weir with D39 + D40 is scheduled for when the large model's quota resets.
+The clean re-run of full Weir with D39 + D40 was done on 2026-10-06, once the quota had reset (see [Full Weir](#full-weir-cache--router)).
 
 ## Caveats
 
