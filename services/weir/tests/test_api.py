@@ -17,14 +17,14 @@ PUB = {"X-API-Key": "pub-key"}
 ADMIN = {"X-API-Key": "admin-key"}
 
 
-def app_client(rag=None, health_ok=True, admin=None):
+def app_client(rag=None, health_ok=True, admin=None, metrics=None):
     h = harness(rag or fake_rag())
 
     async def health():
         return {"db": health_ok, "rag": True}
 
     deps = AppDeps(h.p, TenantRegistry.from_yaml(CONFIGS / "tenants.yaml", ENV), load_config(CONFIGS / "weir.yaml"),
-                   health, admin or FakeAdmin(), feedback_lookup_delay_s=0)
+                   health, admin or FakeAdmin(), feedback_lookup_delay_s=0, metrics=metrics)
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://t")
     return client, h.sink
 
@@ -135,3 +135,63 @@ async def test_purge_needs_exactly_one_valid_selector():
         ok = await client.delete("/v1/cache", headers=ADMIN, params={"source_id": "pub-a"})
     assert none.status_code == two.status_code == bad_id.status_code == 422
     assert ok.status_code == 200 and ok.json() == {"deleted": 3} and admin.purged == [{"source_id": "pub-a"}]
+
+
+from prometheus_client import CollectorRegistry  # noqa: E402
+
+from weir.metrics.prometheus import LossCollector, WeirMetrics  # noqa: E402
+
+
+def _metrics():
+    class Q:
+        dropped = failed = 0
+
+    registry = CollectorRegistry()
+    m = WeirMetrics(registry, "dev")
+    registry.register(LossCollector({"log_rows": Q(), "cache_jobs": Q()}))
+    return m
+
+
+async def test_metrics_before_any_request():  # Review Focus 2: scrape before traffic
+    client, sink = app_client(metrics=_metrics())
+    async with client:
+        r = await client.get("/metrics")                                  # no API key needed
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    body = r.text
+    assert 'weir_info{config_label="dev"} 1.0' in body
+    for name in ("weir_log_rows_dropped_total", "weir_log_rows_failed_total",
+                 "weir_cache_jobs_dropped_total", "weir_cache_jobs_failed_total"):
+        assert f"{name} 0.0" in body
+    assert sink.rows == []                                                # scraping isn't a logged request
+
+
+async def test_metrics_reflect_requests_recorded_by_the_sink():
+    m = _metrics()
+    client, _ = app_client(metrics=m)
+    m.record(_row_for_metrics())
+    async with client:
+        body = (await client.get("/metrics")).text
+    from prometheus_client.parser import text_string_to_metric_families  # label order is the library's choice
+
+    samples = {(s.name, tuple(sorted(s.labels.items()))): s.value
+               for family in text_string_to_metric_families(body) for s in family.samples}
+    labels = tuple(sorted({"namespace": PUBLIC, "cache_status": "miss", "route": "large", "status": "ok"}.items()))
+    assert samples[("weir_requests_total", labels)] == 1.0
+
+
+async def test_metrics_off_returns_404():
+    client, _ = app_client()
+    async with client:
+        assert (await client.get("/metrics")).status_code == 404
+
+
+def _row_for_metrics():
+    from datetime import UTC, datetime
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from weir.metrics.logger import RequestLogRow
+
+    return RequestLogRow(request_id=uuid4(), ts=datetime.now(UTC), namespace=PUBLIC, cache_status="miss",
+                         route="large", status="ok", latency_total_ms=500, query_hash="h" * 64,
+                         cost_usd=Decimal("0.0001"), counterfactual_cost_usd=Decimal("0.0001"))

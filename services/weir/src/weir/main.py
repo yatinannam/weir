@@ -11,6 +11,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, generate_latest
 from pydantic import BaseModel, ConfigDict, Field
 
 from .admin import AdminService
@@ -25,6 +26,7 @@ from .config import WeirConfig, load_config
 from .db import open_pool
 from .llm.pricing import PriceTable, sync_prices
 from .metrics.logger import LogWriter
+from .metrics.prometheus import LossCollector, MetricsSink, WeirMetrics
 from .pipeline import CacheDeps, Pipeline, PipelineError, QueryRequest, QueryResponse
 from .rag.adapter import RagClient
 from .settings import Settings
@@ -41,6 +43,7 @@ class AppDeps:
     admin: Any                      # AdminService or a test double
     feedback_lookup_attempts: int = 5
     feedback_lookup_delay_s: float = 0.2
+    metrics: WeirMetrics | None = None
 
 
 class FeedbackIn(BaseModel):
@@ -90,8 +93,11 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
                 db_ok = False
             return {"db": db_ok, "rag": await rag.health()}
 
-        app.state.deps = AppDeps(Pipeline(cfg, rag, prices, writer, cache), tenants, cfg, health,
-                                 AdminService(pool, store))
+        registry = CollectorRegistry()
+        metrics = WeirMetrics(registry, cfg.config_label)
+        registry.register(LossCollector({"log_rows": writer, "cache_jobs": cache_jobs}))
+        app.state.deps = AppDeps(Pipeline(cfg, rag, prices, MetricsSink(writer, metrics), cache), tenants, cfg,
+                                 health, AdminService(pool, store), metrics=metrics)
         try:
             yield
         finally:
@@ -167,6 +173,13 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         ok = all(checks.values())
         return JSONResponse(status_code=200 if ok else 503, content={
             "status": "ok" if ok else "degraded", "checks": checks, "config_label": d.config.config_label})
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics_endpoint(request: Request):
+        d: AppDeps = request.app.state.deps
+        if d.metrics is None:
+            raise HTTPException(status_code=404, detail="metrics are off")
+        return Response(generate_latest(d.metrics.registry), media_type=CONTENT_TYPE_LATEST)
 
     return app
 
