@@ -99,7 +99,7 @@ def test_window_counts_are_zero_not_null_when_every_request_is_a_cache_hit():
     # cache hits carry no route_reason or bypass_reason: a sum over all-null casts would report None, not 0
     start, end = datetime(2026, 10, 6, 10, tzinfo=UTC), datetime(2026, 10, 6, 10, 5, tzinfo=UTC)
     sql, params = window_query(start, end, "full")
-    with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as conn:
+    with psycopg.connect(os.environ["TEST_DATABASE_URL"], connect_timeout=5) as conn:  # fail fast if Postgres is down
         conn.execute("create temp table request_log (ts timestamptz, config_label text, cost_usd numeric, "
                      "cache_status text, route text, route_reason text, bypass_reason text, status text, "
                      "latency_embed_ms int, latency_cache_ms int, latency_total_ms int)")

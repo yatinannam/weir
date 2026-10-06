@@ -105,3 +105,26 @@ def spike_recovery_s(points, burst_end_ms: int, budget_ms: float = 2000, window_
 def failure_phases(points, t0_ms: int, phase_s: int) -> list[dict]:
     return [{"label": label, **window_stats(points, t0_ms + i * phase_s * 1000, t0_ms + (i + 1) * phase_s * 1000)}
             for i, label in enumerate(FAILURE_LABELS)]
+
+
+def peak_window_p95(points, window_s: int = 10) -> float | None:
+    """The worst p95 over consecutive window_s windows (the spike's peak, addendum §5)."""
+    ts = [t for t, k, _, _ in points if k == "req"]
+    if not ts:
+        return None
+    worst, start = None, ts[0]
+    while start <= ts[-1]:
+        p95 = window_stats(points, start, start + window_s * 1000)["p95"]
+        if p95 is not None and (worst is None or p95 > worst):
+            worst = p95
+        start += window_s * 1000
+    return worst
+
+
+def first_last_p95(points, minutes: int = 5) -> tuple[float | None, float | None]:
+    """p95 of the first and the last `minutes` of a run (the soak's drift, addendum §5)."""
+    ts = [t for t, k, _, _ in points if k == "req"]
+    if not ts:
+        return None, None
+    span = minutes * 60_000
+    return (window_stats(points, ts[0], ts[0] + span)["p95"], window_stats(points, ts[-1] - span, ts[-1] + 1)["p95"])

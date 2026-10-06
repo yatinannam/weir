@@ -291,6 +291,21 @@ def cmd_loadtest_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_loadtest_report(args: argparse.Namespace) -> int:
+    from .loadtest.report import load_runs, ramp_chart, render
+
+    root = Path(args.results_dir)
+    runs = [r for r in load_runs(root) if not r["spec"].get("smoke")]
+    reqs = json.loads((LOADTEST_DIR / "workloads" / "requests-3000.json").read_text(encoding="utf-8"))
+    meta = {"date": root.name, "machine": args.machine,
+            "repeat_rate": repeat_rate([f"{r['namespace']}|{r['query']}" for r in reqs])}
+    out = REPO / "docs" / "results" / f"loadtest-{root.name}.md"
+    out.write_text(render(runs, meta), encoding="utf-8")
+    ramp_chart(runs, out.parent / "loadtest-ramp.png")
+    print(f"wrote {out} ({len(runs)} runs)")
+    return 0
+
+
 def _write_report(out_dir: Path, header: dict, records: list[dict]) -> None:
     summary = summarize(records)
     (out_dir / "summary.json").write_text(json.dumps({"header": header, "summary": summary}, indent=2), encoding="utf-8")
@@ -364,5 +379,9 @@ def main() -> None:
         p.add_argument("--smoke", action="store_true", help="every scenario for ~20 s, to check the wiring")
         p.add_argument("--out", help="results subfolder name (default: today's date)")
         p.set_defaults(func=cmd_loadtest_run)
+    rp = lt_sub.add_parser("report", help="render docs/results/loadtest-<date>.md from a results folder")
+    rp.add_argument("results_dir")
+    rp.add_argument("--machine", default="Intel Core Ultra 5 225U, 14 threads, 15.5 GB RAM, Windows 11")
+    rp.set_defaults(func=cmd_loadtest_report)
     args = parser.parse_args()
     sys.exit(args.func(args))

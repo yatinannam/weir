@@ -93,3 +93,19 @@ def test_parse_summary_reports_how_long_k6_really_ran():
     assert parse_summary(base)["duration_ms"] is None
     base["state"] = {"testRunDurationMs": 35012.3}
     assert parse_summary(base)["duration_ms"] == 35012.3
+
+
+def test_peak_window_p95_finds_the_worst_10_seconds():  # addendum §5: the spike's peak p95
+    from weir_eval.loadtest.k6 import peak_window_p95
+
+    pts = [req(i, 300) for i in range(30)] + [req(30 + i * 0.1, 2500) for i in range(50)]
+    pts += [req(40 + i, 300) for i in range(20)]
+    assert peak_window_p95(pts) == 2500 and peak_window_p95([]) is None
+
+
+def test_first_and_last_five_minutes_p95():  # addendum §5: the soak's drift
+    from weir_eval.loadtest.k6 import first_last_p95
+
+    pts = [req(i, 100) for i in range(300)] + [req(300 + i, 500) for i in range(1200)]
+    pts += [req(1500 + i, 200) for i in range(300)]
+    assert first_last_p95(pts) == (100, 200) and first_last_p95([]) == (None, None)

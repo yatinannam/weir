@@ -18,7 +18,8 @@ from pathlib import Path
 import httpx
 import psycopg
 
-from .k6 import FAILURE_LABELS, compact_points, failure_phases, parse_summary, ramp_steps, spike_recovery_s
+from .k6 import (FAILURE_LABELS, compact_points, failure_phases, first_last_p95, parse_summary, peak_window_p95,
+                 ramp_steps, spike_recovery_s)
 
 REPO = Path(__file__).resolve().parents[4]
 K6_IMAGE = "grafana/k6:0.54.0"
@@ -300,6 +301,10 @@ def execute(spec: RunSpec, results_root: Path, env: dict) -> dict:
         env6 = k6_env(spec)
         burst_end = t0 + (int(env6.get("BASE_S", 120)) + int(env6.get("BURST_S", 30))) * 1000
         summary["recovery_s"] = spike_recovery_s(points, burst_end)
+        summary["peak_p95"] = peak_window_p95(points)
+    if spec.scenario == "soak":
+        first, last = first_last_p95(points)
+        summary["soak"] = {"first_p95": first, "last_p95": last}
     if spec.scenario == "failure":
         summary["phases"] = [{**ph, "log": pl} for ph, pl in
                              zip(failure_phases(points, t0, int(k6_env(spec)["PHASE_S"])), phase_logs, strict=True)]
