@@ -15,7 +15,7 @@ EXPECTED_TABLES = {
 
 def test_applies_all_then_is_idempotent(clean_db_url):
     assert apply_migrations(clean_db_url, MIGRATIONS) == ["001_init.sql", "002_phase2_cache.sql",
-                                                          "003_phase3_router.sql"]
+                                                          "003_phase3_router.sql", "004_phase4_monitoring.sql"]
     assert apply_migrations(clean_db_url, MIGRATIONS) == []
 
 
@@ -54,3 +54,30 @@ def test_phase3_router_columns(clean_db_url):
             "where table_schema = 'weir' and table_name = 'request_log' "
             "and column_name in ('route_reason', 'grounding_reason', 'grounding_overlap')").fetchall())
     assert cols == {"route_reason": "text", "grounding_reason": "text", "grounding_overlap": "real"}
+
+
+READ_TABLES = ("weir.request_log", "weir.cache_entries", "weir.model_prices", "weir.feedback")
+
+
+def _reader(url: str) -> str:
+    return url.replace("weir:weir@", "weir_reader:weir_reader@", 1)
+
+
+def test_weir_reader_can_read_the_four_tables(clean_db_url):
+    apply_migrations(clean_db_url, MIGRATIONS)
+    with psycopg.connect(_reader(clean_db_url)) as conn:
+        for table in READ_TABLES:
+            conn.execute(f"select count(*) from {table}").fetchone()
+
+
+@pytest.mark.parametrize("statement", [
+    "insert into weir.feedback (request_id, rating) values (gen_random_uuid(), 1)",
+    "update weir.request_log set status = 'ok'",
+    "delete from weir.cache_entries",
+    "select count(*) from rag.chunks",
+    "create table weir.x (id int)",
+])
+def test_weir_reader_cannot_write_or_read_rag(clean_db_url, statement):
+    apply_migrations(clean_db_url, MIGRATIONS)
+    with psycopg.connect(_reader(clean_db_url)) as conn, pytest.raises(psycopg.errors.InsufficientPrivilege):
+        conn.execute(statement)
