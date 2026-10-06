@@ -77,3 +77,19 @@ def test_failure_phases():
     assert [ph["label"] for ph in phases] == ["normal", "normal", "large_rate_limited", "normal_2",
                                               "small_timeout", "db_delay", "recovery"]
     assert phases[2]["errors"] == 1 and phases[5]["p95"] == 600
+
+
+def test_parse_summary_reports_chaos_failures():
+    # a fault switch that silently fails leaves a phase measuring the wrong fault, so the count is surfaced
+    base = json.loads((FIX / "k6_summary.json").read_text(encoding="utf-8"))
+    assert parse_summary(base)["chaos_failed"] is None                              # not a failure run
+    for count in (0, 2):
+        base["metrics"]["chaos_failed"] = {"type": "counter", "values": {"count": count, "rate": 0.0}}
+        assert parse_summary(base)["chaos_failed"] == count
+
+
+def test_parse_summary_reports_how_long_k6_really_ran():
+    base = json.loads((FIX / "k6_summary.json").read_text(encoding="utf-8"))
+    assert parse_summary(base)["duration_ms"] is None
+    base["state"] = {"testRunDurationMs": 35012.3}
+    assert parse_summary(base)["duration_ms"] == 35012.3

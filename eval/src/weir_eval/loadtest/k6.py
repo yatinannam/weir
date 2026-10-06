@@ -19,7 +19,10 @@ def parse_summary(data: dict) -> dict:
             return None
         return {"p50": v["med"], "p95": v["p(95)"], "p99": v["p(99)"], "count": int(v["count"])}
 
+    chaos = m.get("chaos_failed", {}).get("values")
     return {
+        "chaos_failed": int(chaos["count"]) if chaos else None,   # failure runs only: fault switches that failed
+        "duration_ms": data.get("state", {}).get("testRunDurationMs"),   # wall time k6 really took (stall check)
         "requests": int(m["iterations"]["values"]["count"]),
         "achieved_rate": m["iterations"]["values"]["rate"],
         "error_rate": m.get("errors", {}).get("values", {}).get("rate", 0.0),

@@ -271,6 +271,26 @@ def cmd_loadtest_make_workloads(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_loadtest_run(args: argparse.Namespace) -> int:
+    from .loadtest.orchestrate import RunSpec, keep_awake, run_once_more_if_stalled, suite_runs
+
+    root = LOADTEST_DIR / "results" / (args.out or datetime.now(UTC).strftime("%Y-%m-%d"))
+    runs = suite_runs() if args.lt_command == "suite" else [RunSpec(args.scenario, args.config, args.repeat)]
+    if args.smoke:
+        runs = list({(r.scenario, r.config): RunSpec(r.scenario, r.config, 1, smoke=True) for r in runs}.values())
+    with keep_awake():
+        for spec in runs:
+            if (root / spec.name / "summary.json").exists():
+                print(f"skip {spec.name} (done)")
+                continue
+            print(f"== {datetime.now(UTC):%H:%M:%SZ} {spec.name}", flush=True)
+            s = run_once_more_if_stalled(spec, root, dict(os.environ))
+            lat = (s["k6"] or {}).get("latency", {}).get("all") or {}
+            print(f"   k6 exit {s['k6_exit']}, p95 {lat.get('p95')}, errors {(s['k6'] or {}).get('error_rate')}, "
+                  f"lost work {s['lost_work']}" + (", STALLED twice" if s["stalled"] else ""), flush=True)
+    return 0
+
+
 def _write_report(out_dir: Path, header: dict, records: list[dict]) -> None:
     summary = summarize(records)
     (out_dir / "summary.json").write_text(json.dumps({"header": header, "summary": summary}, indent=2), encoding="utf-8")
@@ -335,5 +355,14 @@ def main() -> None:
     mw.add_argument("--n", type=int, default=3000)
     mw.add_argument("--seed", type=int, default=11)
     mw.set_defaults(func=cmd_loadtest_make_workloads)
+    for name, helptext in (("run", "one load-test run"), ("suite", "the whole D48 matrix (resumable)")):
+        p = lt_sub.add_parser(name, help=helptext)
+        if name == "run":
+            p.add_argument("scenario", choices=["cold", "warm", "ramp", "spike", "soak", "failure"])
+            p.add_argument("--config", required=True, choices=["baseline", "cache_only", "router_only", "full"])
+            p.add_argument("--repeat", type=int, default=1)
+        p.add_argument("--smoke", action="store_true", help="every scenario for ~20 s, to check the wiring")
+        p.add_argument("--out", help="results subfolder name (default: today's date)")
+        p.set_defaults(func=cmd_loadtest_run)
     args = parser.parse_args()
     sys.exit(args.func(args))
