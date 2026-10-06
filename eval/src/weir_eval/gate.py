@@ -8,6 +8,9 @@ EPS = 1e-9
 
 def gate(records: list[dict], baseline_by_id: dict[str, dict]) -> dict:
     ok = [r for r in records if r.get("status_code") == 200]
+    n_errors = len(records) - len(ok)
+    if not ok:  # nothing answered: a failed gate, not a crash
+        return {"n": 0, "n_errors": n_errors, "checks": {"no_errors": False}, "passed": False}
     if any(r.get("judge_score") is None for r in ok):
         raise ValueError("report has unjudged rows; run rejudge first")
     base = [baseline_by_id[r["id"]] for r in ok]
@@ -15,6 +18,7 @@ def gate(records: list[dict], baseline_by_id: dict[str, dict]) -> dict:
     small = [(r, b) for r, b in pairs if r["meta"]["route"] == "small"]
     g = {
         "n": len(ok),
+        "n_errors": n_errors,
         "cost_per_1k": sum(r["meta"]["cost_usd"] for r in ok) / len(ok) * 1000,
         "base_cost_per_1k": sum(b["meta"]["cost_usd"] for b in base) / len(ok) * 1000,
         "judge": mean(r["judge_score"] for r in ok),
@@ -26,6 +30,7 @@ def gate(records: list[dict], baseline_by_id: dict[str, dict]) -> dict:
         "wrong_hits": summarize(ok).get("wrong_hits", 0),
     }
     g["checks"] = {
+        "no_errors": n_errors == 0,  # failed requests are dropped from the comparison, so they must fail the gate
         "cost_lower": g["cost_per_1k"] < g["base_cost_per_1k"] - EPS,
         "judge_within_0_1": g["judge"] >= g["base_judge"] - 0.1 - EPS,
         "facts_no_lower": g["facts"] >= g["base_facts"] - EPS,

@@ -21,6 +21,22 @@ Ideas and deferred findings that aren't scheduled yet. Each item says where it c
 | M6 | Store | `%s = any(source_ids)` can't use the GIN index | `source_ids @> array[%s]::text[]` |
 | M7 | Monitoring | The background queue's `failed` / `dropped` counters aren't exposed | Phase 4 Prometheus counters, or show them in `/healthz` |
 | M8 | Startup | If the embedder or lexicon fails to load, the background tasks already started aren't stopped | Start the tasks after loading, or widen the `try` |
-| M9 | Router | Answers from `force_model="small"` are cached and served to every caller | Decide in Phase 3: key on tier, or only cache large-model answers |
+| M9 | Router | Answers from `force_model="small"` are cached and served to every caller | **Resolved in Phase 3 (D35):** `force_model` requests bypass the cache |
 | M10 | Eval tool | `--exclude-report` and `merge-reports` dedupe by ID, so they would drop repeats on workload reports | Error out when used with `--workload` |
 | M11 | Eval tool | `rejudge` re-scores facts but keeps judge grades made against an older answer key | Re-grade the affected clusters, or record the key version on each row |
+
+## Deferred minor findings: Phase 3 final review (2026-10-06)
+
+The review found no Critical issues. The one Important finding (I1, a two-tier failure not marked as a fallback) and M4 (the gate ignored failed requests; graded up to Important) were fixed before merge.
+
+| # | Area | Finding | Suggested fix |
+| --- | --- | --- | --- |
+| M12 | Router | Clinical questions are a router decision, so when the large model is down they can be answered by the small model (never cached, but not escalated either) | User decision pending: keep, or make clinical fallback-up only |
+| M13 | Logging | `model_calls` counts every failed attempt, including `unavailable` / hospital-rag 4xx/5xx where no provider was reached | Count only `rate_limited` / `timeout`, or document the field as "attempts" |
+| M14 | Latency | A timeout followed by a fallback can hold a request for ~2 × `rag.timeout_seconds` (~60 s) | A shorter fallback timeout or a total LLM time budget |
+| M15 | Eval tool | The gate's small-route check passes when nothing was routed small, so a silently disabled router would pass under `full` | Report `share_small`; require > 0 when the config has the router on |
+| M16 | Eval tool | D38's extension rule makes "ext. 2171" match any standalone 2171 ("Room 2171"), and "ext 4" match "floor 4" | Keep an `ext` token on both sides, or add a test documenting the looseness |
+| M17 | Code | The grounding check and `store_block_reason` duplicate their first five rules; the store copies are now dead on the live path | Keep only the extra store checks (retrieval score, personal data), or share one helper |
+| M18 | Tests | `test_fallback_down_to_small_is_not_cached` uses `top_score=0.3`, exactly `cache.min_retrieval_score`, so it relies on a strict `<` | Use 0.35 (still below `low_confidence` 0.40) |
+| M19 | Eval tool | `simulate` prices an unusable small-trial row's escalation at baseline cost only (`small_cost=0`) | Use the median small cost; no effect on current data |
+| M20 | Reporting | `by_route` groups fallback answers under the routed tier, and `meta` has no fallback flag | Group by `meta.model` for outage analysis, or expose the flag in `meta` |

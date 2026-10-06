@@ -194,4 +194,8 @@ A running log of what was done, what was learned, and what's next. Newest at the
   - Cold: 14.6% hits, 11.4% small, **$0.0786 / 1k (−20% vs v4)**, judge **4.90**, facts **0.978**: identical to baseline v4.
   - Replay: **93.0% hits** (89.7% at cut-off 0.6), **$0.0055 / 1k (−94%)**, p50 **14 ms**, judge 4.79, facts 0.948, 0 wrong hits.
   - **Exit gate: every check passes** for both, with no exceptions. README, `results/summary.md` and `results/router.md` updated with the final numbers.
-- **Next:** the final whole-branch code review, then close Phase 3.
+- **Final whole-branch review** (fresh reviewer, most capable model, 2026-10-06): **no Critical issues**; all five Review Focus cases confirmed handled and tested; cost accounting, cap logic and the cache gate correct. Verdict: "ready to merge with fixes".
+  - **I1, fixed:** when both tiers failed, the log row didn't show `+fallback` and lost the first tier's error. Now `route_reason` is marked before the fallback call, and `error_detail` keeps `fallback_after:<first kind>`. The existing both-fail test was tightened, failed, then passed.
+  - **M4 (graded up to Important), fixed:** the exit gate ignored failed requests, so a run full of 503s could pass, and it crashed if every request failed. It now reports `n_errors` and requires `no_errors`. 2 new tests; the final reports still pass (0 errors).
+  - 9 minor findings deferred to `backlog.md` (M12–M20). M9 (Phase 2) is resolved by D35.
+  - Suites: weir 221, hospital-rag 39, eval 107, all passing.

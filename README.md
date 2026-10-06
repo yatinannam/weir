@@ -323,7 +323,7 @@ The set is split 70/30 by cluster into tune and holdout. Every run's raw `result
 docker compose up -d postgres                       # DB tests use 127.0.0.1:5432/weir_test
 cd services/weir         && uv run pytest -q        # 221 tests
 cd services/hospital-rag && uv run pytest -q        #  39 tests
-cd eval                  && uv run pytest -q        # 105 tests
+cd eval                  && uv run pytest -q        # 107 tests
 ```
 
 CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push.

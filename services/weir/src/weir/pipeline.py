@@ -185,8 +185,6 @@ class Pipeline:
         if retrieved.kb_version and generated.finish_reason != "skipped":
             # A document edit shows up here first: switch the cache key now, not at the next /info refresh.
             self._cache.versions.observe(req.namespace, retrieved.kb_version, generated.prompt_version)
-        if outcome.fallback:
-            row.route_reason = f"{row.route_reason}+fallback"
         row.escalated = outcome.escalated
         row.model = generated.model
         row.tokens_in = sum(g.tokens_in for _, g in outcome.billed)
@@ -295,7 +293,12 @@ class Pipeline:
                 raise
             log.warning("%s model failed (%s); falling back to the other tier", tier, e.kind)
             tier, fallback = ("large" if tier == "small" else "small"), True
-            generated = await self._call(req, retrieved, tier, row)
+            row.route_reason = f"{row.route_reason}+fallback"  # visible even if the fallback fails too
+            try:
+                generated = await self._call(req, retrieved, tier, row)
+            except RagError as second:  # both tiers failed: keep the first tier's error in the log too
+                raise RagError(second.kind, f"fallback_after:{e.kind}; {second.detail}",
+                               second.retry_after) from second
         billed = [(self._cfg.model_for(tier), generated)]
         grounding = self._ground(generated, retrieved)
         escalated = False

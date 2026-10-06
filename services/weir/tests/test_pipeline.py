@@ -443,7 +443,10 @@ async def test_both_tiers_failing_returns_503_with_request_id():
         await h.p.handle(ask("When can I visit?"))
     assert exc.value.status_code == 503 and exc.value.retry_after == 12.0
     assert len(seen) == 2 and exc.value.request_id == str(h.sink.rows[0].request_id)
-    assert h.sink.rows[0].status == "error" and h.sink.rows[0].model_calls == 2
+    row = h.sink.rows[0]
+    assert row.status == "error" and row.model_calls == 2
+    assert row.route_reason == "simple+fallback"                 # final review I1: the attempt is visible
+    assert "fallback_after:rate_limited" in row.error_detail      # and the first tier's error is kept
 
 
 async def test_failed_escalation_returns_the_small_answer():  # Review Focus 2

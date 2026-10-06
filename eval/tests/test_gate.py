@@ -37,3 +37,15 @@ def test_gate_failures(records, failed):
 def test_gate_requires_judged_rows():
     with pytest.raises(ValueError, match="rejudge"):
         gate([rec("q-1", "large", None, 1.0, 0.0004)], BASE)
+
+
+def test_gate_fails_when_requests_errored():  # final review M4: an outage must not hide behind a pass
+    failed = {"id": "q-2", "group": "distinct", "difficulty": "easy", "status_code": 503, "error": "x"}
+    g = gate([rec("q-1", "small", 5, 1.0, 0.0002), failed], BASE)
+    assert g["n_errors"] == 1 and g["checks"]["no_errors"] is False and g["passed"] is False
+
+
+def test_gate_with_no_successful_rows_fails_cleanly():
+    failed = {"id": "q-1", "group": "distinct", "difficulty": "easy", "status_code": 503, "error": "x"}
+    g = gate([failed], BASE)
+    assert g["n"] == 0 and g["n_errors"] == 1 and g["passed"] is False
