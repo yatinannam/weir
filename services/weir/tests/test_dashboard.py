@@ -139,3 +139,11 @@ def test_alert_rules_never_apply_range_functions_to_a_multi_metric_selector():
     text = ALERTS.read_text(encoding="utf-8") + "".join(_prometheus_exprs())
     offenders = re.findall(r"\b(?:increase|rate|irate|delta|deriv|idelta)\(\s*\{__name__=~[^}]*\}", text)
     assert not offenders, f"range function over a multi-metric selector: {offenders}"
+
+
+def test_dashboard_is_light_on_the_database_under_load():  # backlog M25 (Phase 5 prerequisite)
+    d = _dashboard()
+    assert d["refresh"] == "5m"
+    for v in d["templating"]["list"]:
+        assert "$__timeFilter(ts)" in v["query"], v["name"]   # no full-table DISTINCT scans
+        assert v["refresh"] == 2                                # re-query on time-range change only

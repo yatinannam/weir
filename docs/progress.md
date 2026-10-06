@@ -283,4 +283,5 @@ Full Weir with the final settings, against the same-day-style baseline v4:
 - Design presented in 5 sections (components, stub and failure injection, scenarios, measurements and checks, testing and scope), each approved.
 - Wrote the Phase 5 addendum: `superpowers/specs/2026-10-06-phase-5-load-testing-design.md`. Work is on branch `phase-5`.
 - The user approved the addendum. Stub timing fitted from 740 clean request-log rows: small 553 / 830 ms, large 748 / 1,429 ms (median / p95). Wrote the implementation plan: `superpowers/plans/2026-10-06-phase-5-load-testing.md` (10 tasks).
-- **Next:** the user reviews the plan.
+- The user approved the plan; executing natively.
+- **Task 1 (M25):** the dashboard refreshes every 5 min (was 30 s), and its two variable queries are time-bounded and re-run only on a time-range change, so watching a load test doesn't load the database being measured. 1 test; dashboard suite 26.

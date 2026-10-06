@@ -7,7 +7,7 @@
   "timezone": "browser",
   "editable": false,
   "schemaVersion": 39,
-  "refresh": "30s",
+  "refresh": "5m",
   "time": {
     "from": "now-30d",
     "to": "now"
@@ -22,8 +22,8 @@
           "type": "grafana-postgresql-datasource",
           "uid": "weir-pg"
         },
-        "refresh": 1,
-        "query": "select distinct config_label from weir.request_log where config_label is not null order by 1",
+        "refresh": 2,
+        "query": "select distinct config_label from weir.request_log where $__timeFilter(ts) and config_label is not null order by 1",
         "definition": "config_label values",
         "multi": true,
         "includeAll": true,
@@ -45,8 +45,8 @@
           "type": "grafana-postgresql-datasource",
           "uid": "weir-pg"
         },
-        "refresh": 1,
-        "query": "select distinct namespace from weir.request_log order by 1",
+        "refresh": 2,
+        "query": "select distinct namespace from weir.request_log where $__timeFilter(ts) order by 1",
         "definition": "namespace values",
         "multi": true,
         "includeAll": true,

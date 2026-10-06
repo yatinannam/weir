@@ -187,17 +187,18 @@ def build() -> dict:
                      "summary.md) for the four-way ablation with quality."}},
     ]
     variables = [
-        {"name": "config", "label": "Configuration", "type": "query", "datasource": PG, "refresh": 1,
-         "query": "select distinct config_label from weir.request_log where config_label is not null order by 1",
+        {"name": "config", "label": "Configuration", "type": "query", "datasource": PG, "refresh": 2,
+         "query": "select distinct config_label from weir.request_log where $__timeFilter(ts) "
+                  "and config_label is not null order by 1",
          "definition": "config_label values", "multi": True, "includeAll": True,
          "current": {"selected": True, "text": ["All"], "value": ["$__all"]}},
-        {"name": "namespace", "label": "Namespace", "type": "query", "datasource": PG, "refresh": 1,
-         "query": "select distinct namespace from weir.request_log order by 1",
+        {"name": "namespace", "label": "Namespace", "type": "query", "datasource": PG, "refresh": 2,
+         "query": "select distinct namespace from weir.request_log where $__timeFilter(ts) order by 1",
          "definition": "namespace values", "multi": True, "includeAll": True,
          "current": {"selected": True, "text": ["All"], "value": ["$__all"]}},
     ]
     return {"uid": "weir", "title": "Weir", "tags": ["weir"], "timezone": "browser", "editable": False,
-            "schemaVersion": 39, "refresh": "30s", "time": {"from": "now-30d", "to": "now"},
+            "schemaVersion": 39, "refresh": "5m", "time": {"from": "now-30d", "to": "now"},
             "templating": {"list": variables}, "panels": panels}
 
 
