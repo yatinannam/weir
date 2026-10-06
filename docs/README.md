@@ -8,6 +8,7 @@ The record of everything planned, decided and measured for Weir. Start here.
 | [superpowers/specs/2026-09-30-weir-design.md](superpowers/specs/2026-09-30-weir-design.md) | The implementation design: how it is built. Where it disagrees with the original, it wins. |
 | [superpowers/specs/2026-10-02-phase-2-semantic-cache-design.md](superpowers/specs/2026-10-02-phase-2-semantic-cache-design.md) | Phase 2 addendum: semantic cache details, threshold sweep, cache eval |
 | [superpowers/specs/2026-10-04-phase-3-router-design.md](superpowers/specs/2026-10-04-phase-3-router-design.md) | Phase 3 addendum: router, grounding check, escalation, offline tuning |
+| [superpowers/specs/2026-10-06-phase-4-monitoring-design.md](superpowers/specs/2026-10-06-phase-4-monitoring-design.md) | Phase 4 addendum: Prometheus metrics, Grafana dashboard, alerts |
 | [backlog.md](backlog.md) | Unscheduled ideas (e.g. demo chat page) and deferred review findings |
 | [decisions.md](decisions.md) | A log of every decision, with the reason |
 | [progress.md](progress.md) | A phase-by-phase log of what was done and what's next |

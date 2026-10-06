@@ -217,3 +217,14 @@ Full Weir with the final settings, against the same-day-style baseline v4:
 - **Decisions D33–D41.** Write-ups: `results/router-tuning.md`, `results/router.md`, `results/summary.md`.
 - The final whole-branch review found no Critical issues. Its one Important finding and the gate gap were fixed; 9 minors are in `backlog.md` (M12–M20).
 - **Next:** Phase 4 (Prometheus counters, Grafana dashboard, alerts). Design it first, starting with its own addendum.
+
+## 2026-10-06: Phase 4 (monitoring) design
+
+- Agreed with the user:
+  - alerts shown inside Grafana only (D42)
+  - the dashboard shows live traffic and every past run, with a configuration filter (D43)
+  - data from both Postgres and Prometheus (D44)
+- Design presented in 5 sections (components, Weir metrics, dashboard, alerts, testing), each approved.
+- Found while designing: Weir's port was open on all interfaces; it moves to `127.0.0.1` so the unauthenticated `/metrics` stays local.
+- Wrote the Phase 4 addendum: `superpowers/specs/2026-10-06-phase-4-monitoring-design.md`. Work is on branch `phase-4`.
+- **Next:** the user reviews the addendum, then the implementation plan.
