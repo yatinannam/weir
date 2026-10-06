@@ -254,6 +254,23 @@ def cmd_derive_workload(args: argparse.Namespace) -> int:
     return 0
 
 
+LOADTEST_DIR = REPO / "loadtest"
+
+
+def cmd_loadtest_make_workloads(args: argparse.Namespace) -> int:
+    from .loadtest.workload import distinct_requests, make_request_file
+
+    reqs = make_request_file(load_queries(QUERIES), args.n, args.seed)
+    out = LOADTEST_DIR / "workloads"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"requests-{args.n}.json").write_text(json.dumps(reqs, ensure_ascii=False), encoding="utf-8")
+    distinct = distinct_requests(reqs)
+    (out / "distinct.json").write_text(json.dumps(distinct, ensure_ascii=False), encoding="utf-8")
+    rate = repeat_rate([f"{r['namespace']}|{r['query']}" for r in reqs])
+    print(f"{len(reqs)} requests, {len(distinct)} distinct, repeat rate {rate:.1%}")
+    return 0
+
+
 def _write_report(out_dir: Path, header: dict, records: list[dict]) -> None:
     summary = summarize(records)
     (out_dir / "summary.json").write_text(json.dumps({"header": header, "summary": summary}, indent=2), encoding="utf-8")
@@ -312,5 +329,11 @@ def main() -> None:
     dw.add_argument("--workload", required=True)
     dw.add_argument("--out", required=True)
     dw.set_defaults(func=cmd_derive_workload)
+    lt = sub.add_parser("loadtest", help="Phase 5 k6 load tests (stub model only)")
+    lt_sub = lt.add_subparsers(dest="lt_command", required=True)
+    mw = lt_sub.add_parser("make-workloads", help="write loadtest/workloads/*.json (no keys)")
+    mw.add_argument("--n", type=int, default=3000)
+    mw.add_argument("--seed", type=int, default=11)
+    mw.set_defaults(func=cmd_loadtest_make_workloads)
     args = parser.parse_args()
     sys.exit(args.func(args))

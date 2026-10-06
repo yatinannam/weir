@@ -43,3 +43,9 @@ jobs:
         run: >-
           docker run --rm -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" --entrypoint promtool
           prom/prometheus:v2.55.1 test rules /etc/prometheus/alerts_test.yml
+      - name: k6 inspect (load-test scripts)
+        run: |
+          for s in steady ramp spike failure; do
+            docker run --rm -v "$PWD/loadtest:/loadtest" grafana/k6:0.54.0 \
+              inspect -e WORKLOAD=/loadtest/workloads/requests-3000.json /loadtest/scripts/$s.js > /dev/null
+          done
