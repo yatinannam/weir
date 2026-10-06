@@ -1,0 +1,5 @@
+{"type":"Metric","data":{"name":"http_req_duration","type":"trend"},"metric":"http_req_duration"}
+{"type":"Point","metric":"http_req_duration","data":{"time":"2026-10-06T10:00:00.123456789Z","value":15.5,"tags":{"scenario":"traffic","status":"200"}}}
+{"type":"Point","metric":"http_req_duration","data":{"time":"2026-10-06T10:00:01.5Z","value":820.0,"tags":{"scenario":"traffic","status":"503"}}}
+{"type":"Point","metric":"http_req_duration","data":{"time":"2026-10-06T10:00:02Z","value":3.0,"tags":{"scenario":"chaos","status":"200","name":"chaos"}}}
+{"type":"Point","metric":"dropped_iterations","data":{"time":"2026-10-06T10:00:03+00:00","value":1,"tags":{"scenario":"traffic"}}}

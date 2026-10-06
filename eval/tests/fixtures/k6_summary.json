@@ -1,0 +1,8 @@
+{"metrics": {
+  "latency_all": {"type": "trend", "values": {"med": 40.0, "p(95)": 900.0, "p(99)": 1500.0, "count": 300}},
+  "latency_hit": {"type": "trend", "values": {"med": 15.0, "p(95)": 30.0, "p(99)": 45.0, "count": 270}},
+  "latency_large": {"type": "trend", "values": {"med": 780.0, "p(95)": 1400.0, "p(99)": 1600.0, "count": 30}},
+  "errors": {"type": "rate", "values": {"rate": 0.0, "passes": 0, "fails": 300}},
+  "iterations": {"type": "counter", "values": {"count": 300, "rate": 9.98}},
+  "dropped_iterations": {"type": "counter", "values": {"count": 2, "rate": 0.07}}
+}}
