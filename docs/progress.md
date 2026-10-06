@@ -282,4 +282,5 @@ Full Weir with the final settings, against the same-day-style baseline v4:
   - the baseline through Weir's `baseline` config (D53)
 - Design presented in 5 sections (components, stub and failure injection, scenarios, measurements and checks, testing and scope), each approved.
 - Wrote the Phase 5 addendum: `superpowers/specs/2026-10-06-phase-5-load-testing-design.md`. Work is on branch `phase-5`.
-- **Next:** the user reviews the addendum, then the implementation plan.
+- The user approved the addendum. Stub timing fitted from 740 clean request-log rows: small 553 / 830 ms, large 748 / 1,429 ms (median / p95). Wrote the implementation plan: `superpowers/plans/2026-10-06-phase-5-load-testing.md` (10 tasks).
+- **Next:** the user reviews the plan.
