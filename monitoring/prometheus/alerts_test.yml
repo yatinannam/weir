@@ -140,9 +140,10 @@ tests:
 
   # --- CostAboveBaseline ------------------------------------------------------------------
   - interval: 1m
-    input_series:   # $0.0002 per request vs the $0.0000988 baseline
+    input_series:   # spending twice the always-large counterfactual (e.g. every answer escalated)
       - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+10x120'}
       - {series: 'weir_cost_usd_total{namespace="p"}', values: '0+0.002x120'}
+      - {series: 'weir_counterfactual_cost_usd_total{namespace="p"}', values: '0+0.001x120'}
     alert_rule_test:
       - eval_time: 100m
         alertname: CostAboveBaseline
@@ -150,15 +151,17 @@ tests:
           - exp_labels: {severity: warning}
             exp_annotations: {summary: "Cost per request is above the always-large baseline"}
   - interval: 1m
-    input_series:   # $0.00005 per request: well under
+    input_series:   # half the counterfactual: well under
       - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+10x120'}
       - {series: 'weir_cost_usd_total{namespace="p"}', values: '0+0.0005x120'}
+      - {series: 'weir_counterfactual_cost_usd_total{namespace="p"}', values: '0+0.001x120'}
     alert_rule_test:
       - {eval_time: 100m, alertname: CostAboveBaseline, exp_alerts: []}
   - interval: 1m
-    input_series:   # expensive, but only ~12 requests per hour: below the traffic guard
+    input_series:   # twice the counterfactual, but only ~12 requests per hour: below the traffic guard
       - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+0.2x120'}
       - {series: 'weir_cost_usd_total{namespace="p"}', values: '0+0.00004x120'}
+      - {series: 'weir_counterfactual_cost_usd_total{namespace="p"}', values: '0+0.00002x120'}
     alert_rule_test:
       - {eval_time: 100m, alertname: CostAboveBaseline, exp_alerts: []}
 
@@ -183,3 +186,40 @@ tests:
       - {series: 'weir_cache_jobs_failed_total{job="weir", instance="weir:8000"}', values: '0x5'}
     alert_rule_test:
       - {eval_time: 4m, alertname: BackgroundWorkLost, exp_alerts: []}
+
+  # --- Final review fixes (D47): scenarios from normal workflows ----------------------------
+  - interval: 1m
+    input_series:   # running the baseline config: cost is the counterfactual (+1% noise); must stay quiet
+      - {series: 'weir_requests_total{namespace="p", cache_status="bypass", route="large", status="ok"}', values: '0+10x120'}
+      - {series: 'weir_cost_usd_total{namespace="p"}', values: '0+0.001x120'}
+      - {series: 'weir_counterfactual_cost_usd_total{namespace="p"}', values: '0+0.00099x120'}
+    alert_rule_test:
+      - {eval_time: 100m, alertname: CostAboveBaseline, exp_alerts: []}
+  - interval: 1m
+    input_series:   # 96% fast cache hits; every miss takes ~6 s: the model is slow and must be caught
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="hit", route="none", le="0.05"}', values: '0+48x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="hit", route="none", le="4"}', values: '0+48x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="hit", route="none", le="8"}', values: '0+48x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="hit", route="none", le="+Inf"}', values: '0+48x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="0.05"}', values: '0x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="4"}', values: '0x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="8"}', values: '0+2x40'}
+      - {series: 'weir_request_latency_seconds_bucket{cache_status="miss", route="large", le="+Inf"}', values: '0+2x40'}
+      - {series: 'weir_requests_total{namespace="p", cache_status="hit", route="none", status="ok"}', values: '0+48x40'}
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+2x40'}
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: HighLatencyP95
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Weir p95 latency is above 4 s"}
+  - interval: 1m
+    input_series:   # the hit series vanishes entirely after a restart (e.g. KB re-ingest): must still fire
+      - {series: 'weir_requests_total{namespace="p", cache_status="hit", route="none", status="ok"}', values: '0+9x360 _x30'}
+      - {series: 'weir_requests_total{namespace="p", cache_status="miss", route="large", status="ok"}', values: '0+1x360 361+10x30'}
+    alert_rule_test:
+      - eval_time: 390m
+        alertname: CacheHitRateDrop
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Cache hit rate fell below half its 6-hour average"}

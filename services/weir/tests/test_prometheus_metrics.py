@@ -114,3 +114,22 @@ def test_info_and_loss_collector():
     assert value(registry, "weir_info", config_label="router_only") == 1
     assert value(registry, "weir_log_rows_dropped_total") == 2
     assert value(registry, "weir_cache_jobs_failed_total") == 3
+
+
+def test_alerting_series_exist_at_zero_before_any_request():
+    """Final review I1: a labelled series that first appears at 1 hides its first increment from increase(), so the
+    first fallback / error after a restart went unreported. Every series an alert divides or sums starts at 0."""
+    registry = CollectorRegistry()
+    WeirMetrics(registry, "full", namespaces=[PUB, "weir-general/en/staff"])
+    for tier in ("small", "large"):
+        assert registry.get_sample_value("weir_fallbacks_total", {"routed_tier": tier}) == 0
+    for ns in (PUB, "weir-general/en/staff"):
+        assert registry.get_sample_value("weir_cost_usd_total", {"namespace": ns}) == 0
+        assert registry.get_sample_value("weir_counterfactual_cost_usd_total", {"namespace": ns}) == 0
+        for cache_status in ("hit", "miss", "bypass"):
+            for route in ("none", "small", "large"):
+                for status in ("ok", "error", "timeout"):
+                    labels = dict(namespace=ns, cache_status=cache_status, route=route, status=status)
+                    assert registry.get_sample_value("weir_requests_total", labels) == 0, labels
+    assert registry.get_sample_value("weir_request_latency_seconds_count", {"cache_status": "miss",
+                                                                           "route": "large"}) == 0

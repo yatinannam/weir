@@ -5,6 +5,7 @@ live and historical numbers can't disagree. Request IDs, question text, similari
 labels: they would create unbounded series and could leak text from sensitive namespaces.
 """
 import logging
+from collections.abc import Iterable
 
 from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
 from prometheus_client.core import CounterMetricFamily
@@ -17,8 +18,13 @@ log = logging.getLogger("weir.metrics")
 LATENCY_BUCKETS = (0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 15.0, 30.0)
 
 
+CACHE_STATUSES = ("hit", "miss", "bypass")
+ROUTES = ("none", "small", "large")
+STATUSES = ("ok", "error", "timeout")
+
+
 class WeirMetrics:
-    def __init__(self, registry: CollectorRegistry, config_label: str):
+    def __init__(self, registry: CollectorRegistry, config_label: str, namespaces: Iterable[str] = ()):
         self.registry = registry
         self.requests = Counter("weir_requests", "Requests handled by Weir",
                                 ["namespace", "cache_status", "route", "status"], registry=registry)
@@ -37,6 +43,20 @@ class WeirMetrics:
                                       registry=registry)
         Gauge("weir_info", "Running Weir configuration", ["config_label"],
               registry=registry).labels(config_label).set(1)
+        # Final review I1: a labelled series that first appears at 1 hides that increment from increase(), so the
+        # first fallback/error after every restart went unreported. Create every series the alerts use at 0.
+        for tier in ("small", "large"):
+            self.fallbacks.labels(tier)
+        for cache_status in CACHE_STATUSES:
+            for route in ROUTES:
+                self.latency.labels(cache_status, route)
+        for ns in namespaces:
+            self.cost.labels(ns)
+            self.counterfactual.labels(ns)
+            for cache_status in CACHE_STATUSES:
+                for route in ROUTES:
+                    for status in STATUSES:
+                        self.requests.labels(ns, cache_status, route, status)
 
     def record(self, row: RequestLogRow) -> None:
         self.requests.labels(row.namespace, row.cache_status, row.route, row.status).inc()

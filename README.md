@@ -215,14 +215,18 @@ docker compose --profile monitoring up -d       # adds Prometheus and Grafana to
 | :-- | :-- | :-: |
 | `WeirDown` | Prometheus can't scrape Weir for 1 minute | critical |
 | `HighErrorRate` | over 5% of requests fail over 10 minutes | critical |
-| `HighLatencyP95` | p95 over 4 s for 10 minutes (normal: 1.1–3.5 s) | warning |
+| `HighLatencyP95` | p95 of non-hit requests over 4 s for 10 minutes (normal: 1.1–3.5 s) | warning |
 | `ModelFallbacks` | any fallback to the other model tier in 5 minutes | warning |
 | `HighEscalationRate` | over 20% of small-model answers escalated over 30 minutes | warning |
-| `CacheHitRateDrop` | the 15-minute hit rate falls below half its 6-hour average | warning |
-| `CostAboveBaseline` | the last hour's cost per request is above the always-large baseline | warning |
+| `CacheHitRateDrop` | the 15-minute hit rate (hits / cache lookups) falls below half its 6-hour average | warning |
+| `CostAboveBaseline` | the last hour's cost is over 5% above what the same traffic would cost with no cache and always the large model | warning |
 | `BackgroundWorkLost` | any request-log row or cache job dropped or failed | warning |
 
-Prometheus's `promtool` runs 19 alert unit tests in CI. Each alert has a firing case and a quiet case, and each rate alert also has a low-traffic case.
+Prometheus's `promtool` runs 22 alert unit tests in CI:
+- Each alert has a firing case and a quiet case, and each rate alert also has a low-traffic case.
+- Three more scenarios come from normal workflows: a `baseline` run, cache-heavy traffic with a slow model, and hits vanishing after a restart.
+
+The series the alerts use exist at 0 from startup, so the first fallback or error after a restart is never missed.
 
 ## Stack
 
@@ -379,7 +383,7 @@ The set is split 70/30 by cluster into tune and holdout. Every run's raw `result
 
 ```bash
 docker compose up -d postgres                       # DB tests use 127.0.0.1:5432/weir_test
-cd services/weir         && uv run pytest -q        # 268 tests
+cd services/weir         && uv run pytest -q        # 269 tests
 cd services/hospital-rag && uv run pytest -q        #  39 tests
 cd eval                  && uv run pytest -q        # 107 tests
 ```

@@ -94,7 +94,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return {"db": db_ok, "rag": await rag.health()}
 
         registry = CollectorRegistry()
-        metrics = WeirMetrics(registry, cfg.config_label)
+        metrics = WeirMetrics(registry, cfg.config_label, namespaces=cfg.namespaces.keys())
         registry.register(LossCollector({"log_rows": writer, "cache_jobs": cache_jobs}))
         app.state.deps = AppDeps(Pipeline(cfg, rag, prices, MetricsSink(writer, metrics), cache), tenants, cfg,
                                  health, AdminService(pool, store), metrics=metrics)

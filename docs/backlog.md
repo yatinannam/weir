@@ -40,3 +40,23 @@ The review found no Critical issues. The one Important finding (I1, a two-tier f
 | M18 | Tests | `test_fallback_down_to_small_is_not_cached` uses `top_score=0.3`, exactly `cache.min_retrieval_score`, so it relies on a strict `<` | Use 0.35 (still below `low_confidence` 0.40) |
 | M19 | Eval tool | `simulate` prices an unusable small-trial row's escalation at baseline cost only (`small_cost=0`) | Use the median small cost; no effect on current data |
 | M20 | Reporting | `by_route` groups fallback answers under the routed tier, and `meta` has no fallback flag | Group by `meta.model` for outage analysis, or expose the flag in `meta` |
+
+## Deferred minor findings: Phase 4 final review (2026-10-06)
+
+The review found no Critical findings. Three Important ones were fixed before closing (D47):
+- first-increment blindness
+- `CostAboveBaseline` firing on `baseline` runs
+- `HighLatencyP95` blind on cache-heavy traffic
+
+| # | Area | Finding | Suggested fix |
+| --- | --- | --- | --- |
+| M21 | Dashboard | "Routed small" is small / non-hit requests on the dashboard but small / all requests in `docs/results/` (11.4% vs ~13.3% for the full cold pass) | Rename the column ("Routed small, of non-hit") or align the definition |
+| M22 | Metrics | `weir_metrics_failed_total` exists but no panel or alert uses it | Add it to the "Lost work" panel and `BackgroundWorkLost` |
+| M23 | Dashboard | Time-series panels draw lines across idle days; the spec asked for a stacked route mix | `$__timeGroupAlias(ts, '1h', 0)` (update the test expander) or stacked bars |
+| M24 | Dashboard | Similarity buckets use `floor(real * 100)`, so a 0.90 can land in 0.89; the 1.00 bar (exact repeats) flattens the near misses | Cast to numeric; exclude >= 0.995 or use a log scale |
+| M25 | Dashboard | A 30 s refresh re-runs ~17 30-day aggregates plus two full DISTINCT scans against the database the cache uses | Lower the default refresh and time-bound the variable queries before the Phase 5 load tests |
+| M26 | Docs | An empty `GRAFANA_ADMIN_PASSWORD` silently means `admin`, and Grafana applies the variable only on first start | Document both, plus a generation command like the tenant keys |
+| M27 | Tests | The dashboard query test and `check_panels.py` count rows, but aggregate/`coalesce` stat queries always return one row | Also check for a non-null, non-zero value where data is expected |
+| M28 | Tests | The `/metrics` tests build their own registry, so removing the wiring in `main.py` wouldn't fail a test | A shared `build_metrics(...)` used by both `main.py` and the tests |
+| M29 | Docs | D45 says promtool can't reproduce the label collision; a `promql_expr_test` on the inner `increase(...)` does | Add that expression test; correct D45's wording |
+| M30 | Metrics | prometheus-client adds a `*_created` series for every counter child | `disable_created_metrics()` at startup |

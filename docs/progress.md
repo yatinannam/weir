@@ -241,4 +241,32 @@ Full Weir with the final settings, against the same-day-style baseline v4:
   - **Bug found and fixed:** `BackgroundWorkLost` showed health `err` on the live server ("vector cannot contain metrics with the same labelset"): `increase()` drops the metric name, so a `{__name__=~...}` selector over the four same-labelled loss counters is rejected. promtool's test engine doesn't reproduce it. Fix: one `sum(increase(...))` per counter. A new static test fails on any range function over a multi-metric selector (failed before the fix, passes after), and the promtool cases now use all four counters with real labels. Live: all 8 rules now `ok`.
   - Layout fixes after a visual check: the comparison table is taller (the `full` row was cut off), and the "current value" stats became instant queries (titles were truncated; "Running configuration" showed a stale `dev`).
   - Playwright screenshots: `docs/images/dashboard.png` (full) and `docs/images/dashboard-headline.png`.
-- **Task 8 (docs):** README: architecture diagram with Prometheus and Grafana, a new "Monitoring (Phase 4)" section (screenshot, how to open it, what each row shows, the 8 alerts), stack/API/layout/tests/status/roadmap updated. Decisions D45 (BackgroundWorkLost fix and static check), D46 (Grafana password). Backlog M7 resolved. Next: final whole-branch review.
+- **Task 8 (docs):** README: architecture diagram with Prometheus and Grafana, a new "Monitoring (Phase 4)" section (screenshot, how to open it, what each row shows, the 8 alerts), stack/API/layout/tests/status/roadmap updated. Decisions D45 (BackgroundWorkLost fix and static check), D46 (Grafana password). Backlog M7 resolved.
+- **Final whole-branch review** (fresh reviewer, most capable model):
+  - **No Critical findings.** The five Review Focus guarantees, security and the dashboard queries were all confirmed.
+  - **Three Important findings,** each reproduced in promtool and fixed test-first (D47):
+    1. Series that first appear at 1 hid the first fallback or error after every restart. Weir now creates them at 0: 54 request series plus the fallbacks, checked live.
+    2. `CostAboveBaseline` fired on `baseline` runs. It now compares with the counterfactual.
+    3. `HighLatencyP95` was blind on cache-heavy traffic. It now uses non-hit requests.
+
+    Also fixed: `CacheHitRateDrop` now survives a vanished hit series.
+  - **Verification:**
+    - The new promtool scenarios failed first and pass now (22 cases).
+    - The guard mutation check still catches all 5 guards.
+    - On the live server, all 8 rules are `ok`.
+  - **Deferred:** 10 minor findings (backlog M21–M30).
+
+## 2026-10-06: Phase 4 exit: monitoring
+
+- **Built:**
+  - `GET /metrics`: counters derived from the same row as the request log. Question text is never exposed, and first events are never missed.
+  - Prometheus with 8 alerts: thresholds from measured runs, traffic guards, and 22 promtool tests in CI.
+  - A Grafana dashboard over every run, with a configuration filter: 6 rows, and 21 queries tested as the read-only `weir_reader`.
+  - All of it is opt-in (`--profile monitoring`), provisioned from files and localhost-only.
+- **Live verification:**
+  - Every panel shows data for All.
+  - All 8 alerts are healthy and inactive.
+  - Screenshots: `docs/images/dashboard.png`, `docs/images/dashboard-headline.png`.
+- **Found by testing live, not by unit tests:** the `BackgroundWorkLost` label collision (D45) and the reviewer's three alert behaviours (D47). Lesson: always check Prometheus rules on the real server and with realistic series shapes.
+- **Suites:** weir 269, hospital-rag 39, eval 107. CI also runs `promtool check config` and the 22 rule tests.
+- **Next:** Phase 5, k6 load tests (cold/warm, ramp, spike, soak). They will use this dashboard.
