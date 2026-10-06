@@ -228,4 +228,5 @@ Full Weir with the final settings, against the same-day-style baseline v4:
 - Found while designing: Weir's port was open on all interfaces; it moves to `127.0.0.1` so the unauthenticated `/metrics` stays local.
 - Wrote the Phase 4 addendum: `superpowers/specs/2026-10-06-phase-4-monitoring-design.md`. Work is on branch `phase-4`.
 - The user approved the addendum. Wrote the implementation plan: `superpowers/plans/2026-10-06-phase-4-monitoring.md` (8 tasks).
-- **Next:** the user reviews the plan.
+- The user approved the plan; executing natively.
+- **Task 1:** `weir/metrics/prometheus.py`: `WeirMetrics` (requests, latency histogram, cost and counterfactual, model calls, escalations, fallbacks, grounding, `weir_info`), `MetricsSink` (records from the finished log row, never fails a request), `LossCollector` (background-queue losses, backlog M7). New dependency `prometheus-client`. 8 tests.

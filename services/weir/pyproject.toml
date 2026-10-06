@@ -15,6 +15,7 @@ dependencies = [
   "pyyaml>=6.0",
   "fastembed>=0.4",
   "tokenizers>=0.19",
+  "prometheus-client>=0.20",
 ]
 
 [dependency-groups]
