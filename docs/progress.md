@@ -18,7 +18,7 @@ A running log of what was done, what was learned, and what's next. Newest at the
 
 **Needed from the user before Phase 0:** a free Groq API key (console.groq.com) and a free Gemini API key (aistudio.google.com).
 
-## 2026-10-01: Phase 0 exit ✅ (built on branch `phase-0-1`)
+## 2026-10-01: Phase 0 exit (built on branch `phase-0-1`)
 
 - Knowledge base: 40 fictional docs (30 public, 10 staff) with 8 planted look-alike pairs.
 - hospital-rag: /retrieve, /generate, /info, /healthz. Groq gpt-oss-20b/120b and Gemini gemini-2.5-flash confirmed on the user's free keys.
@@ -27,7 +27,7 @@ A running log of what was done, what was learned, and what's next. Newest at the
 - Whole-branch review: 4 Important findings fixed (malformed-reply handling, eval robustness + `rejudge`, time/number fact matching, localhost-only ports). Real gpt-oss output showed its native 【c1】 citation style, which hid sources; the parser now handles it.
 - Learned: on Windows, `localhost` tries IPv6 first; DB URLs use 127.0.0.1. Git Bash rewrites `/app/...` paths in `docker exec` (use `MSYS_NO_PATHCONV=1`). Docker Desktop auto-updated mid-session and stopped containers once.
 
-## 2026-10-01: Phase 1 exit ✅: baseline frozen
+## 2026-10-01: Phase 1 exit: baseline frozen
 
 - Eval set: 50 queries (25 distinct, 3×5 paraphrase, 5×2 traps), split 33/17 by cluster.
 - Baseline (always gpt-oss-120b, no cache): **cost/1k $0.0989**, **p50 853 ms / p95 6.0 s** (sequential), **judge 5.0/5**, **facts 1.00**, 0 errors. Details and frozen settings are in `results/baseline.md`.
@@ -101,7 +101,7 @@ A running log of what was done, what was learned, and what's next. Newest at the
 - 11 minor findings were deferred (listed in the session ledger and the final message).
 - **Next:** re-run the cache measurement at 0.90 (cold pass + replay + grading), then update `results/cache-only.md`, then merge.
 
-## 2026-10-03: Phase 2 exit ✅: cache re-measured at 0.90 after the review fixes
+## 2026-10-03: Phase 2 exit: cache re-measured at 0.90 after the review fixes
 
 - **Baseline v3** (158 questions = v2 + 8 number-word traps): judge 4.90, facts 0.981, $0.098 per 1k, p50 617 ms.
 - **Cold pass:**
@@ -141,8 +141,8 @@ A running log of what was done, what was learned, and what's next. Newest at the
 
   | Question | Route (reason) | Model | Top retrieval score | Grounding overlap | Latency | Cost |
   | --- | --- | --- | --: | --: | --: | --: |
-  | "What are the ICU visiting hours?" | small (simple) | gpt-oss-20b | 0.911 | 0.89 ✓ | 694 ms | $0.000055 |
-  | "Compare the general ward and private ward visiting rules, and explain why the ICU differs." | large (default_large) | gpt-oss-120b | 0.769 | 0.59 ✓ | 704 ms | $0.000194 |
+  | "What are the ICU visiting hours?" | small (simple) | gpt-oss-20b | 0.911 | 0.89 (passed) | 694 ms | $0.000055 |
+  | "Compare the general ward and private ward visiting rules, and explain why the ICU differs." | large (default_large) | gpt-oss-120b | 0.769 | 0.59 (passed) | 704 ms | $0.000194 |
 
   Both answers were correct and grounded, and `route_reason`, `grounding_*` and `model_calls` were logged. Note: the longer, reworded large answer scored 0.59 overlap, close to the 0.5 starting cut-off, so tuning `min_overlap` on real data (Tasks 9–10) matters.
 - **Task 7:** `weir_eval features` asks hospital-rag `/retrieve` for every question and records the router's inputs with Weir's own `FeatureExtractor` (same tokenizer, reasoning words and clinical list as live), into `eval/datasets/features.jsonl`. No LLM calls. Eval suite: 63 tests.

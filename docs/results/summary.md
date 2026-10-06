@@ -63,8 +63,8 @@ The router adds little here, because most requests never reach a model.
 
 | Phase | Gate | Result |
 | --- | --- | --- |
-| 2 | Cache: 0 trap matches in the sweep; 0 wrong hits live; cold quality equal to the baseline | ✅ [`cache-only.md`](cache-only.md) |
-| 3 | Router: cost lower; judge within 0.1; facts no lower; small route ≥ large; 0 wrong hits (vs baseline v4) | ✅ every check, final configuration ([`router.md`](router.md#exit-gate-addendum-76-against-baseline-v4)) |
+| 2 | Cache: 0 trap matches in the sweep; 0 wrong hits live; cold quality equal to the baseline | Pass ([`cache-only.md`](cache-only.md)) |
+| 3 | Router: cost lower; judge within 0.1; facts no lower; small route ≥ large; 0 wrong hits (vs baseline v4) | Pass, every check, final configuration ([`router.md`](router.md#exit-gate-addendum-76-against-baseline-v4)) |
 
 ## Where the detail lives
 

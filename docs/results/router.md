@@ -99,12 +99,12 @@ The offline simulation predicted the live router almost exactly.
 
 | Report | Cost lower | Judge within 0.1 | Facts no lower | Small route ≥ large | 0 wrong hits | Result |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: |
-| Router only, cold | ✅ −7% | ✅ 4.90 = 4.90 | ✅ 0.978 = 0.978 | ✅ 5.00 = 5.00 | ✅ | **pass** |
-| **Full Weir (final), cold** | ✅ −20% | ✅ 4.90 = 4.90 | ✅ 0.978 = 0.978 | ✅ 5.00 = 5.00 | ✅ | **pass** |
-| **Full Weir (final), replay** | ✅ −94% | ✅ 4.79 vs 4.79 | ✅ 0.948 vs 0.947 | — | ✅ | **pass** |
-| Full Weir (cut-off 0.6), cold | ✅ −23% | ✅ 4.89 vs 4.90 | ⚠️ 0.975 vs 0.978 (q-150, large route, noise) | ✅ 5.00 = 5.00 | ✅ | pass\* |
-| Full Weir (cut-off 0.6), replay | ✅ −91% | ✅ 4.79 = 4.79 | ✅ 0.947 = 0.947 | — | ✅ | pass |
-| Router only, replay (derived) | ✅ −4% | ✅ 4.79 = 4.79 | ✅ 0.947 = 0.947 | ✅ 5.00 = 5.00 | ✅ | **pass** |
+| Router only, cold | −7% | 4.90 = 4.90 | 0.978 = 0.978 | 5.00 = 5.00 | yes | **pass** |
+| **Full Weir (final), cold** | −20% | 4.90 = 4.90 | 0.978 = 0.978 | 5.00 = 5.00 | yes | **pass** |
+| **Full Weir (final), replay** | −94% | 4.79 vs 4.79 | 0.948 vs 0.947 | — | yes | **pass** |
+| Full Weir (cut-off 0.6), cold | −23% | 4.89 vs 4.90 | near miss: 0.975 vs 0.978 (q-150, large route, noise) | 5.00 = 5.00 | yes | pass\* |
+| Full Weir (cut-off 0.6), replay | −91% | 4.79 = 4.79 | 0.947 = 0.947 | — | yes | pass |
+| Router only, replay (derived) | −4% | 4.79 = 4.79 | 0.947 = 0.947 | 5.00 = 5.00 | yes | **pass** |
 
 ### Why baseline v4
 
