@@ -227,4 +227,5 @@ Full Weir with the final settings, against the same-day-style baseline v4:
 - Design presented in 5 sections (components, Weir metrics, dashboard, alerts, testing), each approved.
 - Found while designing: Weir's port was open on all interfaces; it moves to `127.0.0.1` so the unauthenticated `/metrics` stays local.
 - Wrote the Phase 4 addendum: `superpowers/specs/2026-10-06-phase-4-monitoring-design.md`. Work is on branch `phase-4`.
-- **Next:** the user reviews the addendum, then the implementation plan.
+- The user approved the addendum. Wrote the implementation plan: `superpowers/plans/2026-10-06-phase-4-monitoring.md` (8 tasks).
+- **Next:** the user reviews the plan.
