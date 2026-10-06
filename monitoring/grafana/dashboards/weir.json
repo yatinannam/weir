@@ -1,0 +1,1327 @@
+{
+  "uid": "weir",
+  "title": "Weir",
+  "tags": [
+    "weir"
+  ],
+  "timezone": "browser",
+  "editable": false,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "config",
+        "label": "Configuration",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "weir-pg"
+        },
+        "refresh": 1,
+        "query": "select distinct config_label from weir.request_log where config_label is not null order by 1",
+        "definition": "config_label values",
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "weir-pg"
+        },
+        "refresh": 1,
+        "query": "select distinct namespace from weir.request_log order by 1",
+        "definition": "namespace values",
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Headline",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Requests",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select count(*) as \"Requests\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Cost per 1,000 requests",
+      "description": "List prices; actual spend is $0 on free tiers",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 3,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select coalesce(1000 * sum(cost_usd) / nullif(count(*), 0), 0) as \"Cost per 1,000\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Estimated savings",
+      "description": "Counterfactual (no cache, always the large model) minus actual cost",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select coalesce(sum(counterfactual_cost_usd - cost_usd), 0) as \"Saved\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Savings %",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select coalesce(1 - sum(cost_usd) / nullif(sum(counterfactual_cost_usd), 0), 0) as \"Saved\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Cache hit rate",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select coalesce(avg((cache_status = 'hit')::int), 0) as \"Hit rate\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Routed small",
+      "description": "Small-model requests / non-hit requests",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select coalesce(sum((route = 'small')::int)::float / nullif(sum((cache_status <> 'hit')::int), 0), 0) as \"Routed small\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Escalation rate",
+      "description": "Escalated / small-routed requests",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select coalesce(sum(escalated::int)::float / nullif(sum((route = 'small')::int), 0), 0) as \"Escalated\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Error rate",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 21,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select coalesce(avg((status <> 'ok')::int), 0) as \"Errors\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Comparison",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Configuration comparison",
+      "description": "The four-way ablation, live from the request log",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select config_label as \"Configuration\", count(*) as \"Requests\", avg((cache_status = 'hit')::int) as \"Cache hit rate\", sum((route = 'small')::int)::float / nullif(sum((cache_status <> 'hit')::int), 0) as \"Routed small\", 1000 * sum(cost_usd) / count(*) as \"Cost per 1,000\", percentile_cont(0.5) within group (order by latency_total_ms) as \"p50 (ms)\", percentile_cont(0.95) within group (order by latency_total_ms) as \"p95 (ms)\", 1 - sum(cost_usd) / nullif(sum(counterfactual_cost_usd), 0) as \"Saved\", avg((status <> 'ok')::int) as \"Error rate\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace) group by config_label order by \"Cost per 1,000\" desc",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cache hit rate"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Routed small"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Saved"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Error rate"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost per 1,000"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          }
+        ]
+      },
+      "options": {}
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Where requests go",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Route mix over time",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select $__timeGroupAlias(ts, '1h'), sum((cache_status = 'hit')::int) as \"cache hit\", sum((cache_status <> 'hit' and route = 'small')::int) as \"small model\", sum((cache_status <> 'hit' and route = 'large')::int) as \"large model\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace) group by 1 order by 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": "piechart",
+      "title": "Cache status",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select cache_status as \"Status\", count(*) as \"Requests\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace) group by 1 order by 1",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Top bypass reasons",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 14,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select coalesce(bypass_reason, '(none)') as \"Bypass reason\", count(*) as \"Requests\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace) and cache_status = 'bypass' group by 1 order by 2 desc limit 10",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 16,
+      "type": "row",
+      "title": "Latency",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 17,
+      "type": "table",
+      "title": "Latency by path",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select case when cache_status = 'hit' then 'cache hit' else route || ' model' end as \"Path\", count(*) as \"Requests\", percentile_cont(0.5) within group (order by latency_total_ms) as \"p50 (ms)\", percentile_cont(0.95) within group (order by latency_total_ms) as \"p95 (ms)\", percentile_cont(0.99) within group (order by latency_total_ms) as \"p99 (ms)\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace) and status = 'ok' and (cache_status = 'hit' or route in ('small', 'large')) group by 1 order by 1",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 18,
+      "type": "bargauge",
+      "title": "Average time per stage (non-hit requests)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 23,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select avg(latency_embed_ms) as \"Embed\", avg(latency_cache_ms) as \"Cache lookup\", avg(latency_retrieval_ms) as \"Retrieval\", avg(latency_llm_ms) as \"Model\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace) and cache_status <> 'hit'",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "basic"
+      }
+    },
+    {
+      "id": 19,
+      "type": "row",
+      "title": "Cache and router health",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 20,
+      "type": "barchart",
+      "title": "Similarity: hits and near misses",
+      "description": "Is the 0.90 threshold sensible? Near misses are lookups that scored 0.80+ but didn't hit",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select to_char(floor(similarity * 100) / 100, 'FM0.00') as \"Similarity\", sum((cache_status = 'hit')::int) as \"hits\", sum((cache_status <> 'hit')::int) as \"near misses\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace) and similarity >= 0.80 group by 1 order by 1",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "Similarity",
+        "stacking": "normal",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": "table",
+      "title": "Route reasons",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select route_reason as \"Route reason\", count(*) as \"Requests\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace) and route_reason is not null group by 1 order by 2 desc",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 22,
+      "type": "table",
+      "title": "Grounding results",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 31,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select case when grounding_passed then 'passed' else coalesce(grounding_reason, 'failed') end as \"Grounding\", count(*) as \"Requests\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace) and grounding_passed is not null group by 1 order by 2 desc",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "Fallbacks and escalations over time",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 18,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select $__timeGroupAlias(ts, '1h'), sum((route_reason like '%+fallback')::int) as \"fallbacks\", sum(escalated::int) as \"escalations\" from weir.request_log where $__timeFilter(ts) and config_label in ($config) and namespace in ($namespace) group by 1 order by 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 24,
+      "type": "stat",
+      "title": "Thumbs down",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "weir-pg"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 39,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "weir-pg"
+          },
+          "rawSql": "select count(*) as \"Thumbs down\" from weir.feedback f join weir.request_log r on r.request_id = f.request_id where f.rating = -1 and $__timeFilter(r.ts) and r.config_label in ($config) and r.namespace in ($namespace)",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 25,
+      "type": "row",
+      "title": "Live (Prometheus, last 15 minutes)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 26,
+      "type": "timeseries",
+      "title": "Requests per second",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "weir-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "weir-prom"
+          },
+          "expr": "sum(rate(weir_requests_total[1m]))",
+          "legendFormat": "requests/s",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "timeFrom": "15m"
+    },
+    {
+      "id": 27,
+      "type": "timeseries",
+      "title": "Live p95 latency",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "weir-prom"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 47,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "weir-prom"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(weir_request_latency_seconds_bucket[5m])))",
+          "legendFormat": "p95",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "timeFrom": "15m"
+    },
+    {
+      "id": 28,
+      "type": "timeseries",
+      "title": "Errors per second",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "weir-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 47,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "weir-prom"
+          },
+          "expr": "sum(rate(weir_requests_total{status!=\"ok\"}[1m])) or vector(0)",
+          "legendFormat": "errors/s",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "timeFrom": "15m"
+    },
+    {
+      "id": 29,
+      "type": "stat",
+      "title": "Lost background work",
+      "description": "Dropped or failed log rows and cache jobs since Weir started",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "weir-prom"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 47,
+        "w": 3,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "weir-prom"
+          },
+          "expr": "sum({__name__=~\"weir_(log_rows|cache_jobs)_(dropped|failed)_total\"}) or vector(0)",
+          "legendFormat": "",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "timeFrom": "15m"
+    },
+    {
+      "id": 30,
+      "type": "stat",
+      "title": "Firing alerts",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "weir-prom"
+      },
+      "gridPos": {
+        "x": 21,
+        "y": 47,
+        "w": 3,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "weir-prom"
+          },
+          "expr": "sum(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "legendFormat": "",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "timeFrom": "15m"
+    },
+    {
+      "id": 31,
+      "type": "stat",
+      "title": "Running configuration",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "weir-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 54,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "weir-prom"
+          },
+          "expr": "weir_info",
+          "legendFormat": "{{config_label}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "name",
+        "justifyMode": "center"
+      },
+      "timeFrom": "15m"
+    },
+    {
+      "id": 32,
+      "type": "text",
+      "title": "Answer quality",
+      "gridPos": {
+        "x": 6,
+        "y": 54,
+        "w": 18,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Answer quality (judge score, key facts) is measured by the eval suite, not live traffic. See [docs/results/summary.md](https://github.com/yatinannam/weir/blob/main/docs/results/summary.md) for the four-way ablation with quality."
+      }
+    }
+  ]
+}
