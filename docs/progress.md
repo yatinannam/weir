@@ -270,3 +270,16 @@ Full Weir with the final settings, against the same-day-style baseline v4:
 - **Found by testing live, not by unit tests:** the `BackgroundWorkLost` label collision (D45) and the reviewer's three alert behaviours (D47). Lesson: always check Prometheus rules on the real server and with realistic series shapes.
 - **Suites:** weir 269, hospital-rag 39, eval 107. CI also runs `promtool check config` and the 22 rule tests.
 - **Next:** Phase 5, k6 load tests (cold/warm, ramp, spike, soak). They will use this dashboard.
+
+## 2026-10-06: Phase 5 (load testing) design
+
+- Agreed with the user:
+  - focused scope, with a baseline ramp (D48)
+  - realistic per-model stub timing (D49)
+  - a 2 s p95 budget (D50)
+  - a stub fault endpoint plus Toxiproxy on Weir's database link (D51)
+  - k6 plus a Python orchestrator in the eval tool (D52)
+  - the baseline through Weir's `baseline` config (D53)
+- Design presented in 5 sections (components, stub and failure injection, scenarios, measurements and checks, testing and scope), each approved.
+- Wrote the Phase 5 addendum: `superpowers/specs/2026-10-06-phase-5-load-testing-design.md`. Work is on branch `phase-5`.
+- **Next:** the user reviews the addendum, then the implementation plan.
