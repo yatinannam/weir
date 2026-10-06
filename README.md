@@ -20,13 +20,13 @@ It logs the **cost, counterfactual cost and latency of every request**, so each 
 
 > [!NOTE]
 > **Status:**
-> - **Done:** Phases 0–3: gateway and baseline, semantic cache, and the model router (tuned offline, measured live, every exit-gate check passed).
-> - **Next:** Phase 4 (Prometheus metrics, Grafana dashboard, alerts).
+> - **Done:** Phases 0–4: gateway and baseline, semantic cache, the model router (tuned offline, measured live, every exit-gate check passed), and monitoring (Prometheus metrics, 8 tested alerts, a Grafana dashboard over every run).
+> - **Next:** Phase 5 (k6 load tests).
 > - Everything runs on free tiers.
 
 ## Contents
 
-[Results](#results) · [Architecture](#architecture) · [Request lifecycle](#request-lifecycle) · [Semantic cache](#semantic-cache) · [Router](#router-phase-3) · [Stack](#stack) · [Quick start](#quick-start) · [API](#api) · [Configuration](#configuration) · [Evaluation](#evaluation) · [Tests](#tests) · [Docs](#documentation) · [Limitations](#limitations) · [Roadmap](#roadmap)
+[Results](#results) · [Architecture](#architecture) · [Request lifecycle](#request-lifecycle) · [Semantic cache](#semantic-cache) · [Router](#router-phase-3) · [Monitoring](#monitoring-phase-4) · [Stack](#stack) · [Quick start](#quick-start) · [API](#api) · [Configuration](#configuration) · [Evaluation](#evaluation) · [Tests](#tests) · [Docs](#documentation) · [Limitations](#limitations) · [Roadmap](#roadmap)
 
 ---
 
@@ -85,11 +85,18 @@ flowchart TB
     groq[("Groq<br/>gpt-oss-20b · gpt-oss-120b")]
     pg[("Postgres 16 + pgvector")]
 
+    subgraph mon["monitoring (opt-in profile)"]
+        direction LR
+        prom["Prometheus :9090<br/>8 alert rules"] --> graf["Grafana :3000<br/>dashboard"]
+    end
+
     client -- "POST /v1/query" --> gw
     gw -- "retrieve, then generate with the chosen model" --> rag
     rag -- "LLM call" --> groq
     gw <-- "cache_entries · request_log (async)" --> pg
     rag <-- "documents · chunks" --> pg
+    prom -- "scrapes GET /metrics every 5 s" --> gw
+    pg -- "request_log (read-only user)" --> graf
 ```
 
 | Service | Role | Owns |
@@ -97,6 +104,7 @@ flowchart TB
 | `weir` | The gateway: auth, cache, router, cost accounting, admin API | `weir.cache_entries`, `weir.request_log`, `weir.feedback`, `weir.model_prices` |
 | `hospital-rag` | The RAG service being wrapped: ingest, vector retrieval, cited generation, stub LLM mode | `rag.documents`, `rag.chunks`, `rag.kb_versions` |
 | `postgres` | pgvector 0.8 with HNSW and iterative scan; only exposed on `127.0.0.1` | — |
+| `prometheus`, `grafana` | Monitoring, opt-in with `--profile monitoring`; provisioned entirely from files in `monitoring/` | Prometheus TSDB (15 days) |
 
 ## Request lifecycle
 
@@ -170,6 +178,52 @@ flowchart TD
   - the small route no worse than the large model on the same questions
 - **Tuned values** (D37, D39): small only if the question is at most **16 tokens**, a single question with no reasoning words, and its top retrieval score is at least **0.86**; grounding `min_overlap` **0.3**. The live router matched the simulation almost exactly: 12.7% routed small vs 13% predicted, −7% vs −6%.
 
+## Monitoring (Phase 4)
+
+<p align="center">
+  <img src="docs/images/dashboard-headline.png" alt="Weir Grafana dashboard: headline numbers and the configuration comparison" width="900">
+</p>
+
+```bash
+docker compose --profile monitoring up -d       # adds Prometheus and Grafana to the stack
+```
+
+- **Grafana:** <http://127.0.0.1:3000>. The user is `admin` and the password is `GRAFANA_ADMIN_PASSWORD` from `.env`.
+- **Prometheus alerts:** <http://127.0.0.1:9090/alerts>
+- **Full dashboard screenshot:** [`docs/images/dashboard.png`](docs/images/dashboard.png)
+
+**What it shows:** the dashboard reads the request log, so it covers **every run Weir has ever served**, not just live traffic. A **configuration filter** (`baseline` / `cache_only` / `router_only` / `full`) switches the whole view.
+
+| Row | Source | Panels |
+| :-- | :-- | :-- |
+| Headline | Postgres | Requests, cost per 1,000, estimated savings ($ and %), cache hit rate, share routed small, escalation rate, error rate |
+| Comparison | Postgres | The four-way ablation as one live table: hit rate, small share, cost per 1,000, p50/p95, savings, errors per configuration |
+| Where requests go | Postgres | Route mix over time, cache status, top bypass reasons |
+| Latency | Postgres | p50/p95/p99 by path (cache hit, small, large); average time per stage (embed, cache lookup, retrieval, model) |
+| Cache and router health | Postgres | Similarity histogram for hits and near misses, route reasons, grounding results, fallbacks and escalations over time, thumbs-down count |
+| Live | Prometheus | Requests per second, p95, errors per second, lost background work, firing alerts, running configuration |
+
+**How it's built:**
+- **Weir's metrics:** Weir exposes **`GET /metrics`**. Its counters are derived from the same per-request row that goes to Postgres, so the live and historical numbers can't disagree.
+- **Never on `/metrics`:** question text and request IDs.
+- **Grafana's database access:** Grafana reads Postgres as a **read-only user** (`weir_reader`).
+- **Where the panels come from:** a small Python builder generates the dashboard JSON. A test runs every panel query as that user against seeded data.
+
+**Alerts** are shown in Grafana and Prometheus only, with no notifications. Their thresholds come from measured runs, and each rate alert needs a minimum amount of traffic, so an idle machine never alerts.
+
+| Alert | Fires when | Severity |
+| :-- | :-- | :-: |
+| `WeirDown` | Prometheus can't scrape Weir for 1 minute | critical |
+| `HighErrorRate` | over 5% of requests fail over 10 minutes | critical |
+| `HighLatencyP95` | p95 over 4 s for 10 minutes (normal: 1.1–3.5 s) | warning |
+| `ModelFallbacks` | any fallback to the other model tier in 5 minutes | warning |
+| `HighEscalationRate` | over 20% of small-model answers escalated over 30 minutes | warning |
+| `CacheHitRateDrop` | the 15-minute hit rate falls below half its 6-hour average | warning |
+| `CostAboveBaseline` | the last hour's cost per request is above the always-large baseline | warning |
+| `BackgroundWorkLost` | any request-log row or cache job dropped or failed | warning |
+
+Prometheus's `promtool` runs 19 alert unit tests in CI. Each alert has a firing case and a quiet case, and each rate alert also has a low-traffic case.
+
 ## Stack
 
 | Layer | Choice | Why |
@@ -179,8 +233,9 @@ flowchart TD
 | Embeddings | `BAAI/bge-small-en-v1.5` via fastembed (CPU, baked into images) | Free, offline, no PyTorch |
 | LLMs | Groq free tier: `openai/gpt-oss-20b` (small), `openai/gpt-oss-120b` (large) | Fast; separate per-model quotas allow fallback |
 | Eval judge | `qwen/qwen3.8-27b` on Groq | A different model family from the models under test |
-| Packaging and CI | Docker Compose, GitHub Actions (3 suites against pgvector) | — |
-| Planned | Prometheus + Grafana (Phase 4), k6 (Phase 5) | — |
+| Monitoring | Prometheus (`prom/prometheus:v2.55.1`), Grafana OSS (`11.3.0`), `prometheus-client` | Standard, free and self-hosted; provisioned from files, so there's no clicking to set up |
+| Packaging and CI | Docker Compose (with profiles), GitHub Actions (3 test suites against pgvector, plus `promtool` config and rule tests) | — |
+| Planned | k6 load tests (Phase 5) | — |
 
 ## Repository layout
 
@@ -192,14 +247,16 @@ services/
 │       ├── cache/          embedder, pgvector store, entity guard, bypass rules, kb versions
 │       ├── router/         features, rules v1, grounding check            (Phase 3)
 │       ├── rag/            hospital-rag HTTP adapter
-│       ├── metrics/        async request-log writer
+│       ├── metrics/        async request-log writer, Prometheus metrics            (Phase 4)
 │       └── llm/            price table (effective-dated)
 └── hospital-rag/       the RAG service Weir wraps: ingest, /retrieve, /generate, stub LLM
 eval/                   eval set (158 questions), key-fact checks, LLM judge, runner,
                         threshold sweep, workload replay; reports/ holds every raw result
 kb/                     fictional hospital knowledge base (40 Markdown docs, public + staff)
 configs/                weir.yaml (every threshold), ablations/, entities.yaml, tenants.yaml, prices.yaml
-db/migrations/          001 init · 002 cache · 003 router
+monitoring/             prometheus.yml, alert rules and their tests, Grafana provisioning, dashboard builder,
+                        live panel check, screenshot script
+db/migrations/          001 init · 002 cache · 003 router · 004 monitoring (read-only user)
 docs/                   specs, plans, decision log, progress log, results, backlog
 ```
 
@@ -258,6 +315,7 @@ Interactive API docs are at <http://127.0.0.1:8000/docs>. Set `LLM_MODE=stub` in
 | `POST /v1/feedback` | tenant key | Body: `request_id`, `rating` (`1` or `-1`), optional `comment`. A `-1` evicts the cache entry that served the request. |
 | `DELETE /v1/cache` | admin key | Purges by exactly one of `namespace`, `source_id` or `entry_id`. |
 | `GET /healthz` | none | Database and RAG health, plus the active `config_label`. |
+| `GET /metrics` | none (localhost and Docker network only) | Prometheus text format: requests, latency histogram, cost and counterfactual, model calls, escalations, fallbacks, grounding, lost background work. |
 
 Errors carry the `request_id`:
 - a provider rate limit → `503` with `Retry-After`
@@ -321,12 +379,12 @@ The set is split 70/30 by cluster into tune and holdout. Every run's raw `result
 
 ```bash
 docker compose up -d postgres                       # DB tests use 127.0.0.1:5432/weir_test
-cd services/weir         && uv run pytest -q        # 221 tests
+cd services/weir         && uv run pytest -q        # 268 tests
 cd services/hospital-rag && uv run pytest -q        #  39 tests
 cd eval                  && uv run pytest -q        # 107 tests
 ```
 
-CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push.
+CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A fourth job runs `promtool check config` and the alert-rule unit tests.
 
 ## Documentation
 
@@ -355,6 +413,6 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push.
 | 0–1 | Gateway, RAG adapter, request logging, eval set, baseline | Done |
 | 2 | Semantic cache, entity guard, threshold sweep, cache eval | Done |
 | 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | Done |
-| 4 | Prometheus metrics, Grafana dashboard, alerts | Planned |
+| 4 | Prometheus metrics, Grafana dashboard, alerts | Done |
 | 5 | k6 load tests (cold/warm, ramp, spike, soak), ablation under load | Planned |
 | 6 | Demo chat page, write-up, optional learned router | Planned |

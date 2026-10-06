@@ -19,7 +19,7 @@ Ideas and deferred findings that aren't scheduled yet. Each item says where it c
 | M4 | Feedback | The retry window (~0.8 s) is tight against the log flush. An unknown ID takes longer than another tenant's ID. | ~2 s total, and always wait to the same deadline before a 404 |
 | M5 | Feedback | A thumbs-down or purge can race a cache insert that is still queued | Re-check after the queue drains, or record purges with a timestamp |
 | M6 | Store | `%s = any(source_ids)` can't use the GIN index | `source_ids @> array[%s]::text[]` |
-| M7 | Monitoring | The background queue's `failed` / `dropped` counters aren't exposed | Phase 4 Prometheus counters, or show them in `/healthz` |
+| M7 | Monitoring | The background queue's `failed` / `dropped` counters aren't exposed | **Resolved in Phase 4:** `weir_{log_rows,cache_jobs}_{dropped,failed}_total` on `/metrics`, the `BackgroundWorkLost` alert and a dashboard panel |
 | M8 | Startup | If the embedder or lexicon fails to load, the background tasks already started aren't stopped | Start the tasks after loading, or widen the `try` |
 | M9 | Router | Answers from `force_model="small"` are cached and served to every caller | **Resolved in Phase 3 (D35):** `force_model` requests bypass the cache |
 | M10 | Eval tool | `--exclude-report` and `merge-reports` dedupe by ID, so they would drop repeats on workload reports | Error out when used with `--workload` |
