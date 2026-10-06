@@ -352,9 +352,9 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push.
 
 | Phase | Scope | Status |
 | :-: | :-- | :-: |
-| 0–1 | Gateway, RAG adapter, request logging, eval set, baseline | ✅ |
-| 2 | Semantic cache, entity guard, threshold sweep, cache eval | ✅ |
-| 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | 🚧 final review |
+| 0–1 | Gateway, RAG adapter, request logging, eval set, baseline | Done |
+| 2 | Semantic cache, entity guard, threshold sweep, cache eval | Done |
+| 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | In progress (final review) |
 | 4 | Prometheus metrics, Grafana dashboard, alerts | Planned |
 | 5 | k6 load tests (cold/warm, ramp, spike, soak), ablation under load | Planned |
 | 6 | Demo chat page, write-up, optional learned router | Planned |
