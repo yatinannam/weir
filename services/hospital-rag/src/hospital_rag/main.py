@@ -2,10 +2,12 @@ import asyncio
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
+from typing import Literal
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from psycopg_pool import AsyncConnectionPool
+from pydantic import BaseModel, Field
 
 from . import service
 from .db import open_pool
@@ -28,6 +30,12 @@ class Deps:
 
 def _ms(started: float) -> int:
     return int((time.perf_counter() - started) * 1000)
+
+
+class FaultIn(BaseModel):
+    model: str = Field(min_length=1)
+    mode: Literal["none", "rate_limit", "timeout"]
+    delay_ms: int = Field(5000, ge=0, le=60000)
 
 
 def create_app(deps: Deps | None = None) -> FastAPI:
@@ -87,6 +95,22 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             return JSONResponse(status_code=504, content={"error": "timeout"})
         except LLMError as e:
             return JSONResponse(status_code=502, content={"error": "llm_error", "detail": str(e)[:300]})
+
+    def _stub(request: Request) -> StubLLM:
+        llm = request.app.state.deps.llm
+        if not isinstance(llm, StubLLM):
+            raise HTTPException(status_code=404, detail="faults exist only in stub mode")
+        return llm
+
+    @app.post("/stub/faults")
+    async def set_fault(body: FaultIn, request: Request):
+        llm = _stub(request)
+        llm.set_fault(body.model, body.mode, body.delay_ms)
+        return {"faults": llm.faults}
+
+    @app.get("/stub/faults")
+    async def get_faults(request: Request):
+        return {"faults": _stub(request).faults}
 
     @app.get("/healthz")
     async def healthz(request: Request):

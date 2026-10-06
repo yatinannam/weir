@@ -93,3 +93,60 @@ async def test_retrieve_and_info_against_db(migrated_db_url):
         assert info.json() == {"namespaces": {NS: {"kb_version": "v1", "prompt_version": "p1"}}}
     finally:
         await pool.close()
+
+
+from hospital_rag.llm import StubLLM  # noqa: E402
+
+from .conftest import word_count  # noqa: E402
+
+
+def stub_client():
+    return client_for(Deps(None, FakeEmbedder(), StubLLM(latency_ms=1, count_tokens=word_count), 4, "stub"))
+
+
+def gen(model):
+    return {**GEN_BODY, "model": model}
+
+
+async def test_rate_limit_fault_hits_only_the_named_model():
+    async with stub_client() as c:
+        r = await c.post("/stub/faults", json={"model": "large-m", "mode": "rate_limit"})
+        assert r.status_code == 200 and r.json()["faults"]["large-m"]["mode"] == "rate_limit"
+        bad = await c.post("/generate", json=gen("large-m"))
+        ok = await c.post("/generate", json=gen("small-m"))
+    assert bad.status_code == 503 and bad.json()["error"] == "rate_limited"
+    assert ok.status_code == 200
+
+
+async def test_timeout_fault_answers_504_after_the_delay():
+    import time
+
+    async with stub_client() as c:
+        await c.post("/stub/faults", json={"model": "small-m", "mode": "timeout", "delay_ms": 50})
+        started = time.perf_counter()
+        r = await c.post("/generate", json=gen("small-m"))
+    assert r.status_code == 504 and time.perf_counter() - started >= 0.05
+
+
+async def test_none_clears_a_fault_and_star_clears_all():
+    async with stub_client() as c:
+        await c.post("/stub/faults", json={"model": "a", "mode": "rate_limit"})
+        await c.post("/stub/faults", json={"model": "b", "mode": "rate_limit"})
+        await c.post("/stub/faults", json={"model": "a", "mode": "none"})
+        assert set((await c.get("/stub/faults")).json()["faults"]) == {"b"}
+        await c.post("/stub/faults", json={"model": "*", "mode": "none"})
+        assert (await c.get("/stub/faults")).json()["faults"] == {}
+        assert (await c.post("/generate", json=gen("b"))).status_code == 200
+
+
+async def test_fault_endpoint_does_not_exist_outside_stub_mode():
+    async with client_for(Deps(None, FakeEmbedder(), FakeLLM(), 4)) as c:
+        assert (await c.post("/stub/faults", json={"model": "m", "mode": "rate_limit"})).status_code == 404
+        assert (await c.get("/stub/faults")).status_code == 404
+
+
+async def test_fault_body_is_validated():
+    async with stub_client() as c:
+        assert (await c.post("/stub/faults", json={"model": "m", "mode": "explode"})).status_code == 422
+        assert (await c.post("/stub/faults", json={"model": "m", "mode": "timeout",
+                                                    "delay_ms": 999999})).status_code == 422

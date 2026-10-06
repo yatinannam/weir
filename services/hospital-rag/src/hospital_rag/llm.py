@@ -123,8 +123,29 @@ class StubLLM:
         self._latency_ms = latency_ms
         self._count = count_tokens
         self._timing = timing or FixedTiming(latency_ms)
+        self._faults: dict[str, dict] = {}
+
+    @property
+    def faults(self) -> dict[str, dict]:
+        return dict(self._faults)
+
+    def set_fault(self, model: str, mode: str, delay_ms: int = 5000) -> None:
+        """Load-test fault switch (Phase 5 addendum §3.2). model='*' with mode='none' clears every fault."""
+        if mode == "none":
+            if model == "*":
+                self._faults.clear()
+            else:
+                self._faults.pop(model, None)
+        else:
+            self._faults[model] = {"mode": mode, "delay_ms": delay_ms}
 
     async def complete(self, messages: list[dict], model: str) -> LLMResult:
+        fault = self._faults.get(model)
+        if fault and fault["mode"] == "rate_limit":
+            raise RateLimited(1.0)
+        if fault and fault["mode"] == "timeout":
+            await asyncio.sleep(fault["delay_ms"] / 1000)
+            raise LLMTimeout(f"stub timeout fault on {model}")
         delay = self._timing.delay_ms(model)
         await asyncio.sleep(delay / 1000)
         match = self.FIRST_PASSAGE.search(messages[-1]["content"])
