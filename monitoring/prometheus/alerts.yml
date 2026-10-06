@@ -56,6 +56,13 @@ groups:
         annotations: {summary: "Cost per request is above the always-large baseline"}
 
       - alert: BackgroundWorkLost   # backlog M7: these losses used to be silent
-        expr: sum(increase({__name__=~"weir_(log_rows|cache_jobs)_(dropped|failed)_total"}[10m])) > 0
+        # One sum per counter: increase() drops the metric name, so a {__name__=~...} selector over these four
+        # same-labelled counters is rejected by the server ("vector cannot contain metrics with the same labelset").
+        expr: |
+          (sum(increase(weir_log_rows_dropped_total[10m])) or vector(0))
+            + (sum(increase(weir_log_rows_failed_total[10m])) or vector(0))
+            + (sum(increase(weir_cache_jobs_dropped_total[10m])) or vector(0))
+            + (sum(increase(weir_cache_jobs_failed_total[10m])) or vector(0))
+          > 0
         labels: {severity: warning}
         annotations: {summary: "Weir dropped or failed background work (log rows or cache jobs)"}

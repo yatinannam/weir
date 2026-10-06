@@ -493,7 +493,7 @@
         "x": 0,
         "y": 6,
         "w": 24,
-        "h": 7
+        "h": 9
       },
       "targets": [
         {
@@ -605,7 +605,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 13,
+        "y": 15,
         "w": 24,
         "h": 1
       }
@@ -621,7 +621,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 16,
         "w": 12,
         "h": 8
       },
@@ -662,7 +662,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 14,
+        "y": 16,
         "w": 6,
         "h": 8
       },
@@ -710,7 +710,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 14,
+        "y": 16,
         "w": 6,
         "h": 8
       },
@@ -743,7 +743,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 22,
+        "y": 24,
         "w": 24,
         "h": 1
       }
@@ -759,7 +759,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 25,
         "w": 12,
         "h": 7
       },
@@ -795,7 +795,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 23,
+        "y": 25,
         "w": 12,
         "h": 7
       },
@@ -839,7 +839,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 32,
         "w": 24,
         "h": 1
       }
@@ -855,7 +855,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 33,
         "w": 12,
         "h": 8
       },
@@ -898,7 +898,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 31,
+        "y": 33,
         "w": 6,
         "h": 8
       },
@@ -934,7 +934,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 31,
+        "y": 33,
         "w": 6,
         "h": 8
       },
@@ -970,7 +970,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 39,
+        "y": 41,
         "w": 18,
         "h": 7
       },
@@ -1006,7 +1006,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 39,
+        "y": 41,
         "w": 6,
         "h": 7
       },
@@ -1051,7 +1051,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 46,
+        "y": 48,
         "w": 24,
         "h": 1
       }
@@ -1067,7 +1067,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 47,
+        "y": 49,
         "w": 6,
         "h": 7
       },
@@ -1080,7 +1080,8 @@
           },
           "expr": "sum(rate(weir_requests_total[1m]))",
           "legendFormat": "requests/s",
-          "range": true
+          "range": true,
+          "instant": false
         }
       ],
       "fieldConfig": {
@@ -1103,7 +1104,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 47,
+        "y": 49,
         "w": 6,
         "h": 7
       },
@@ -1116,7 +1117,8 @@
           },
           "expr": "histogram_quantile(0.95, sum by (le) (rate(weir_request_latency_seconds_bucket[5m])))",
           "legendFormat": "p95",
-          "range": true
+          "range": true,
+          "instant": false
         }
       ],
       "fieldConfig": {
@@ -1139,7 +1141,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 47,
+        "y": 49,
         "w": 6,
         "h": 7
       },
@@ -1152,7 +1154,8 @@
           },
           "expr": "sum(rate(weir_requests_total{status!=\"ok\"}[1m])) or vector(0)",
           "legendFormat": "errors/s",
-          "range": true
+          "range": true,
+          "instant": false
         }
       ],
       "fieldConfig": {
@@ -1167,7 +1170,7 @@
     {
       "id": 29,
       "type": "stat",
-      "title": "Lost background work",
+      "title": "Lost work",
       "description": "Dropped or failed log rows and cache jobs since Weir started",
       "datasource": {
         "type": "prometheus",
@@ -1175,7 +1178,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 47,
+        "y": 49,
         "w": 3,
         "h": 7
       },
@@ -1188,7 +1191,8 @@
           },
           "expr": "sum({__name__=~\"weir_(log_rows|cache_jobs)_(dropped|failed)_total\"}) or vector(0)",
           "legendFormat": "",
-          "range": true
+          "range": false,
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -1209,8 +1213,7 @@
         "graphMode": "none",
         "textMode": "value",
         "justifyMode": "center"
-      },
-      "timeFrom": "15m"
+      }
     },
     {
       "id": 30,
@@ -1223,7 +1226,7 @@
       },
       "gridPos": {
         "x": 21,
-        "y": 47,
+        "y": 49,
         "w": 3,
         "h": 7
       },
@@ -1236,7 +1239,8 @@
           },
           "expr": "sum(ALERTS{alertstate=\"firing\"}) or vector(0)",
           "legendFormat": "",
-          "range": true
+          "range": false,
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -1257,8 +1261,7 @@
         "graphMode": "none",
         "textMode": "value",
         "justifyMode": "center"
-      },
-      "timeFrom": "15m"
+      }
     },
     {
       "id": 31,
@@ -1271,7 +1274,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 54,
+        "y": 56,
         "w": 6,
         "h": 4
       },
@@ -1284,7 +1287,8 @@
           },
           "expr": "weir_info",
           "legendFormat": "{{config_label}}",
-          "range": true
+          "range": false,
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -1305,8 +1309,7 @@
         "graphMode": "none",
         "textMode": "name",
         "justifyMode": "center"
-      },
-      "timeFrom": "15m"
+      }
     },
     {
       "id": 32,
@@ -1314,7 +1317,7 @@
       "title": "Answer quality",
       "gridPos": {
         "x": 6,
-        "y": 54,
+        "y": 56,
         "w": 18,
         "h": 4
       },

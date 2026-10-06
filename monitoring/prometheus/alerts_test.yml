@@ -164,9 +164,11 @@ tests:
 
   # --- BackgroundWorkLost -----------------------------------------------------------------
   - interval: 1m
-    input_series:
-      - {series: 'weir_log_rows_dropped_total{job="weir"}', values: '0 0 0 5 5 5'}
-      - {series: 'weir_cache_jobs_failed_total{job="weir"}', values: '0x5'}
+    input_series:   # all four loss counters, labelled exactly as Weir exposes them (one scrape target)
+      - {series: 'weir_log_rows_dropped_total{job="weir", instance="weir:8000"}', values: '0 0 0 5 5 5'}
+      - {series: 'weir_log_rows_failed_total{job="weir", instance="weir:8000"}', values: '0x5'}
+      - {series: 'weir_cache_jobs_dropped_total{job="weir", instance="weir:8000"}', values: '0x5'}
+      - {series: 'weir_cache_jobs_failed_total{job="weir", instance="weir:8000"}', values: '0x5'}
     alert_rule_test:
       - eval_time: 4m
         alertname: BackgroundWorkLost
@@ -175,7 +177,9 @@ tests:
             exp_annotations: {summary: "Weir dropped or failed background work (log rows or cache jobs)"}
   - interval: 1m
     input_series:
-      - {series: 'weir_log_rows_dropped_total{job="weir"}', values: '0x5'}
-      - {series: 'weir_cache_jobs_failed_total{job="weir"}', values: '0x5'}
+      - {series: 'weir_log_rows_dropped_total{job="weir", instance="weir:8000"}', values: '0x5'}
+      - {series: 'weir_log_rows_failed_total{job="weir", instance="weir:8000"}', values: '0x5'}
+      - {series: 'weir_cache_jobs_dropped_total{job="weir", instance="weir:8000"}', values: '0x5'}
+      - {series: 'weir_cache_jobs_failed_total{job="weir", instance="weir:8000"}', values: '0x5'}
     alert_rule_test:
       - {eval_time: 4m, alertname: BackgroundWorkLost, exp_alerts: []}

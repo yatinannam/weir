@@ -130,3 +130,12 @@ def test_prometheus_queries_only_use_metrics_weir_exposes():
     assert regex_names <= exposed
     unknown = {n for n in used if n not in exposed}
     assert not unknown, f"queries reference metrics Weir doesn't expose: {sorted(unknown)}"
+
+
+def test_alert_rules_never_apply_range_functions_to_a_multi_metric_selector():
+    """increase()/rate() drop the metric name, so a {__name__=~...} selector over several counters with the same
+    labels makes the live server reject the rule ("vector cannot contain metrics with the same labelset"); found in
+    Phase 4 live verification. promtool's test engine doesn't reproduce it, hence this static check."""
+    text = ALERTS.read_text(encoding="utf-8") + "".join(_prometheus_exprs())
+    offenders = re.findall(r"\b(?:increase|rate|irate|delta|deriv|idelta)\(\s*\{__name__=~[^}]*\}", text)
+    assert not offenders, f"range function over a multi-metric selector: {offenders}"

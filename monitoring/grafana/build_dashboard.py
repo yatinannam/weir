@@ -28,8 +28,9 @@ def _sql(sql: str, fmt: str = "table") -> dict:
             "editorMode": "code"}
 
 
-def _prom(expr: str, legend: str = "") -> dict:
-    return {"refId": "A", "datasource": PROM, "expr": expr, "legendFormat": legend, "range": True}
+def _prom(expr: str, legend: str = "", instant: bool = False) -> dict:
+    return {"refId": "A", "datasource": PROM, "expr": expr, "legendFormat": legend, "range": not instant,
+            "instant": instant}
 
 
 def panel(kind: str, title: str, target: dict, x: int, y: int, w: int, h: int, unit: str = "short",
@@ -101,28 +102,28 @@ def build() -> dict:
                    percentile_cont(0.95) within group (order by latency_total_ms) as "p95 (ms)",
                    1 - sum(cost_usd) / nullif(sum(counterfactual_cost_usd), 0) as "Saved",
                    avg((status <> 'ok')::int) as "Error rate"
-            {LOG} group by config_label order by "Cost per 1,000" desc"""), 0, 6, 24, 7,
+            {LOG} group by config_label order by "Cost per 1,000" desc"""), 0, 6, 24, 9,
               overrides=percent_columns("Cache hit rate", "Routed small", "Saved", "Error rate")
               + [{"matcher": {"id": "byName", "options": "Cost per 1,000"},
                   "properties": [{"id": "unit", "value": "currencyUSD"}, {"id": "decimals", "value": 4}]}],
               description="The four-way ablation, live from the request log"),
 
-        row("Where requests go", 13),
+        row("Where requests go", 15),
         panel("timeseries", "Route mix over time", _sql(f"""
             select $__timeGroupAlias(ts, '1h'), sum((cache_status = 'hit')::int) as "cache hit",
                    sum((cache_status <> 'hit' and route = 'small')::int) as "small model",
                    sum((cache_status <> 'hit' and route = 'large')::int) as "large model"
-            {LOG} group by 1 order by 1""", "time_series"), 0, 14, 12, 8,
+            {LOG} group by 1 order by 1""", "time_series"), 0, 16, 12, 8,
               options={"legend": {"displayMode": "list", "placement": "bottom"}}),
         panel("piechart", "Cache status",
               _sql(f"select cache_status as \"Status\", count(*) as \"Requests\" {LOG} group by 1 order by 1"),
-              12, 14, 6, 8, options={"reduceOptions": {"values": True, "calcs": ["lastNotNull"], "fields": ""},
+              12, 16, 6, 8, options={"reduceOptions": {"values": True, "calcs": ["lastNotNull"], "fields": ""},
                                      "legend": {"displayMode": "list", "placement": "right"}}),
         panel("table", "Top bypass reasons", _sql(f"""
             select coalesce(bypass_reason, '(none)') as "Bypass reason", count(*) as "Requests"
-            {LOG} and cache_status = 'bypass' group by 1 order by 2 desc limit 10"""), 18, 14, 6, 8),
+            {LOG} and cache_status = 'bypass' group by 1 order by 2 desc limit 10"""), 18, 16, 6, 8),
 
-        row("Latency", 22),
+        row("Latency", 24),
         panel("table", "Latency by path", _sql(f"""
             select case when cache_status = 'hit' then 'cache hit' else route || ' model' end as "Path",
                    count(*) as "Requests",
@@ -130,56 +131,56 @@ def build() -> dict:
                    percentile_cont(0.95) within group (order by latency_total_ms) as "p95 (ms)",
                    percentile_cont(0.99) within group (order by latency_total_ms) as "p99 (ms)"
             {LOG} and status = 'ok' and (cache_status = 'hit' or route in ('small', 'large'))
-            group by 1 order by 1"""), 0, 23, 12, 7),
+            group by 1 order by 1"""), 0, 25, 12, 7),
         panel("bargauge", "Average time per stage (non-hit requests)", _sql(f"""
             select avg(latency_embed_ms) as "Embed", avg(latency_cache_ms) as "Cache lookup",
                    avg(latency_retrieval_ms) as "Retrieval", avg(latency_llm_ms) as "Model"
-            {LOG} and cache_status <> 'hit'"""), 12, 23, 12, 7, "ms", 0,
+            {LOG} and cache_status <> 'hit'"""), 12, 25, 12, 7, "ms", 0,
               options={"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
                        "orientation": "horizontal", "displayMode": "basic"}),
 
-        row("Cache and router health", 30),
+        row("Cache and router health", 32),
         panel("barchart", "Similarity: hits and near misses", _sql(f"""
             select to_char(floor(similarity * 100) / 100, 'FM0.00') as "Similarity",
                    sum((cache_status = 'hit')::int) as "hits", sum((cache_status <> 'hit')::int) as "near misses"
-            {LOG} and similarity >= 0.80 group by 1 order by 1"""), 0, 31, 12, 8,
+            {LOG} and similarity >= 0.80 group by 1 order by 1"""), 0, 33, 12, 8,
               options={"xField": "Similarity", "stacking": "normal",
                        "legend": {"displayMode": "list", "placement": "bottom"}},
               description="Is the 0.90 threshold sensible? Near misses are lookups that scored 0.80+ but didn't hit"),
         panel("table", "Route reasons", _sql(f"""
             select route_reason as "Route reason", count(*) as "Requests"
-            {LOG} and route_reason is not null group by 1 order by 2 desc"""), 12, 31, 6, 8),
+            {LOG} and route_reason is not null group by 1 order by 2 desc"""), 12, 33, 6, 8),
         panel("table", "Grounding results", _sql(f"""
             select case when grounding_passed then 'passed' else coalesce(grounding_reason, 'failed') end
                    as "Grounding", count(*) as "Requests"
-            {LOG} and grounding_passed is not null group by 1 order by 2 desc"""), 18, 31, 6, 8),
+            {LOG} and grounding_passed is not null group by 1 order by 2 desc"""), 18, 33, 6, 8),
         panel("timeseries", "Fallbacks and escalations over time", _sql(f"""
             select $__timeGroupAlias(ts, '1h'), sum((route_reason like '%+fallback')::int) as "fallbacks",
                    sum(escalated::int) as "escalations"
-            {LOG} group by 1 order by 1""", "time_series"), 0, 39, 18, 7),
+            {LOG} group by 1 order by 1""", "time_series"), 0, 41, 18, 7),
         panel("stat", "Thumbs down", _sql("""
             select count(*) as "Thumbs down" from weir.feedback f join weir.request_log r on r.request_id = f.request_id
             where f.rating = -1 and $__timeFilter(r.ts) and r.config_label in ($config)
-              and r.namespace in ($namespace)"""), 18, 39, 6, 7, options=STAT),
+              and r.namespace in ($namespace)"""), 18, 41, 6, 7, options=STAT),
 
-        row("Live (Prometheus, last 15 minutes)", 46),
+        row("Live (Prometheus, last 15 minutes)", 48),
         panel("timeseries", "Requests per second", _prom("sum(rate(weir_requests_total[1m]))", "requests/s"),
-              0, 47, 6, 7, "reqps", time_from="15m"),
+              0, 49, 6, 7, "reqps", time_from="15m"),
         panel("timeseries", "Live p95 latency",
               _prom("histogram_quantile(0.95, sum by (le) (rate(weir_request_latency_seconds_bucket[5m])))", "p95"),
-              6, 47, 6, 7, "s", time_from="15m"),
+              6, 49, 6, 7, "s", time_from="15m"),
         panel("timeseries", "Errors per second",
               _prom('sum(rate(weir_requests_total{status!="ok"}[1m])) or vector(0)', "errors/s"),
-              12, 47, 6, 7, "reqps", time_from="15m"),
-        panel("stat", "Lost background work",
-              _prom('sum({__name__=~"weir_(log_rows|cache_jobs)_(dropped|failed)_total"}) or vector(0)'),
-              18, 47, 3, 7, options=STAT, time_from="15m",
+              12, 49, 6, 7, "reqps", time_from="15m"),
+        panel("stat", "Lost work",
+              _prom('sum({__name__=~"weir_(log_rows|cache_jobs)_(dropped|failed)_total"}) or vector(0)', instant=True),
+              18, 49, 3, 7, options=STAT,
               description="Dropped or failed log rows and cache jobs since Weir started"),
-        panel("stat", "Firing alerts", _prom('sum(ALERTS{alertstate="firing"}) or vector(0)'),
-              21, 47, 3, 7, options=STAT, time_from="15m"),
-        panel("stat", "Running configuration", _prom("weir_info", "{{config_label}}"), 0, 54, 6, 4,
-              options={**STAT, "textMode": "name"}, time_from="15m"),
-        {"id": _next_id(), "type": "text", "title": "Answer quality", "gridPos": {"x": 6, "y": 54, "w": 18, "h": 4},
+        panel("stat", "Firing alerts", _prom('sum(ALERTS{alertstate="firing"}) or vector(0)', instant=True),
+              21, 49, 3, 7, options=STAT),
+        panel("stat", "Running configuration", _prom("weir_info", "{{config_label}}", instant=True), 0, 56, 6, 4,
+              options={**STAT, "textMode": "name"}),
+        {"id": _next_id(), "type": "text", "title": "Answer quality", "gridPos": {"x": 6, "y": 56, "w": 18, "h": 4},
          "options": {"mode": "markdown", "content":
                      "Answer quality (judge score, key facts) is measured by the eval suite, not live traffic. "
                      "See [docs/results/summary.md](https://github.com/yatinannam/weir/blob/main/docs/results/"
