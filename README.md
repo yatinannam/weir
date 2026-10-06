@@ -20,8 +20,8 @@ It logs the **cost, counterfactual cost and latency of every request**, so each 
 
 > [!NOTE]
 > **Status:**
-> - **Done:** Phases 0–2 (gateway, baseline, semantic cache).
-> - **Phase 3 (router):** built, tuned offline and measured live; every exit-gate check passes. The final whole-branch code review is next.
+> - **Done:** Phases 0–3: gateway and baseline, semantic cache, and the model router (tuned offline, measured live, every exit-gate check passed).
+> - **Next:** Phase 4 (Prometheus metrics, Grafana dashboard, alerts).
 > - Everything runs on free tiers.
 
 ## Contents
@@ -335,7 +335,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push.
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router) |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | Task-by-task implementation plans |
-| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D40) |
+| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D41) |
 | [`docs/progress.md`](docs/progress.md) | Phase-by-phase log |
 | [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary |
 | [`docs/backlog.md`](docs/backlog.md) | Deferred findings and ideas |
@@ -354,7 +354,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push.
 | :-: | :-- | :-: |
 | 0–1 | Gateway, RAG adapter, request logging, eval set, baseline | Done |
 | 2 | Semantic cache, entity guard, threshold sweep, cache eval | Done |
-| 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | In progress (final review) |
+| 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | Done |
 | 4 | Prometheus metrics, Grafana dashboard, alerts | Planned |
 | 5 | k6 load tests (cold/warm, ramp, spike, soak), ablation under load | Planned |
 | 6 | Demo chat page, write-up, optional learned router | Planned |

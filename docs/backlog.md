@@ -31,7 +31,7 @@ The review found no Critical issues. The one Important finding (I1, a two-tier f
 
 | # | Area | Finding | Suggested fix |
 | --- | --- | --- | --- |
-| M12 | Router | Clinical questions are a router decision, so when the large model is down they can be answered by the small model (never cached, but not escalated either) | User decision pending: keep, or make clinical fallback-up only |
+| M12 | Router | Clinical questions are a router decision, so when the large model is down they can be answered by the small model (never cached, but not escalated either) | **Decided (D41):** keep as is; revisit if real clinical traffic is added |
 | M13 | Logging | `model_calls` counts every failed attempt, including `unavailable` / hospital-rag 4xx/5xx where no provider was reached | Count only `rate_limited` / `timeout`, or document the field as "attempts" |
 | M14 | Latency | A timeout followed by a fallback can hold a request for ~2 × `rag.timeout_seconds` (~60 s) | A shorter fallback timeout or a total LLM time budget |
 | M15 | Eval tool | The gate's small-route check passes when nothing was routed small, so a silently disabled router would pass under `full` | Report `share_small`; require > 0 when the config has the router on |

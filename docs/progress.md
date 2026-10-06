@@ -199,3 +199,21 @@ A running log of what was done, what was learned, and what's next. Newest at the
   - **M4 (graded up to Important), fixed:** the exit gate ignored failed requests, so a run full of 503s could pass, and it crashed if every request failed. It now reports `n_errors` and requires `no_errors`. 2 new tests; the final reports still pass (0 errors).
   - 9 minor findings deferred to `backlog.md` (M12–M20). M9 (Phase 2) is resolved by D35.
   - Suites: weir 221, hospital-rag 39, eval 107, all passing.
+- **D41:** clinical questions keep the normal fallback (user decision on review finding M1).
+
+## 2026-10-06: Phase 3 exit: router measured, gate passed, review fixes in
+
+Full Weir with the final settings, against the same-day-style baseline v4:
+
+| | Cold pass (158 questions) | Replay (300 requests, 73.7% repeats) |
+| --- | --: | --: |
+| Cost per 1,000 | −20% ($0.0988 → $0.0786) | −94% ($0.0970 → $0.0055) |
+| Median latency | 767 → 876 ms | 747 ms → 14 ms |
+| Judge / facts | 4.90 / 0.978 (identical) | 4.79 / 0.948 (equal or better) |
+| Wrong cache hits | 0 | 0 |
+
+- **Router only:** −7% cost, quality identical. 12.7% of questions routed small, all 5/5. The simulation predicted this almost exactly.
+- **Resilience:** 0 errors across every live run, through two real large-model incidents (HTTP 502s, then a daily rate limit), thanks to fallback.
+- **Decisions D33–D41.** Write-ups: `results/router-tuning.md`, `results/router.md`, `results/summary.md`.
+- The final whole-branch review found no Critical issues. Its one Important finding and the gate gap were fixed; 9 minors are in `backlog.md` (M12–M20).
+- **Next:** Phase 4 (Prometheus counters, Grafana dashboard, alerts). Design it first, starting with its own addendum.
