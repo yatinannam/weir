@@ -72,3 +72,42 @@ async def test_stub_answers_from_first_passage_without_network():
     assert result.text.endswith("[c1]")
     assert "4 pm to 8 pm" in result.text
     assert result.tokens_in > 0 and result.tokens_out > 0 and result.finish_reason == "stop"
+
+
+import statistics  # noqa: E402
+
+from hospital_rag.llm import FixedTiming, LatencyProfile, LognormalTiming  # noqa: E402
+
+PROFILES = {"small": LatencyProfile(553, 830), "large": LatencyProfile(748, 1429)}
+
+
+def _pct(values, p):
+    ordered = sorted(values)
+    return ordered[max(1, round(p / 100 * len(ordered))) - 1]
+
+
+def test_lognormal_timing_matches_each_models_median_and_p95():
+    timing = LognormalTiming(PROFILES, default_model="large", seed=7)
+    for model, profile in PROFILES.items():
+        draws = [timing.delay_ms(model) for _ in range(4000)]
+        assert abs(statistics.median(draws) / profile.median_ms - 1) < 0.05, model
+        assert abs(_pct(draws, 95) / profile.p95_ms - 1) < 0.08, model
+
+
+def test_lognormal_timing_is_seeded_and_unknown_models_use_the_default():
+    a = LognormalTiming(PROFILES, "large", seed=7).delay_ms("unknown-model")
+    b = LognormalTiming(PROFILES, "large", seed=7).delay_ms("large")
+    assert a == b                                               # unknown model -> large profile, same seed
+    assert LognormalTiming(PROFILES, "large", seed=8).delay_ms("large") != b
+
+
+async def test_fixed_timing_and_stub_reports_the_delay_it_used():
+    assert FixedTiming(800).delay_ms("anything") == 800
+
+    class Tiny:
+        def delay_ms(self, model):
+            return 3.0
+
+    messages, _ = build_messages("When?", [("a#0", "Title: S\nVisiting is from 4 pm to 8 pm daily.")])
+    result = await StubLLM(latency_ms=800, count_tokens=word_count, timing=Tiny()).complete(messages, "m")
+    assert result.latency_ms == 3

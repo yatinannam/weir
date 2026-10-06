@@ -10,6 +10,14 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     llm_mode: Literal["groq", "stub"] = "groq"
     stub_latency_ms: int = 800
+    stub_timing: Literal["fixed", "realistic"] = "fixed"
+    stub_seed: int = 7
+    stub_small_model: str = "openai/gpt-oss-20b"
+    stub_small_median_ms: float = 553     # fitted 2026-10-06 from 740 clean request-log rows (D49)
+    stub_small_p95_ms: float = 830
+    stub_large_model: str = "openai/gpt-oss-120b"
+    stub_large_median_ms: float = 748
+    stub_large_p95_ms: float = 1429
     groq_timeout_s: float = 20.0
     max_completion_tokens: int = 700
     reasoning_effort: str | None = "low"  # gpt-oss models: low | medium | high

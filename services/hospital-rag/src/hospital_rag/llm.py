@@ -1,4 +1,6 @@
 import asyncio
+import math
+import random
 import re
 import time
 from collections.abc import Callable
@@ -82,17 +84,49 @@ def _retry_after(error: groq.RateLimitError) -> float | None:
         return None
 
 
+@dataclass(frozen=True)
+class LatencyProfile:
+    median_ms: float
+    p95_ms: float
+
+
+class FixedTiming:
+    def __init__(self, ms: float):
+        self._ms = ms
+
+    def delay_ms(self, model: str) -> float:
+        return self._ms
+
+
+class LognormalTiming:
+    """Per-model delays from a lognormal fitted to a measured median and p95 (Phase 5 addendum §3.1, D49)."""
+
+    Z95 = 1.6448536269514722
+
+    def __init__(self, profiles: dict[str, LatencyProfile], default_model: str, seed: int):
+        self._profiles = profiles
+        self._default = profiles[default_model]
+        self._rng = random.Random(seed)
+
+    def delay_ms(self, model: str) -> float:
+        p = self._profiles.get(model, self._default)
+        sigma = math.log(p.p95_ms / p.median_ms) / self.Z95
+        return self._rng.lognormvariate(math.log(p.median_ms), sigma)
+
+
 class StubLLM:
-    """Fixed-latency fake used for load tests: answers from passage [c1], no network."""
+    """Fake model used for load tests: answers from passage [c1], no network; fixed or realistic timing."""
 
     FIRST_PASSAGE = re.compile(r"\[c1\] (.+?)(?:\n\n\[c2\] |\n\nQuestion:)", re.DOTALL)
 
-    def __init__(self, latency_ms: int, count_tokens: Callable[[str], int]):
+    def __init__(self, latency_ms: int, count_tokens: Callable[[str], int], timing=None):
         self._latency_ms = latency_ms
         self._count = count_tokens
+        self._timing = timing or FixedTiming(latency_ms)
 
     async def complete(self, messages: list[dict], model: str) -> LLMResult:
-        await asyncio.sleep(self._latency_ms / 1000)
+        delay = self._timing.delay_ms(model)
+        await asyncio.sleep(delay / 1000)
         match = self.FIRST_PASSAGE.search(messages[-1]["content"])
         if match:
             body = match.group(1).split("\n", 1)[-1]  # drop the "Title: heading" line
@@ -100,4 +134,4 @@ class StubLLM:
         else:
             text = "NOT_FOUND"
         tokens_in = sum(self._count(m["content"]) for m in messages)
-        return LLMResult(text, tokens_in, self._count(text), "stop", model, self._latency_ms)
+        return LLMResult(text, tokens_in, self._count(text), "stop", model, int(delay))

@@ -10,7 +10,7 @@ from psycopg_pool import AsyncConnectionPool
 from . import service
 from .db import open_pool
 from .embedding import Embedder
-from .llm import LLM, GroqLLM, LLMError, LLMTimeout, RateLimited, StubLLM
+from .llm import LLM, GroqLLM, LatencyProfile, LLMError, LLMTimeout, LognormalTiming, RateLimited, StubLLM
 from .prompt import PROMPT_VERSION
 from .schemas import ChunkOut, GenerateIn, GenerateOut, RetrieveIn, RetrieveOut
 from .settings import Settings
@@ -38,11 +38,14 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             return
         s = Settings()
         embedder = Embedder(s.embed_model, s.embed_cache_dir)
-        llm: LLM = (
-            StubLLM(s.stub_latency_ms, embedder.count_tokens)
-            if s.llm_mode == "stub"
-            else GroqLLM(s.groq_api_key, s.groq_timeout_s, s.max_completion_tokens, s.reasoning_effort)
-        )
+        if s.llm_mode == "stub":
+            timing = (LognormalTiming({s.stub_small_model: LatencyProfile(s.stub_small_median_ms, s.stub_small_p95_ms),
+                                       s.stub_large_model: LatencyProfile(s.stub_large_median_ms, s.stub_large_p95_ms)},
+                                      s.stub_large_model, s.stub_seed)
+                      if s.stub_timing == "realistic" else None)
+            llm: LLM = StubLLM(s.stub_latency_ms, embedder.count_tokens, timing)
+        else:
+            llm = GroqLLM(s.groq_api_key, s.groq_timeout_s, s.max_completion_tokens, s.reasoning_effort)
         pool = await open_pool(s.database_url)
         app.state.deps = Deps(pool, embedder, llm, s.retrieve_k, s.llm_mode)
         try:

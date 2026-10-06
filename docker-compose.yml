@@ -31,6 +31,7 @@ services:
       DATABASE_URL: postgresql://weir:weir@postgres:5432/weir
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       LLM_MODE: ${LLM_MODE:-groq}
+      STUB_TIMING: ${STUB_TIMING:-realistic}   # used only when LLM_MODE=stub (Phase 5, D49)
     volumes: ["./kb:/app/kb:ro"]
     ports: ["127.0.0.1:8001:8001"]  # localhost only: hospital-rag has no auth, Weir does
     depends_on:
