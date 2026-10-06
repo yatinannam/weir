@@ -107,12 +107,15 @@ def test_window_counts_are_zero_not_null_when_every_request_is_a_cache_hit():
         conn.cursor().executemany("insert into request_log values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", rows)
         cur = conn.execute(sql.replace("weir.request_log", "pg_temp.request_log"), params)
         log = dict(zip([d.name for d in cur.description], cur.fetchone(), strict=True))
-        assert (log["n"], log["fallbacks"], log["cache_errors"], log["errors"]) == (3, 0, 0, 0)
+        assert (log["n"], log["fallbacks"], log["cache_errors"], log["errors"], log["model_path"]) == (3, 0, 0, 0, 0)
         conn.execute("insert into request_log values (%s,'full',0,'bypass','large','small+fallback','error',"
                      "'ok',5,3,900)", (datetime(2026, 10, 6, 10, 2, tzinfo=UTC),))
+        # D54: a failure run's cache-skipping requests (bypass_reason request_option) always reach the models
+        conn.execute("insert into request_log values (%s,'full',0,'bypass','small','small+fallback',"
+                     "'request_option','ok',5,0,700)", (datetime(2026, 10, 6, 10, 3, tzinfo=UTC),))
         cur = conn.execute(sql.replace("weir.request_log", "pg_temp.request_log"), params)
         log = dict(zip([d.name for d in cur.description], cur.fetchone(), strict=True))
-        assert (log["n"], log["fallbacks"], log["cache_errors"], log["errors"]) == (4, 1, 1, 0)
+        assert (log["n"], log["fallbacks"], log["cache_errors"], log["errors"], log["model_path"]) == (5, 2, 1, 0, 1)
 
 
 def test_planned_duration_per_scenario():

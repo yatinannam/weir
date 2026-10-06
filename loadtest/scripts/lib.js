@@ -19,9 +19,13 @@ const byPath = {
 };
 export const errors = new Rate('errors');
 
-export function ask() {
-  const r = requests[exec.scenario.iterationInTest % requests.length];
-  const res = http.post(`${WEIR}/v1/query`, JSON.stringify({ query: r.query, namespace: r.namespace }), {
+// bypassEvery n > 0: every n-th request skips Weir's cache (D54), so it always goes through the router to a model.
+export function ask(bypassEvery = 0) {
+  const i = exec.scenario.iterationInTest;
+  const r = requests[i % requests.length];
+  const body = { query: r.query, namespace: r.namespace };
+  if (bypassEvery > 0 && i % bypassEvery === 0) body.options = { bypass_cache: true };
+  const res = http.post(`${WEIR}/v1/query`, JSON.stringify(body), {
     headers: { 'content-type': 'application/json', 'X-API-Key': KEYS[r.namespace] },
     timeout: '60s',
   });

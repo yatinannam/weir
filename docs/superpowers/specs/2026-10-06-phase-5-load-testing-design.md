@@ -107,7 +107,7 @@ Almost all runs use the **stub model**, a fake model inside hospital-rag that wa
 | Ramp | full (warm), baseline | 5, 10, 20, 40, 60, 80 then 100 req/s, 90 s per step. Stops early when errors exceed 5%. | 3 |
 | Spike | full (warm) | 5 req/s for 2 min, then 60 req/s for 30 s, then 5 req/s for 3 min | 3 |
 | Soak | full (warm) | 10 req/s for 30 min (18,000 requests) | 1 |
-| Failure | full (warm), through Toxiproxy | 10 req/s for 7 min, in phases: 0–2 min normal; 2–3 min large model rate-limited; 3–4 min normal; 4–5 min small model times out (5 s); 5–6 min Weir's database link delayed by 2 s; 6–7 min normal | 3 |
+| Failure | full (warm; 1 in 3 requests skip the cache so they always reach a model, D54), through Toxiproxy | 10 req/s for 7 min, in phases: 0–2 min normal; 2–3 min large model rate-limited; 3–4 min normal; 4–5 min small model times out (5 s); 5–6 min Weir's database link delayed by 2 s; 6–7 min normal | 3 |
 
 **Why some runs are skipped:**
 - baseline and router_only have no cache, so their cold run is also their steady state.
@@ -154,7 +154,7 @@ Almost all runs use the **stub model**, a fake model inside hospital-rag that wa
 | Claim | Check |
 | --- | --- |
 | Original spec target | Full Weir's **warm** p95 is at least **30% lower** than the baseline's at 10 req/s |
-| Model faults are invisible | **0 errors** in the failure run's model-fault phases |
+| Model faults are invisible | **0 errors** in the failure run's model-fault phases, with model-path requests present in each (D54) |
 | Cache outage is invisible | **0 errors** and **p95 at most 2 s** in the database-delay phase |
 | No leaks | Soak memory grows less than 10%, and p95 drifts less than 20%, first 5 minutes vs last 5 |
 | Nothing lost | 0 dropped or failed log rows and cache jobs, across all runs |

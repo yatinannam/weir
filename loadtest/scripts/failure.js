@@ -50,7 +50,8 @@ function must(ok, what) {
   if (!ok) exec.test.abort(`chaos switch failed: ${what}`);
 }
 
-export function traffic() { ask(); }
+// D54: with a warm cache every request would be a hit and the model faults would meet no traffic, so 1 in 3 skip it
+export function traffic() { ask(Number(__ENV.BYPASS_EVERY || 3)); }
 export function chaos() {
   sleep(2 * PHASE); must(fault(LARGE, 'rate_limit'), 'large rate_limit');
   sleep(PHASE); must(fault(LARGE, 'none'), 'large none');

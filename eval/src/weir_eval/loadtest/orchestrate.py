@@ -144,6 +144,8 @@ def window_query(start: datetime, end: datetime, config: str) -> tuple[str, tupl
            "count(*) filter (where route_reason like '%%fallback') as fallbacks, "
            "count(*) filter (where bypass_reason = 'error') as cache_errors, "
            "count(*) filter (where status <> 'ok') as errors, "
+           # D54: failure-run requests that skip the cache, so the model faults always meet real traffic
+           "count(*) filter (where bypass_reason = 'request_option') as model_path, "
            "avg(coalesce(latency_embed_ms, 0) + coalesce(latency_cache_ms, 0))::float as overhead_mean, "
            "percentile_cont(0.95) within group (order by coalesce(latency_embed_ms, 0) "
            "+ coalesce(latency_cache_ms, 0))::float as overhead_p95, "
