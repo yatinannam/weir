@@ -41,3 +41,27 @@ def test_grafana_datasources_use_the_read_only_login():
     by_uid = {d["uid"]: d for d in ds}
     assert by_uid["weir-prom"]["url"] == "http://prometheus:9090"
     assert by_uid["weir-pg"]["user"] == "weir_reader" and by_uid["weir-pg"]["jsonData"]["database"] == "weir"
+
+
+import json  # noqa: E402
+
+
+def test_toxiproxy_is_opt_in_pinned_and_only_its_api_is_published_locally():
+    toxi = SERVICES["toxiproxy"]
+    assert toxi["profiles"] == ["loadtest"] and toxi["image"] == "ghcr.io/shopify/toxiproxy:2.9.0"
+    assert toxi["ports"] == ["127.0.0.1:8474:8474"]
+
+
+def test_toxiproxy_proxies_weir_db_to_postgres():
+    [proxy] = json.loads((REPO / "loadtest" / "toxiproxy.json").read_text(encoding="utf-8"))
+    assert proxy == {"name": "weir-db", "listen": "0.0.0.0:5433", "upstream": "postgres:5432", "enabled": True}
+
+
+def test_failure_override_routes_only_weir_through_toxiproxy():
+    over = yaml.safe_load((REPO / "docker-compose.loadtest.yml").read_text(encoding="utf-8"))["services"]
+    assert set(over) == {"weir"}
+    assert over["weir"]["environment"]["DATABASE_URL"] == "postgresql://weir:weir@toxiproxy:5433/weir"
+
+
+def test_hospital_rag_stub_timing_defaults_to_realistic():
+    assert SERVICES["hospital-rag"]["environment"]["STUB_TIMING"] == "${STUB_TIMING:-realistic}"

@@ -83,6 +83,15 @@ services:
     ports: ["127.0.0.1:3000:3000"]  # localhost only
     depends_on: [prometheus, postgres]
 
+  # Phase 5 load tests: opt-in with `--profile loadtest`; failure runs add -f docker-compose.loadtest.yml.
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    profiles: ["loadtest"]
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes: ["./loadtest/toxiproxy.json:/config/toxiproxy.json:ro"]
+    ports: ["127.0.0.1:8474:8474"]  # control API, localhost only; the 5433 proxy stays on the Docker network
+    depends_on: [postgres]
+
 volumes:
   pgdata:
   promdata:
