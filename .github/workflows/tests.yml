@@ -30,3 +30,12 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://weir:weir@127.0.0.1:5432/weir_test
         run: uv run pytest -q
+
+  monitoring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: promtool check config
+        run: >-
+          docker run --rm -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" --entrypoint promtool
+          prom/prometheus:v2.55.1 check config /etc/prometheus/prometheus.yml

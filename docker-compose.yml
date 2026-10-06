@@ -50,10 +50,39 @@ services:
       WEIR_KEY_ADMIN: ${WEIR_KEY_ADMIN:?set WEIR_KEY_ADMIN in .env}
       WEIR_ABLATION: ${WEIR_ABLATION:-}
     volumes: ["./configs:/app/configs:ro"]
-    ports: ["8000:8000"]
+    ports: ["127.0.0.1:8000:8000"]  # localhost only: /metrics has no auth
     depends_on:
       migrate: { condition: service_completed_successfully }
       hospital-rag: { condition: service_healthy }
 
+  # Phase 4 monitoring: opt-in with `docker compose --profile monitoring up -d`.
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: ["monitoring"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d"]
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - promdata:/prometheus
+    ports: ["127.0.0.1:9090:9090"]  # localhost only
+    depends_on: [weir]
+
+  grafana:
+    image: grafana/grafana-oss:11.3.0
+    profiles: ["monitoring"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports: ["127.0.0.1:3000:3000"]  # localhost only
+    depends_on: [prometheus, postgres]
+
 volumes:
   pgdata:
+  promdata:
+  grafanadata:

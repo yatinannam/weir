@@ -1,0 +1,23 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: weir-prom
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 5s
+  - name: Weir request log
+    uid: weir-pg
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres:5432
+    user: weir_reader
+    jsonData:
+      database: weir
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: weir_reader   # local-only read-only login (migration 004)
