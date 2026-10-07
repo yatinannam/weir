@@ -195,3 +195,11 @@ def _row_for_metrics():
     return RequestLogRow(request_id=uuid4(), ts=datetime.now(UTC), namespace=PUBLIC, cache_status="miss",
                          route="large", status="ok", latency_total_ms=500, query_hash="h" * 64,
                          cost_usd=Decimal("0.0001"), counterfactual_cost_usd=Decimal("0.0001"))
+
+
+async def test_query_meta_includes_the_demo_fields():  # Phase 6A: the demo page reads both
+    client, _ = app_client()
+    async with client:
+        r = await client.post("/v1/query", headers=PUB, json={"query": "When can I visit?", "namespace": PUBLIC})
+    meta = r.json()["meta"]
+    assert meta["guard_refused"] is False and meta["counterfactual_cost_usd"] > 0

@@ -515,3 +515,29 @@ async def test_fallback_up_to_large_is_cached():
     await h.writer.drain()
     [entry] = h.store.entries
     assert entry.model == LARGE
+
+
+# --- Phase 6A: response additions for the demo page -----------------------------------------------
+
+async def test_meta_carries_the_counterfactual_cost_on_miss_and_hit():
+    h = harness(fake_rag())
+    miss = await h.p.handle(ask("When can I visit?"))
+    await h.writer.drain()
+    hit = await h.p.handle(ask("When can I visit?"))
+    assert miss.meta.counterfactual_cost_usd == pytest.approx(0.00045) == miss.meta.cost_usd   # router off: large
+    assert hit.meta.cost_usd == 0 and hit.meta.counterfactual_cost_usd == pytest.approx(0.00045)
+
+
+async def test_guard_refused_only_for_a_look_alike_at_or_above_the_threshold():
+    h = harness(fake_rag(), aliases={"what are the icu visiting hours?": "what are the general ward visiting hours?"})
+    first = await h.p.handle(ask("What are the general ward visiting hours?"))           # empty cache
+    await h.writer.drain()
+    refused = await h.p.handle(ask("What are the ICU visiting hours?"))                    # same vector, other ward
+    await h.writer.drain()
+    unrelated = await h.p.handle(ask("How much is parking?"))                              # below the threshold
+    hit = await h.p.handle(ask("What are the general ward visiting hours?"))
+    skipped = await h.p.handle(ask("What are the ICU visiting hours?", options=QueryOptions(bypass_cache=True)))
+    assert refused.meta.cache_status == "miss" and refused.meta.guard_refused is True
+    assert refused.meta.similarity == pytest.approx(1.0)
+    for resp in (first, unrelated, hit, skipped):
+        assert resp.meta.guard_refused is False

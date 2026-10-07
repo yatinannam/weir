@@ -72,6 +72,8 @@ class QueryMeta(BaseModel):
     model: str | None
     latency_ms: int
     cost_usd: float
+    counterfactual_cost_usd: float = 0.0   # the large model with no cache: the demo page's savings panel (Phase 6A)
+    guard_refused: bool = False            # a look-alike at or above the threshold was refused by the entity guard
 
 
 class QueryResponse(BaseModel):
@@ -146,6 +148,7 @@ class Pipeline:
             if versions is None:
                 reason = "no_version"
         vector = None
+        guard_refused = False
         if reason is None:
             try:
                 hit, vector = await asyncio.wait_for(
@@ -158,6 +161,8 @@ class Pipeline:
                 if hit is not None:
                     return self._serve_hit(hit, row, started, today)
                 row.cache_status = "miss"
+                # a miss whose best candidate reached the threshold can only be the entity guard refusing it
+                guard_refused = row.similarity is not None and row.similarity >= self._cfg.cache.threshold
         row.bypass_reason = reason
 
         try:
@@ -210,7 +215,8 @@ class Pipeline:
             answer=generated.answer, sources=sources,
             meta=QueryMeta(request_id=str(row.request_id), cache_status=row.cache_status,
                            similarity=row.similarity, route=row.route, escalated=row.escalated, model=row.model,
-                           latency_ms=row.latency_total_ms, cost_usd=float(row.cost_usd)),
+                           latency_ms=row.latency_total_ms, cost_usd=float(row.cost_usd),
+                           counterfactual_cost_usd=float(row.counterfactual_cost_usd), guard_refused=guard_refused),
         )
 
     async def _lookup(self, namespace: str, normalized: str, versions: tuple[str, str],
@@ -253,7 +259,7 @@ class Pipeline:
             answer=hit.answer, sources=[Source(**s) for s in hit.sources],
             meta=QueryMeta(request_id=str(row.request_id), cache_status="hit", similarity=hit.similarity,
                            route="none", escalated=False, model=hit.model, latency_ms=row.latency_total_ms,
-                           cost_usd=float(row.cost_usd)),
+                           cost_usd=float(row.cost_usd), counterfactual_cost_usd=float(row.counterfactual_cost_usd)),
         )
 
     def _maybe_store(self, req, normalized, vector, versions, retrieved, generated, sources, now) -> UUID | None:
