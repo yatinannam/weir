@@ -107,3 +107,22 @@ def test_render_contains_every_section():
 
 def test_no_runs_means_no_check_passes():
     assert all(c["passed"] is None for c in evaluate_checks([]))          # "0 lost across 0 runs" is not a pass
+
+
+def test_power_source_per_run_comes_from_the_power_log():
+    from weir_eval.loadtest.report import power_by_run, power_line
+
+    log = ("# header\n2026-10-07T05:02:23Z Offline 86%\n2026-10-07T10:05:37Z Online 26%\n"
+           "2026-10-07T11:10:45Z Offline 56%\n2026-10-07T15:22:11Z Online 55%\n")
+    runs = [dict(run("cold", "full", r, 900), started=t) for r, t in
+            ((1, "2026-10-07T05:10:00+00:00"), (2, "2026-10-07T10:06:00+00:00"), (3, "2026-10-07T15:30:00+00:00"))]
+    assert power_by_run(runs, log) == {"cold-full-r1": "battery", "cold-full-r2": "AC", "cold-full-r3": "AC"}
+    assert power_line(power_by_run(runs, log)) == "- Power: 1 run on battery, 2 on AC power (power log in the results folder)."
+    assert power_line(power_by_run(runs, "")) == ""                    # no log, no claim
+
+
+def test_soak_line_rounds_its_numbers():
+    res = [{"t": i * 5, "weir-weir-1": {"cpu": 10.0, "mem": "250MiB"}, "db_connections": 18} for i in range(60)]
+    soak = run("soak", "full", 1, 14, resources=res, soak={"first_p95": 13.131996, "last_p95": 14.573935})
+    md = render([soak], {"date": "d", "machine": "m", "repeat_rate": 0.9})
+    assert "p95 13.1 -> 14.6 ms" in md and "13.131996" not in md

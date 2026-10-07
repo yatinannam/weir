@@ -292,13 +292,16 @@ def cmd_loadtest_run(args: argparse.Namespace) -> int:
 
 
 def cmd_loadtest_report(args: argparse.Namespace) -> int:
-    from .loadtest.report import load_runs, ramp_chart, render
+    from .loadtest.report import load_runs, power_by_run, power_line, ramp_chart, render
 
     root = Path(args.results_dir)
     runs = [r for r in load_runs(root) if not r["spec"].get("smoke")]
     reqs = json.loads((LOADTEST_DIR / "workloads" / "requests-3000.json").read_text(encoding="utf-8"))
+    power_log = root / "power.log"
     meta = {"date": root.name, "machine": args.machine,
-            "repeat_rate": repeat_rate([f"{r['namespace']}|{r['query']}" for r in reqs])}
+            "repeat_rate": repeat_rate([f"{r['namespace']}|{r['query']}" for r in reqs]),
+            "power": power_line(power_by_run(runs, power_log.read_text(encoding="utf-8")))
+            if power_log.exists() else ""}
     out = REPO / "docs" / "results" / f"loadtest-{root.name}.md"
     out.write_text(render(runs, meta), encoding="utf-8")
     ramp_chart(runs, out.parent / "loadtest-ramp.png")
