@@ -16,3 +16,6 @@ eval/.judge_cache/
 Thumbs.db
 .vscode/
 .idea/
+
+# brainstorming mockups and plan workspaces (local scratch)
+.superpowers/

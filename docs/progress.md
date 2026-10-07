@@ -333,3 +333,9 @@ Full Weir with the final settings, against the same-day-style baseline v4:
   - Checks: 4 of 5 pass; the no-leak check is incomplete.
 - **Suites:** weir 275, hospital-rag 47, eval 160 (1 needs `TEST_DATABASE_URL`). CI also runs `promtool` and `k6 inspect`.
 - **Next:** Phase 6 (demo chat page, write-up, optional learned router). Optional: re-run the 30-minute soak to complete the no-leak check.
+
+## 2026-10-08: Phase 6A (one-command demo and demo page) design
+
+- Phase 6 split into three sub-projects (D62): 6A one-command demo and demo page, 6B write-up and demo script, 6C learned router if time allows.
+- Agreed with the user: the page is local only, served by Weir (D63); the command works without a Groq key (D64); guided demo buttons and a savings panel (D65); a static page plus a standard-library launcher, with the key in the URL fragment (D66); layout chosen from three mockups: answers plus a guided sidebar (D67).
+- Design presented in 4 sections (pieces and flow, page behaviour, launcher, guided questions and testing), each approved. Wrote the addendum: `superpowers/specs/2026-10-08-phase-6a-demo-page-design.md`. Work is on branch `phase-6`.

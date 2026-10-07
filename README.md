@@ -434,7 +434,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router, monitoring, load testing) |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | Task-by-task implementation plans |
-| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D61) |
+| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D67) |
 | [`docs/progress.md`](docs/progress.md) | Phase-by-phase log |
 | [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary, load tests |
 | [`docs/backlog.md`](docs/backlog.md) | Deferred findings and ideas |
