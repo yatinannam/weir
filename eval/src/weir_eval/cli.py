@@ -291,6 +291,17 @@ def cmd_loadtest_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_loadtest_rederive(args: argparse.Namespace) -> int:
+    from .loadtest.orchestrate import rederive
+
+    dirs = [p.parent for p in sorted(Path(args.results_dir).glob("*/summary.json"))
+            if not p.parent.name.endswith(".stalled")]
+    for d in dirs:
+        rederive(d)
+    print(f"re-derived {len(dirs)} runs in {args.results_dir}")
+    return 0
+
+
 def cmd_loadtest_report(args: argparse.Namespace) -> int:
     from .loadtest.report import load_runs, power_by_run, power_line, ramp_chart, render
 
@@ -386,5 +397,8 @@ def main() -> None:
     rp.add_argument("results_dir")
     rp.add_argument("--machine", default="Intel Core Ultra 5 225U, 14 threads, 15.5 GB RAM, Windows 11")
     rp.set_defaults(func=cmd_loadtest_report)
+    rd = lt_sub.add_parser("rederive", help="recompute derived numbers from saved compact results (no re-run)")
+    rd.add_argument("results_dir")
+    rd.set_defaults(func=cmd_loadtest_rederive)
     args = parser.parse_args()
     sys.exit(args.func(args))

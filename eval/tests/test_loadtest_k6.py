@@ -109,3 +109,16 @@ def test_first_and_last_five_minutes_p95():  # addendum §5: the soak's drift
     pts = [req(i, 100) for i in range(300)] + [req(300 + i, 500) for i in range(1200)]
     pts += [req(1500 + i, 200) for i in range(300)]
     assert first_last_p95(pts) == (100, 200) and first_last_p95([]) == (None, None)
+
+
+def test_spike_that_never_left_the_budget_recovers_in_zero_seconds():  # final review 1
+    burst_end = T0 + 30_000
+    assert spike_recovery_s([req(i * 0.2, 300) for i in range(300)], burst_end) == 0.0
+
+
+def test_ramp_step_with_drops_is_over_budget_even_above_95_percent_achieved():  # final review 5, Review Focus 3
+    pts = [req(i / 5, 500) for i in range(50)]
+    pts += [req(10 + i / 10, 500) for i in range(96)]                    # 9.6 of a 10 req/s target
+    pts += [(T0 + 10_000 + i * 1000, "drop", 1.0, 0) for i in range(4)]
+    steps = ramp_steps(pts, T0, [5, 10], step_s=10)
+    assert steps[1]["achieved_rate"] >= 9.5 and ramp_max_rate(steps) == 5

@@ -79,38 +79,72 @@ def _mem_mib(text: str) -> float:
     return float(m.group(1)) * _UNITS[m.group(2)] if m else 0.0
 
 
-def _head_tail(samples: list) -> tuple[list, list]:
-    n = max(1, len(samples) // 6)                       # first/last ~5 of 30 minutes
-    return samples[:n], samples[-n:]
+SOAK_WINDOW_S = 300                                     # first and last 5 minutes, by sample time
+
+
+def _median_or_none(values):
+    vals = [v for v in values if v is not None]
+    return median(vals) if vals else None
 
 
 def soak_stats(run: dict) -> dict:
-    res = [s for s in run.get("resources", []) if "weir-weir-1" in s]
+    """Memory and connections in the first vs the last 5 minutes, chosen by time so a gap in the samples
+    (docker stats failing) leaves a window empty instead of silently shifting it."""
+    res = run.get("resources", [])
     if len(res) < 2:
         return {}
-    head, tail = _head_tail(res)
-    first = median(_mem_mib(s["weir-weir-1"]["mem"]) for s in head)
-    last = median(_mem_mib(s["weir-weir-1"]["mem"]) for s in tail)
-    conns = [s for s in run.get("resources", []) if s.get("db_connections") is not None]
-    c_head, c_tail = _head_tail(conns) if conns else ([], [])
-    return {"mem_first_mib": first, "mem_last_mib": last, "mem_growth": (last - first) / first if first else 0.0,
-            "conn_first": median(s["db_connections"] for s in c_head) if c_head else None,
-            "conn_last": median(s["db_connections"] for s in c_tail) if c_tail else None}
+    t0, t1 = res[0]["t"], res[-1]["t"]
+    head = [s for s in res if s["t"] < t0 + SOAK_WINDOW_S]
+    tail = [s for s in res if s["t"] > t1 - SOAK_WINDOW_S]
+
+    def mem(samples):
+        values = [_mem_mib(s["weir-weir-1"]["mem"]) or None for s in samples if "weir-weir-1" in s]
+        if 2 * len([v for v in values if v]) < len(samples):   # samples must cover the window, not touch its edge
+            return None
+        return _median_or_none(values)
+
+    first, last = mem(head), mem(tail)
+    return {"mem_first_mib": first, "mem_last_mib": last,
+            "mem_growth": (last - first) / first if first and last is not None else None,
+            "conn_first": _median_or_none(s.get("db_connections") for s in head),
+            "conn_last": _median_or_none(s.get("db_connections") for s in tail)}
+
+
+def _met_fault(ph: dict) -> int:
+    """Requests that reached the faulted model: Weir falls back from it, or (if the fallback fails) errors."""
+    log = ph.get("log", {})
+    return log.get("fallbacks", 0) + log.get("errors", 0)
 
 
 def _model_fault_check(fails: list[dict]) -> dict:
     name = "0 errors during model faults"
     phs = [ph for r in fails for ph in r["phases"] if ph["label"] in MODEL_FAULTS]
-    reached = {label: sum(ph.get("log", {}).get("model_path", 0) for ph in phs if ph["label"] == label)
-               for label in MODEL_FAULTS}
-    errors = sum(ph["errors"] for ph in phs)
-    if not all(reached.values()):          # D54: a fault no request met proves nothing
+    # D54: a fault no request met proves nothing, so every fault phase of every run must show requests meeting it
+    untested = [f"{_name(r)} {ph['label']}" for r in fails for ph in r["phases"]
+                if ph["label"] in MODEL_FAULTS and not _met_fault(ph)]
+    if untested:
         return {"name": name, "passed": None,
-                "detail": f"not tested: model-path requests per fault phase {reached} across {len(fails)} runs"}
+                "detail": f"not tested: no request reached the faulted model in {', '.join(untested)}"}
+    errors = sum(ph["errors"] for ph in phs)
+    met = sum(_met_fault(ph) for ph in phs)
     fallbacks = sum(ph.get("log", {}).get("fallbacks", 0) for ph in phs)
     return {"name": name, "passed": errors == 0,
-            "detail": f"{errors} errors across {len(fails)} runs; {sum(reached.values())} model-path requests met "
-                      f"the faults, {fallbacks} fell back"}
+            "detail": f"{errors} errors across {len(fails)} runs; {met} requests met a faulted model and "
+                      f"{fallbacks} of them fell back"}
+
+
+def _cache_outage_check(fails: list[dict]) -> dict:
+    name = "cache outage invisible"
+    db = [ph for r in fails for ph in r["phases"] if ph["label"] == "db_delay"]
+    if not all(ph.get("log", {}).get("cache_errors", 0) for ph in db):   # the outage must be shown to have happened
+        return {"name": name, "passed": None, "detail": "not tested: a run's database-delay phase had no cache bypasses"}
+    errors = sum(ph["errors"] for ph in db)
+    p95 = median_range(ph["p95"] for ph in db)
+    over = sum(1 for ph in db if ph["p95"] is not None and ph["p95"] > BUDGET_MS)
+    bypasses = sum(ph["log"]["cache_errors"] for ph in db)
+    return {"name": name, "passed": errors == 0 and p95 is not None and p95[0] <= BUDGET_MS,
+            "detail": f"{errors} errors; median p95 {p95[0]:.0f} ms ({p95[1]:.0f}–{p95[2]:.0f}), "
+                      f"{over} of {len(db)} runs over 2 s; {bypasses} cache bypasses" if p95 else f"{errors} errors"}
 
 
 def evaluate_checks(runs: list[dict]) -> list[dict]:
@@ -125,13 +159,7 @@ def evaluate_checks(runs: list[dict]) -> list[dict]:
         checks.append({"name": "warm p95 at least 30% below baseline", "passed": None, "detail": "no runs yet"})
     fails = _sel(runs, "failure", "full")
     if fails:
-        db = [ph for r in fails for ph in r["phases"] if ph["label"] == "db_delay"]
-        db_err = sum(ph["errors"] for ph in db)
-        db_p95 = median_range(ph["p95"] for ph in db)
-        checks.append(_model_fault_check(fails))
-        checks.append({"name": "cache outage invisible",
-                       "passed": db_err == 0 and db_p95 is not None and db_p95[0] <= BUDGET_MS,
-                       "detail": f"{db_err} errors; p95 {db_p95[0]:.0f} ms" if db_p95 else f"{db_err} errors"})
+        checks += [_model_fault_check(fails), _cache_outage_check(fails)]
     else:
         checks += [{"name": "0 errors during model faults", "passed": None, "detail": "no runs yet"},
                    {"name": "cache outage invisible", "passed": None, "detail": "no runs yet"}]
@@ -140,10 +168,15 @@ def evaluate_checks(runs: list[dict]) -> list[dict]:
         s, st = soaks[0], soak_stats(soaks[0])
         soak = s.get("soak") or {}
         drift = soak["last_p95"] / soak["first_p95"] - 1 if soak.get("first_p95") and soak.get("last_p95") else None
-        ok = st.get("mem_growth", 1) < 0.10 and drift is not None and drift < 0.20
-        checks.append({"name": "no leaks over the soak", "passed": ok,
-                       "detail": f"memory {st.get('mem_growth', 0):+.0%}, p95 drift "
-                                 f"{drift:+.0%}" if drift is not None else "incomplete soak data"})
+        growth = st.get("mem_growth")
+        if growth is None or drift is None:      # half the evidence missing is not a pass
+            parts = [f"p95 drift {drift:+.0%}" if drift is not None else "no p95 drift",
+                     "memory missing in the first or last 5 min" if growth is None else f"memory {growth:+.0%}"]
+            checks.append({"name": "no leaks over the soak", "passed": None,
+                           "detail": "incomplete: " + "; ".join(parts)})
+        else:
+            checks.append({"name": "no leaks over the soak", "passed": growth < 0.10 and drift < 0.20,
+                           "detail": f"memory {growth:+.0%}, p95 drift {drift:+.0%}"})
     else:
         checks.append({"name": "no leaks over the soak", "passed": None, "detail": "no runs yet"})
     lost = sum(r.get("lost_work", 0) for r in runs)
@@ -251,19 +284,28 @@ def render(runs: list[dict], meta: dict) -> str:
             if ramp_rows else ["no runs yet"])
     out += ["", "## Spike", ""]
     sp = _sel(runs, "spike", "full")
-    out += ([f"A 60 req/s burst for 30 s on a 5 req/s base: peak 10-second p95 "
-             f"{_fmt(median_range(r.get('peak_p95') for r in sp))}; recovery "
-             f"{_fmt(median_range(r.get('recovery_s') for r in sp), ' s')} from the end of the burst until the "
-             f"10-second p95 is back under 2 s; overall p95 {_fmt(median_range(_p95(r) for r in sp))}."]
-            if sp else ["no runs yet"])
+    if sp:
+        recovery = median_range(r.get("recovery_s") for r in sp)
+        recovered = ("the 10-second p95 never left the 2 s budget, so there was nothing to recover from"
+                     if recovery and recovery[2] == 0 else
+                     f"recovery {_fmt(recovery, ' s')} from the end of the burst until the 10-second p95 is back "
+                     "under 2 s (0 = it never left)")
+        out.append(f"A 60 req/s burst for 30 s on a 5 req/s base: peak 10-second p95 "
+                   f"{_fmt(median_range(r.get('peak_p95') for r in sp))}; {recovered}; overall p95 "
+                   f"{_fmt(median_range(_p95(r) for r in sp))}.")
+    else:
+        out.append("no runs yet")
     out += ["", "## Soak", ""]
     so = _sel(runs, "soak", "full")
     if so:
         st, soak = soak_stats(so[0]), so[0].get("soak") or {}
         p95 = lambda v: "–" if v is None else f"{v:.1f}"  # noqa: E731
+        first_mem, last_mem = st.get("mem_first_mib"), st.get("mem_last_mib")
+        memory = (f"weir memory {first_mem:.0f} -> {last_mem:.0f} MiB" if first_mem and last_mem is not None else
+                  f"weir memory {first_mem:.0f} MiB at the start, but no memory samples in the last 5 min "
+                  "(docker stats returned nothing)" if first_mem else "no weir memory samples")
         out.append(f"30 min at 10 req/s, first vs last 5 min: p95 {p95(soak.get('first_p95'))} -> "
-                   f"{p95(soak.get('last_p95'))} ms; "
-                   f"weir memory {st.get('mem_first_mib', 0):.0f} -> {st.get('mem_last_mib', 0):.0f} MiB; "
+                   f"{p95(soak.get('last_p95'))} ms; {memory}; "
                    f"open database connections {st.get('conn_first')} -> {st.get('conn_last')}; "
                    f"errors {so[0]['k6']['error_rate']:.2%}.")
     else:

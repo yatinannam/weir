@@ -1,6 +1,8 @@
 # Failure-injection runs only (Phase 5 addendum §3.3): Weir reaches Postgres through Toxiproxy, so k6 can slow
 # Weir's cache database while hospital-rag's document search keeps its direct connection.
-#   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml --profile loadtest up -d toxiproxy weir
+# Always pin the stub model and leave hospital-rag alone (.env sets LLM_MODE=groq; D55):
+#   LLM_MODE=stub docker compose -f docker-compose.yml -f docker-compose.loadtest.yml --profile loadtest \
+#     up -d --no-deps toxiproxy weir
 services:
   weir:
     environment:

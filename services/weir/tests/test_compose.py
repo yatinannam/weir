@@ -65,3 +65,8 @@ def test_failure_override_routes_only_weir_through_toxiproxy():
 
 def test_hospital_rag_stub_timing_defaults_to_realistic():
     assert SERVICES["hospital-rag"]["environment"]["STUB_TIMING"] == "${STUB_TIMING:-realistic}"
+
+
+def test_loadtest_override_usage_never_starts_real_models():  # Phase 5 final review: .env says LLM_MODE=groq
+    usage = (REPO / "docker-compose.loadtest.yml").read_text(encoding="utf-8")
+    assert "LLM_MODE=stub" in usage and "--no-deps" in usage

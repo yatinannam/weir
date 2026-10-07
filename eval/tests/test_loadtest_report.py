@@ -17,11 +17,12 @@ def run(scenario, config, repeat, p95, **extra):
             "k6": k6, "request_log": log, "resources": [], "lost_work": 0, "stalled": False, **extra}
 
 
-def phases(model_path=200, errors=0, db_p95=900):
+def phases(model_path=200, errors=0, db_p95=900, small_fallbacks=5, bypasses=300, large_fallbacks=40):
+    fallbacks = {"large_rate_limited": large_fallbacks, "small_timeout": small_fallbacks}
     return [{"label": lbl, "n": 600, "p95": db_p95 if lbl == "db_delay" else 900, "errors": errors,
              "error_rate": 0.0, "dropped": 0, "achieved_rate": 10,
-             "log": {"n": 600, "fallbacks": 40 if lbl == "large_rate_limited" else 0,
-                     "cache_errors": 300 if lbl == "db_delay" else 0, "model_path": model_path}}
+             "log": {"n": 600, "fallbacks": fallbacks.get(lbl, 0), "errors": 0,
+                     "cache_errors": bypasses if lbl == "db_delay" else 0, "model_path": model_path}}
             for lbl in LABELS]
 
 
@@ -60,7 +61,8 @@ def test_checks_fail_or_are_unknown_honestly():
 
 
 def test_model_fault_check_is_not_passed_when_no_request_reached_a_model():  # D54
-    checks = {c["name"]: c for c in evaluate_checks([failure_run(r, model_path=0) for r in (1, 2, 3)])}
+    runs = [failure_run(r, model_path=0, large_fallbacks=0, small_fallbacks=0) for r in (1, 2, 3)]
+    checks = {c["name"]: c for c in evaluate_checks(runs)}
     assert checks["0 errors during model faults"]["passed"] is None
     assert "not tested" in checks["0 errors during model faults"]["detail"]
 
@@ -126,3 +128,69 @@ def test_soak_line_rounds_its_numbers():
     soak = run("soak", "full", 1, 14, resources=res, soak={"first_p95": 13.131996, "last_p95": 14.573935})
     md = render([soak], {"date": "d", "machine": "m", "repeat_rate": 0.9})
     assert "p95 13.1 -> 14.6 ms" in md and "13.131996" not in md
+
+
+# --- Phase 5 final review fixes ---------------------------------------------------------------------------------
+
+def test_model_fault_check_needs_requests_that_reached_the_faulted_model():  # review 4
+    # every cache-skipping request counts as model path, but only those routed to the faulted tier meet the fault
+    runs = [failure_run(r, small_fallbacks=0) for r in (1, 2, 3)]
+    check = {c["name"]: c for c in evaluate_checks(runs)}["0 errors during model faults"]
+    assert check["passed"] is None and "not tested" in check["detail"]
+    good = {c["name"]: c for c in evaluate_checks([failure_run(r) for r in (1, 2, 3)])}["0 errors during model faults"]
+    assert good["passed"] is True and "135 requests met a faulted model" in good["detail"]   # (40 + 5) x 3
+
+
+def test_cache_outage_detail_shows_the_range_and_any_run_over_budget():  # review 3
+    runs = [failure_run(r, db_p95=p) for r, p in ((1, 1898), (2, 1943), (3, 2068))]
+    check = {c["name"]: c for c in evaluate_checks(runs)}["cache outage invisible"]
+    assert check["passed"] is True                          # judged on the median of repeats, as every check is
+    assert "median p95 1943 ms (1898–2068)" in check["detail"] and "1 of 3 runs over 2 s" in check["detail"]
+
+
+def test_cache_outage_with_no_bypasses_was_not_tested():  # review 3: the outage must be shown to have happened
+    check = {c["name"]: c for c in evaluate_checks([failure_run(r, bypasses=0) for r in (1, 2, 3)])}
+    assert check["cache outage invisible"]["passed"] is None
+
+
+def _soak(samples):
+    return run("soak", "full", 1, 14, resources=samples, soak={"first_p95": 13.0, "last_p95": 14.0})
+
+
+def test_soak_memory_windows_are_by_time_and_missing_memory_is_incomplete():  # review 2
+    from weir_eval.loadtest.report import soak_stats
+
+    # a 7 s sampler for 30 min; docker stats returned nothing after minute 25, connections were still sampled
+    samples = [{"t": i * 7.0, "db_connections": 16, **({"weir-weir-1": {"cpu": 5.0, "mem": f"{250 + i // 100}MiB"}}
+                                                       if i * 7 < 1500 else {"stats_error": "no output"})}
+               for i in range(258)]
+    st = soak_stats(_soak(samples))
+    assert st["mem_first_mib"] == 250 and st["mem_last_mib"] is None and st["mem_growth"] is None
+    check = {c["name"]: c for c in evaluate_checks([_soak(samples)])}["no leaks over the soak"]
+    assert check["passed"] is None and "incomplete" in check["detail"]
+    md = render([_soak(samples)], {"date": "d", "machine": "m", "repeat_rate": 0.9})
+    assert "no memory samples in the last 5 min" in md
+
+
+def test_soak_last_window_is_the_last_five_minutes_by_time():
+    from weir_eval.loadtest.report import soak_stats
+
+    samples = [{"t": i * 7.0, "weir-weir-1": {"cpu": 5.0, "mem": "300MiB" if i * 7 > 1500 else "250MiB"}}
+               for i in range(258)]                         # 258 samples x 7 s: the last 5 min start at ~1499 s
+    st = soak_stats(_soak(samples))
+    assert (st["mem_first_mib"], st["mem_last_mib"]) == (250, 300) and abs(st["mem_growth"] - 0.2) < 1e-9
+
+
+def test_spike_that_never_left_the_budget_says_so():  # review 1
+    spike = run("spike", "full", 1, 14, peak_p95=22.0, recovery_s=0.0)
+    md = render([spike], {"date": "d", "machine": "m", "repeat_rate": 0.9})
+    assert "never left the 2 s budget" in md and "recovery 0 s" not in md
+
+
+def test_one_sample_at_the_edge_does_not_cover_the_last_five_minutes():  # the real soak: memory stopped at 25.1 min
+    from weir_eval.loadtest.report import soak_stats
+
+    samples = [{"t": i * 7.0, "db_connections": 16, **({"weir-weir-1": {"cpu": 5.0, "mem": "250MiB"}}
+                                                       if i * 7 <= 1505 else {"stats_error": "no output"})}
+               for i in range(258)]                         # the tail window (t > 1499 s) holds 1 memory sample of 43
+    assert soak_stats(_soak(samples))["mem_last_mib"] is None

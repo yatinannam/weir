@@ -207,9 +207,11 @@ async def _send(requests: list[dict], env: dict, concurrency: int = 5) -> None:
 def _probe() -> dict:
     """One resource sample: docker stats (CPU, memory) for the measured containers and Postgres connections."""
     row: dict = {"t": time.time()}
-    out = subprocess.run(["docker", "stats", "--no-stream", "--format", "{{json .}}", *CONTAINERS],
-                         capture_output=True, text=True).stdout
-    for line in out.splitlines():
+    proc = subprocess.run(["docker", "stats", "--no-stream", "--format", "{{json .}}", *CONTAINERS],
+                          capture_output=True, text=True)
+    if proc.returncode or not proc.stdout.strip():   # keep the reason: a silent gap once emptied a soak window
+        row["stats_error"] = (proc.stderr or "no output").strip()[-200:]
+    for line in proc.stdout.splitlines():
         s = json.loads(line)
         row[s["Name"]] = {"cpu": float(s["CPUPerc"].rstrip("%")), "mem": s["MemUsage"].split(" / ")[0]}
     try:
@@ -244,6 +246,44 @@ def _lost_work() -> int:
     names = ("weir_log_rows_dropped_total", "weir_log_rows_failed_total",
              "weir_cache_jobs_dropped_total", "weir_cache_jobs_failed_total")
     return int(sum(float(line.split()[-1]) for line in text.splitlines() if line.split(" ")[0] in names))
+
+
+def derive(spec: RunSpec, points: list, phase_logs: list[dict]) -> dict:
+    """The numbers computed from a run's compact points: ramp steps, spike peak and recovery, soak drift,
+    failure phases (each with its request-log window). Shared by execute and rederive."""
+    t0 = points[0][0] if points else 0
+    env6, out = k6_env(spec), {}
+    if spec.scenario == "ramp":
+        out["steps"] = ramp_steps(points, t0, [int(r) for r in env6["RAMP_STEPS"].split(",")], int(env6["STEP_S"]))
+    if spec.scenario == "spike":
+        burst_end = t0 + (int(env6.get("BASE_S", 120)) + int(env6.get("BURST_S", 30))) * 1000
+        out["recovery_s"] = spike_recovery_s(points, burst_end)
+        out["peak_p95"] = peak_window_p95(points)
+    if spec.scenario == "soak":
+        first, last = first_last_p95(points)
+        out["soak"] = {"first_p95": first, "last_p95": last}
+    if spec.scenario == "failure":
+        out["phases"] = [{**ph, "log": pl} for ph, pl in
+                         zip(failure_phases(points, t0, int(env6["PHASE_S"])), phase_logs, strict=True)]
+    return out
+
+
+def read_points(path: Path) -> list[tuple[int, str, float, int]]:
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        rows = f.read().splitlines()[1:]
+    return [(int(t), k, float(v), int(s)) for t, k, v, s in (r.split(",") for r in rows if r)]
+
+
+def rederive(run_dir: Path) -> dict:
+    """Recompute a finished run's derived numbers with the current code from its saved compact points; the
+    k6 summary, request-log stats and per-phase request-log windows are kept as recorded. No re-run."""
+    path = run_dir / "summary.json"
+    summary = json.loads(path.read_text(encoding="utf-8"))
+    spec = RunSpec(**summary["spec"])
+    phase_logs = [ph.get("log") for ph in summary.get("phases", [])]
+    summary.update(derive(spec, read_points(run_dir / "requests.csv.gz"), phase_logs))
+    path.write_text(json.dumps(summary, indent=1, default=str), encoding="utf-8")
+    return summary
 
 
 def execute(spec: RunSpec, results_root: Path, env: dict) -> dict:
@@ -293,21 +333,7 @@ def execute(spec: RunSpec, results_root: Path, env: dict) -> dict:
         "request_log": log, "resources": sampler.samples, "lost_work": _lost_work(),
     }
     summary["stalled"] = stalled(summary["k6"], spec)
-    if spec.scenario == "ramp":
-        env6 = k6_env(spec)
-        summary["steps"] = ramp_steps(points, t0, [int(r) for r in env6["RAMP_STEPS"].split(",")],
-                                      int(env6["STEP_S"]))
-    if spec.scenario == "spike":
-        env6 = k6_env(spec)
-        burst_end = t0 + (int(env6.get("BASE_S", 120)) + int(env6.get("BURST_S", 30))) * 1000
-        summary["recovery_s"] = spike_recovery_s(points, burst_end)
-        summary["peak_p95"] = peak_window_p95(points)
-    if spec.scenario == "soak":
-        first, last = first_last_p95(points)
-        summary["soak"] = {"first_p95": first, "last_p95": last}
-    if spec.scenario == "failure":
-        summary["phases"] = [{**ph, "log": pl} for ph, pl in
-                             zip(failure_phases(points, t0, int(k6_env(spec)["PHASE_S"])), phase_logs, strict=True)]
+    summary.update(derive(spec, points, phase_logs))
     with httpx.Client() as client:
         _reset(client)                                              # never leave a fault on for the next run
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=1, default=str), encoding="utf-8")

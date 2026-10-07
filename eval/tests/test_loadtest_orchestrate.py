@@ -162,3 +162,38 @@ def test_keep_awake_asks_windows_not_to_sleep_and_releases_it():
     with keep_awake(setter=calls.append):
         assert calls == [0x80000001]                          # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
     assert calls == [0x80000001, 0x80000000]                  # back to ES_CONTINUOUS only
+
+
+def test_probe_records_why_docker_stats_failed(monkeypatch):  # final review 2: missing samples must be visible
+    from types import SimpleNamespace
+
+    from weir_eval.loadtest import orchestrate
+
+    monkeypatch.setattr(orchestrate.subprocess, "run",
+                        lambda *a, **k: SimpleNamespace(returncode=1, stdout="", stderr="error during connect"))
+
+    def no_db(*a, **k):
+        raise psycopg.OperationalError("down")
+
+    monkeypatch.setattr(orchestrate.psycopg, "connect", no_db)
+    row = orchestrate._probe()
+    assert row["stats_error"] == "error during connect" and row["db_connections"] is None
+
+
+def test_rederive_recomputes_spike_recovery_from_the_compact_points(tmp_path):  # final review 1, no re-run
+    import gzip
+
+    from weir_eval.loadtest.orchestrate import rederive
+
+    t0 = 1_791_288_000_000
+    rows = "".join(f"{t0 + i * 200},req,300.0,200\n" for i in range(1650))          # 330 s, fast throughout
+    run_dir = tmp_path / "spike-full-r1"
+    run_dir.mkdir()
+    with gzip.open(run_dir / "requests.csv.gz", "wt", encoding="utf-8") as f:
+        f.write("t_ms,kind,value,status\n" + rows)
+    (run_dir / "summary.json").write_text(json.dumps(
+        {"spec": {"scenario": "spike", "config": "full", "repeat": 1, "smoke": False}, "recovery_s": 10.0,
+         "peak_p95": 300.0, "k6": {"requests": 1650}}), encoding="utf-8")
+    s = rederive(run_dir)
+    assert s["recovery_s"] == 0.0 and s["peak_p95"] == 300.0 and s["k6"] == {"requests": 1650}
+    assert json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))["recovery_s"] == 0.0

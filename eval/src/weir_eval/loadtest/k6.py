@@ -77,8 +77,9 @@ def ramp_steps(points, t0_ms: int, rates: list[int], step_s: int) -> list[dict]:
 
 
 def _step_ok(step: dict, budget_ms: float, max_error: float, min_achieved: float) -> bool:
+    # any dropped iteration means k6 ran out of VUs because requests were piling up: over budget (Review Focus 3)
     return (step["p95"] is not None and step["p95"] <= budget_ms and step["error_rate"] <= max_error
-            and step["achieved_rate"] >= min_achieved * step["rate"])
+            and step["achieved_rate"] >= min_achieved * step["rate"] and not step.get("dropped"))
 
 
 def ramp_max_rate(steps: list[dict], budget_ms: float = 2000, max_error: float = 0.01,
@@ -92,13 +93,15 @@ def ramp_max_rate(steps: list[dict], budget_ms: float = 2000, max_error: float =
 
 
 def spike_recovery_s(points, burst_end_ms: int, budget_ms: float = 2000, window_s: int = 10) -> float | None:
+    """Seconds from the end of the burst until the trailing window_s p95 is within budget: 0 when the last
+    window_s of the burst already were (it never needed to recover), None when it never got back."""
     last = max((t for t, k, _, _ in points if k == "req"), default=burst_end_ms)
-    start = burst_end_ms
-    while start + window_s * 1000 <= last + 1:
-        w = window_stats(points, start, start + window_s * 1000)
+    end = burst_end_ms
+    while end <= last + 1:
+        w = window_stats(points, end - window_s * 1000, end)
         if w["n"] and w["p95"] <= budget_ms:
-            return (start + window_s * 1000 - burst_end_ms) / 1000
-        start += 1000
+            return (end - burst_end_ms) / 1000
+        end += 1000
     return None
 
 

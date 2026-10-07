@@ -819,6 +819,6 @@
  ],
  "lost_work": 0,
  "stalled": false,
- "recovery_s": 10.0,
+ "recovery_s": 0.0,
  "peak_p95": 22.461644
 }
