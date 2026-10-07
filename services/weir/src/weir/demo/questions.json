@@ -1,0 +1,20 @@
+{
+  "namespace": "weir-general/en/public",
+  "steps": [
+    {"n": 1, "title": "Ask a question", "expect": "miss",
+     "question": "What does car parking cost for the first 2 hours on a weekday?",
+     "hint": "A miss: Weir searches the documents, asks a model and caches the answer."},
+    {"n": 2, "title": "Reword it", "expect": "hit",
+     "question": "Weekday car parking cost for the first 2 hours?",
+     "hint": "Same meaning, same details: a cache hit at near-zero cost."},
+    {"n": 3, "title": "A look-alike", "expect": "guard_refused",
+     "question": "What does car parking cost for the first 2 hours on a weekend?",
+     "hint": "Almost the same words, a different day: the guard refuses the cached weekday price (the weekend price is ₹60, not ₹40)."},
+    {"n": 4, "title": "An easy question", "expect": "small",
+     "question": "What is the first consultation fee at the Orthopedics OPD?",
+     "hint": "Short and answered by one document: the small, cheaper model."},
+    {"n": 5, "title": "A hard question", "expect": "large",
+     "question": "What colour attendant pass does a parent staying with a child in the pediatric ward get, and what are the evening visiting hours there?",
+     "hint": "Two questions in one: the large model."}
+  ]
+}

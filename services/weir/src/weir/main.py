@@ -6,11 +6,12 @@ from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, generate_latest
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,6 +33,12 @@ from .rag.adapter import RagClient
 from .settings import Settings
 
 logging.basicConfig(level=logging.INFO)
+
+DEMO_DIR = Path(__file__).parent / "demo"
+# The demo page loads nothing external; inline script and style only (Phase 6A addendum §2).
+DEMO_HEADERS = {"Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+                                           "base-uri 'none'; frame-ancestors 'none'",
+                "Cache-Control": "no-store"}
 
 
 @dataclass
@@ -180,6 +187,14 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         if d.metrics is None:
             raise HTTPException(status_code=404, detail="metrics are off")
         return Response(generate_latest(d.metrics.registry), media_type=CONTENT_TYPE_LATEST)
+
+    @app.get("/demo", include_in_schema=False)
+    async def demo_page():
+        return FileResponse(DEMO_DIR / "index.html", media_type="text/html", headers=DEMO_HEADERS)
+
+    @app.get("/demo/questions.json", include_in_schema=False)
+    async def demo_questions():
+        return FileResponse(DEMO_DIR / "questions.json", media_type="application/json", headers=DEMO_HEADERS)
 
     return app
 
