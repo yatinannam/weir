@@ -1,4 +1,4 @@
-# Weir results summary (Phases 1–3)
+# Weir results summary (Phases 1–5)
 
 **The four-way ablation:** baseline, cache only, router only and full Weir, each on two workloads.
 
@@ -51,6 +51,23 @@ This is the realistic case: a few questions are asked constantly.
 
 The router adds little here, because most requests never reach a model.
 
+## Under load: k6 at a constant arrival rate (Phase 5, stub model)
+
+Retrieval, embeddings, the cache and the router are real; the model is a stub with delays fitted to measured Groq latencies, so costs here use the stub's token counts and compare only within this table. Workload: 3,000 Zipf-skewed requests (94.8% repeats). Medians of 3 runs, range in brackets; full detail in [`loadtest-2026-10-07.md`](loadtest-2026-10-07.md).
+
+| Configuration | Cache | p50 | p95 | Hit rate | Cost / 1k | Errors | Highest rate within the 2 s budget |
+| :-- | :-- | --: | --: | --: | --: | --: | --: |
+| Baseline | empty at start | 772 ms | 1,439 ms (1,416–1,440) | 0% | $0.0783 | 0% | 60 req/s (60–80) |
+| Cache only | empty at start | 10 ms | 41 ms (39–42) | 95.4% | $0.0034 | 0% | — |
+| Router only | empty at start | 730 ms | 1,405 ms (1,403–1,442) | 0% | $0.0742 | 0% | — |
+| **Full Weir** | empty at start | 10 ms | 33 ms (25–50) | 95.4% | $0.0032 | 0% | **100 req/s (60–100)** |
+| Cache only | warm | 10 ms | 14 ms (13–17) | 100% | $0.0000 | 0% | — |
+| **Full Weir** | warm | 10 ms | **15 ms** (13–16) | 100% | $0.0000 | 0% | — |
+
+- **Failure injection (full Weir, 3 runs):** 0 errors in every phase. The large-model rate limit caused 541 fallbacks and the small-model timeout 60; a 2 s delay on Weir's database link caused 1,191 cache bypasses with median p95 1,943 ms (1,898–2,068: one run over 2 s).
+- **Spike and soak:** a 60 req/s burst kept p95 at 22 ms at its worst, never leaving the budget; 30 minutes at 10 req/s moved p95 from 13.1 to 14.6 ms with 0 errors. Memory held at about 250 MiB for the first 25 minutes, but no samples exist for the last 5, so the no-leak check is incomplete.
+- **The overload mode:** in 1 of 3 ramps, full Weir collapsed at 100 req/s when cache lookups timed out under CPU load and the bypassed requests added more load (backlog M31).
+
 ## Notes
 
 - † **Full Weir is the final configuration, measured on 2026-10-06:** `grounding.min_overlap` 0.3 (D39) and no caching of fallback-to-small answers (D40). It was a clean run: no fallbacks, no rate limits, every large-routed question answered by the large model. Reports: `20261006T045749Z-full-all`, `20261006T053129Z-full-workload-300-seed7`.
@@ -65,6 +82,7 @@ The router adds little here, because most requests never reach a model.
 | --- | --- | --- |
 | 2 | Cache: 0 trap matches in the sweep; 0 wrong hits live; cold quality equal to the baseline | Pass ([`cache-only.md`](cache-only.md)) |
 | 3 | Router: cost lower; judge within 0.1; facts no lower; small route ≥ large; 0 wrong hits (vs baseline v4) | Pass, every check, final configuration ([`router.md`](router.md#exit-gate-addendum-76-against-baseline-v4)) |
+| 5 | Load: warm p95 at least 30% below baseline; 0 errors during model faults; cache outage invisible (0 errors, p95 at most 2 s); no leaks over the soak; no lost background work | 4 of 5 pass; the soak's no-leak check is incomplete (no memory samples in its last 5 minutes) ([`loadtest-2026-10-07.md`](loadtest-2026-10-07.md#checks)) |
 
 ## Where the detail lives
 
@@ -75,3 +93,4 @@ The router adds little here, because most requests never reach a model.
 | Cache results | [`cache-only.md`](cache-only.md) |
 | Router tuning (offline simulation) | [`router-tuning.md`](router-tuning.md) |
 | Router live results, gate, incidents | [`router.md`](router.md) |
+| Load tests (Phase 5) | [`loadtest-2026-10-07.md`](loadtest-2026-10-07.md) |

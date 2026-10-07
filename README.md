@@ -20,8 +20,8 @@ It logs the **cost, counterfactual cost and latency of every request**, so each 
 
 > [!NOTE]
 > **Status:**
-> - **Done:** Phases 0–4: gateway and baseline, semantic cache, the model router (tuned offline, measured live, every exit-gate check passed), and monitoring (Prometheus metrics, 8 tested alerts, a Grafana dashboard over every run).
-> - **Next:** Phase 5 (k6 load tests).
+> - **Done:** Phases 0–5: gateway and baseline, semantic cache, the model router (tuned offline, measured live, every exit-gate check passed), monitoring (Prometheus metrics, 8 tested alerts, a Grafana dashboard over every run), and k6 load tests (31 runs; 4 of 5 checks passed and the soak's memory check is incomplete).
+> - **Next:** Phase 6 (demo chat page, write-up).
 > - Everything runs on free tiers.
 
 ## Contents
@@ -65,6 +65,28 @@ Phase 3 rows are compared with baseline v4, re-run on 2026-10-05 because the lar
 - [`router.md`](docs/results/router.md): live router results, exit gate, the two outage incidents
 - [`router-tuning.md`](docs/results/router-tuning.md): offline tuning and the option not taken
 - [`cache-only.md`](docs/results/cache-only.md), [`cache-threshold.md`](docs/results/cache-threshold.md), [`baseline.md`](docs/results/baseline.md)
+
+### Under load (stub model)
+
+Phase 5 drove Weir with k6 at a constant arrival rate. Retrieval, embeddings, the cache and the router are real; the model is a stub whose delays are fitted to measured Groq latencies (small 553 / 830 ms, large 748 / 1,429 ms median / p95), so no quota was spent. The workload is 3,000 Zipf-skewed requests (94.8% repeats). Every number is the median of 3 runs, with the range in the [full report](docs/results/loadtest-2026-10-07.md).
+
+**Four-way at 10 req/s for 5 min, starting from an empty cache:**
+
+| Configuration | p50 | p95 | p99 | Hit rate | Errors |
+| :-- | --: | --: | --: | --: | --: |
+| Baseline: always the large model, no cache | 772 ms | 1,439 ms | 1,797 ms | 0% | 0% |
+| Cache only | 10 ms | 41 ms | 1,072 ms | 95.4% | 0% |
+| Router only | 730 ms | 1,405 ms | 1,831 ms | 0% | 0% |
+| **Full Weir** | **10 ms** | **33 ms** | 1,002 ms | 95.4% | 0% |
+
+- **With a warm cache, full Weir's p95 is 15 ms against the baseline's 1,439 ms (99% lower)** at 10 req/s.
+- **Full Weir held 100 req/s at a p95 of about 41 ms in 2 of 3 ramps; the baseline held 60 req/s at about 1.5 s.** A step only counts if k6 sent every request on time (no dropped iterations), p95 stayed within 2 s and errors within 1%. In the third ramp, full Weir collapsed at 100 req/s: once cache lookups began timing out under CPU load, 1,832 requests bypassed to retrieval and the model, which added load until requests hit k6's 60 s timeout. That's a real overload mode, now in the backlog (M31).
+- **Failures stayed invisible to users: 0 errors in every phase of 3 failure runs.** Across the 3 runs, with the large model rate-limited, 541 requests fell back to the small model; with the small model timing out, 60 fell back to the large one. With Weir's database link delayed by 2 s, the cache was bypassed 1,191 times; the median p95 was 1,943 ms, inside the 2 s budget, though one of the 3 runs reached 2,068 ms.
+- **A 60 req/s burst never left the budget** (worst 10-second p95: 22 ms). Over **30 minutes at 10 req/s**, p95 moved from 13.1 to 14.6 ms with 0 errors; memory held at about 250 MiB for the 25 minutes it was sampled, but `docker stats` returned nothing for the last 5, so the no-leak check is recorded as incomplete.
+
+<p align="center">
+  <img src="docs/results/loadtest-ramp.png" alt="p95 latency against request rate for full Weir and the baseline, log scale, with each run shown faintly" width="720">
+</p>
 
 ## Architecture
 
@@ -238,8 +260,8 @@ The series the alerts use exist at 0 from startup, so the first fallback or erro
 | LLMs | Groq free tier: `openai/gpt-oss-20b` (small), `openai/gpt-oss-120b` (large) | Fast; separate per-model quotas allow fallback |
 | Eval judge | `qwen/qwen3.8-27b` on Groq | A different model family from the models under test |
 | Monitoring | Prometheus (`prom/prometheus:v2.55.1`), Grafana OSS (`11.3.0`), `prometheus-client` | Standard, free and self-hosted; provisioned from files, so there's no clicking to set up |
-| Packaging and CI | Docker Compose (with profiles), GitHub Actions (3 test suites against pgvector, plus `promtool` config and rule tests) | — |
-| Planned | k6 load tests (Phase 5) | — |
+| Load testing | k6 (`grafana/k6:0.54.0`), Toxiproxy (`2.9.0`), a stub model with per-model timing fitted to measured Groq latencies | Repeatable and free: no model quota spent; faults injected per model and on Weir's database link |
+| Packaging and CI | Docker Compose (with profiles), GitHub Actions (3 test suites against pgvector, `promtool` config and rule tests, `k6 inspect`) | — |
 
 ## Repository layout
 
@@ -255,7 +277,9 @@ services/
 │       └── llm/            price table (effective-dated)
 └── hospital-rag/       the RAG service Weir wraps: ingest, /retrieve, /generate, stub LLM
 eval/                   eval set (158 questions), key-fact checks, LLM judge, runner,
-                        threshold sweep, workload replay; reports/ holds every raw result
+                        threshold sweep, workload replay, load-test orchestrator and report;
+                        reports/ holds every raw result
+loadtest/               k6 scripts, request files (no keys), Toxiproxy config; results/ holds every run
 kb/                     fictional hospital knowledge base (40 Markdown docs, public + staff)
 configs/                weir.yaml (every threshold), ablations/, entities.yaml, tenants.yaml, prices.yaml
 monitoring/             prometheus.yml, alert rules and their tests, Grafana provisioning, dashboard builder,
@@ -309,7 +333,7 @@ curl -s http://127.0.0.1:8000/v1/query \
 }
 ```
 
-Interactive API docs are at <http://127.0.0.1:8000/docs>. Set `LLM_MODE=stub` in `.env` to run without Groq, with fixed-latency fake answers for load tests.
+Interactive API docs are at <http://127.0.0.1:8000/docs>. Set `LLM_MODE=stub` in `.env` to run without Groq: the stub answers from the first retrieved passage after a per-model delay fitted to measured Groq latencies (`STUB_TIMING=realistic`, the default; `fixed` gives a constant delay).
 
 ## API
 
@@ -379,34 +403,47 @@ uv run python -m weir_eval derive-workload reports/<run> --workload datasets/wor
 
 The set is split 70/30 by cluster into tune and holdout. Every run's raw `results.jsonl` and `summary.md` is committed under [`eval/reports/`](eval/reports/).
 
+### Load tests
+
+```bash
+LLM_MODE=stub docker compose up -d --build postgres migrate hospital-rag weir   # stub model: no Groq calls
+set -a && . ./.env && set +a && cd eval
+uv run python -m weir_eval loadtest make-workloads              # request files: questions only, never keys
+uv run python -m weir_eval loadtest run cold --config full      # one run (cold | warm | ramp | spike | soak | failure)
+uv run python -m weir_eval loadtest suite                       # all 31 runs (~4.3 h); resumable, skips finished runs
+uv run python -m weir_eval loadtest report ../loadtest/results/<date>   # docs/results/loadtest-<date>.md + chart
+```
+
+The orchestrator refuses to run unless hospital-rag reports the stub model, and pins it there for every Compose call it makes. Each run recreates Weir under the run's configuration, empties the cache (and pre-fills it for warm runs), runs k6 in Docker with keys passed by name only, samples CPU, memory and database connections, and saves a compact result. Failure runs add Toxiproxy (`--profile loadtest`) between Weir and Postgres. Keep the machine on AC power with the lid open: the suite stops Windows idle sleep, and a run that took far longer than planned is set aside and re-run once.
+
 ## Tests
 
 ```bash
 docker compose up -d postgres                       # DB tests use 127.0.0.1:5432/weir_test
-cd services/weir         && uv run pytest -q        # 269 tests
-cd services/hospital-rag && uv run pytest -q        #  39 tests
-cd eval                  && uv run pytest -q        # 107 tests
+cd services/weir         && uv run pytest -q        # 274 tests
+cd services/hospital-rag && uv run pytest -q        #  47 tests
+cd eval                  && uv run pytest -q        # 149 tests
 ```
 
-CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A fourth job runs `promtool check config` and the alert-rule unit tests.
+CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A fourth job runs `promtool check config`, the alert-rule unit tests and `k6 inspect` on the four load-test scripts.
 
 ## Documentation
 
 | Doc | Contents |
 | :-- | :-- |
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
-| [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router) |
+| [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router, monitoring, load testing) |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | Task-by-task implementation plans |
-| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D41) |
+| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D61) |
 | [`docs/progress.md`](docs/progress.md) | Phase-by-phase log |
-| [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary |
+| [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary, load tests |
 | [`docs/backlog.md`](docs/backlog.md) | Deferred findings and ideas |
 
 ## Limitations
 
 - **Small, synthetic benchmark.** There are 158 questions and 24 trap pairs on a fictional KB. "Zero wrong hits" is strong evidence for this set, not a guarantee.
 - **Hit rate depends on the workload.** 93% is for a 73.7%-repeat replay; a cold pass with only paraphrases repeating hits 15%.
-- **Latency is measured sequentially, not under load.** Load tests come in Phase 5.
+- **Load tests use a stub model on one laptop.** Retrieval, embeddings, the cache and the router are real; generation is simulated with timing fitted to measured Groq latencies. k6 shares the machine, and its capacity varied between rounds (a 15 W-class CPU, 21 of 31 runs on battery), so the ceilings are this laptop's, not Weir's.
 - **Grounding is lexical.** It catches unfinished, uncited and "not found" answers, but not a fluent answer that omits or invents a detail using the source's own words. The strict routing cut-offs, not grounding, keep such questions on the large model.
 - **The large model isn't stable over time.** One hard question drifted between runs and another flips between attempts, so every Phase 3 comparison uses a same-day baseline.
 
@@ -418,5 +455,5 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 | 2 | Semantic cache, entity guard, threshold sweep, cache eval | Done |
 | 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | Done |
 | 4 | Prometheus metrics, Grafana dashboard, alerts | Done |
-| 5 | k6 load tests (cold/warm, ramp, spike, soak), ablation under load | Planned |
+| 5 | k6 load tests (cold/warm, ramp, spike, soak, failure injection), ablation under load | Done |
 | 6 | Demo chat page, write-up, optional learned router | Planned |

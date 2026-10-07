@@ -25,4 +25,5 @@ The record of everything planned, decided and measured for Weir. Start here.
 | [results/cache-only.md](results/cache-only.md) | Phase 2 result: cache hit rate, cost, latency, wrong hits |
 | [results/router-tuning.md](results/router-tuning.md) | Phase 3: offline router tuning, the strict bar, the option not taken |
 | [results/router.md](results/router.md) | Phase 3: live router results, exit gate, outage incidents |
-| [results/summary.md](results/summary.md) | The four-way ablation (baseline, cache, router, full) on both workloads |
+| [results/summary.md](results/summary.md) | The four-way ablation (baseline, cache, router, full) on both workloads, and under load |
+| [results/loadtest-2026-10-07.md](results/loadtest-2026-10-07.md) | Phase 5: k6 load tests (31 runs): four-way under load, ramp ceilings, spike, soak, failure injection, checks |

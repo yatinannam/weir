@@ -313,3 +313,23 @@ Full Weir with the final settings, against the same-day-style baseline v4:
     - `full` held 100 req/s at p95 41–42 ms in 2 of 3 ramps and collapsed in 1 (round 1): once cache lookups started timing out, 1,832 bypassed to retrieval and the model, adding load until requests hit k6's 60 s timeout. The baseline held 60 req/s (p95 ~1.5 s) and collapsed by 80–100. This laptop's capacity varied between rounds (a 15 W-class CPU at full load for hours, partly on battery).
     - Failure injection: 0 errors in every phase of all 3 runs; the large-model rate limit caused about 180 fallbacks per run and the small-model timeout 20; the database delay caused about 397 cache bypasses per run with p95 1.94, 2.07 and 1.90 s.
     - 2 requests in about 220,000 failed at the connection level (a reset and an EOF): uvicorn's 5 s keep-alive timeout racing k6's connection reuse. Weir itself returned no errors for them.
+
+## 2026-10-07: Phase 5 closed
+
+- **Task 10:** rendered [`results/loadtest-2026-10-07.md`](results/loadtest-2026-10-07.md) and the ramp chart (log scale, each repeat drawn faintly so a collapse the median hides stays visible), with a plain-language note per section; the report names the 21 runs on battery. README "Under load (stub model)" section, stack, layout, a load-test how-to, test counts and roadmap; `summary.md` under-load table and Phase 5 gate; decisions D55–D61; backlog M31–M40; docs index.
+- **Final review** (fresh reviewer, code from `aaaefa9`): 0 Critical, 5 Important, 18 Minor. The safety paths held (stub guard, keys by name only, fault resets, run-scoped log windows, localhost-only ports). Four published claims said more than their evidence, and one rule was too loose; all fixed test-first from the stored data, no re-run (D61):
+  - spike "recovery 10 s" when nothing degraded: now "never left the budget", re-derived with the new `loadtest rederive` (only the 3 spike summaries changed);
+  - the soak's "last 5 minutes" memory came from minutes 21–25 because `docker stats` returned nothing at the end: windows are now by time and must be covered, so the no-leak check is **incomplete**;
+  - "cache outage invisible" now prints the range and the run over 2 s (2,068 ms) and needs cache bypasses as evidence;
+  - the model-fault check now needs requests that reached the faulted model (601, not 1,200);
+  - ramp steps that dropped requests no longer count (full's range becomes 60–100 req/s);
+  - re-graded up: the override's usage comment could recreate hospital-rag against Groq; now pinned to the stub.
+  The 17 remaining minors are in the backlog (M35–M40).
+- **Phase 5 results (31 runs, stub model, 2026-10-07):**
+  - At 10 req/s from an empty cache: full Weir p95 33 ms vs the baseline's 1,439 ms; warm 15 ms (99% lower); cost per 1,000 about 96% lower.
+  - Highest rate within the 2 s budget: full 100 req/s (60–100), baseline 60 req/s (60–80). Full collapsed once at 100 req/s when bypassed cache lookups fed the overload (M31).
+  - Failure injection: 0 errors in every phase of 3 runs; 541 + 60 fallbacks; a 2 s database delay gave 1,191 cache bypasses at median p95 1,943 ms.
+  - Spike: never left the budget (peak 22 ms). Soak: p95 13.1 → 14.6 ms, 0 errors; memory unobserved in the last 5 minutes.
+  - Checks: 4 of 5 pass; the no-leak check is incomplete.
+- **Suites:** weir 275, hospital-rag 47, eval 160 (1 needs `TEST_DATABASE_URL`). CI also runs `promtool` and `k6 inspect`.
+- **Next:** Phase 6 (demo chat page, write-up, optional learned router). Optional: re-run the 30-minute soak to complete the no-leak check.
