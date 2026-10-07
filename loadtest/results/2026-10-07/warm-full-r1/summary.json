@@ -1,0 +1,742 @@
+{
+ "spec": {
+  "scenario": "warm",
+  "config": "full",
+  "repeat": 1,
+  "smoke": false
+ },
+ "started": "2026-10-07T05:30:02.510640+00:00",
+ "ended": "2026-10-07T05:35:07.002919+00:00",
+ "k6_exit": 0,
+ "k6_stderr_tail": "",
+ "k6": {
+  "chaos_failed": null,
+  "duration_ms": 299985.630882,
+  "requests": 3000,
+  "achieved_rate": 10.000478993542382,
+  "error_rate": 0,
+  "dropped": 0,
+  "latency": {
+   "all": {
+    "p50": 10.340394,
+    "p95": 16.44974249999999,
+    "p99": 25.345239879999976,
+    "count": 3000
+   },
+   "hit": {
+    "p50": 10.340394,
+    "p95": 16.44974249999999,
+    "p99": 25.345239879999976,
+    "count": 3000
+   },
+   "small": null,
+   "large": null
+  }
+ },
+ "request_log": {
+  "n": 3000,
+  "cost": 0.0,
+  "hit_rate": 1.0,
+  "small": 0.0,
+  "fallbacks": 0,
+  "cache_errors": 0,
+  "errors": 0,
+  "model_path": 0,
+  "overhead_mean": 8.016333333333334,
+  "overhead_p95": 13.0,
+  "internal_p50": 8.0,
+  "internal_p95": 14.0
+ },
+ "resources": [
+  {
+   "t": 1791351002.5106404,
+   "weir-weir-1": {
+    "cpu": 609.44,
+    "mem": "248.9MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.29,
+    "mem": "276.4MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.59,
+    "mem": "85.34MiB"
+   },
+   "db_connections": 14
+  },
+  {
+   "t": 1791351009.6547854,
+   "weir-weir-1": {
+    "cpu": 607.59,
+    "mem": "249.1MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 10.24,
+    "mem": "276.4MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.6,
+    "mem": "85.34MiB"
+   },
+   "db_connections": 14
+  },
+  {
+   "t": 1791351016.784575,
+   "weir-weir-1": {
+    "cpu": 607.89,
+    "mem": "249.4MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 2.45,
+    "mem": "276.4MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.63,
+    "mem": "85.6MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351023.9097214,
+   "weir-weir-1": {
+    "cpu": 602.1,
+    "mem": "249.2MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.14,
+    "mem": "276.4MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 7.43,
+    "mem": "83.52MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351031.0213058,
+   "weir-weir-1": {
+    "cpu": 609.68,
+    "mem": "249MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 1.0,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 3.34,
+    "mem": "83.71MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351038.2218566,
+   "weir-weir-1": {
+    "cpu": 609.25,
+    "mem": "249.1MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.2,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 8.83,
+    "mem": "83.47MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351045.3699684,
+   "weir-weir-1": {
+    "cpu": 611.57,
+    "mem": "249.3MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 10.42,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.67,
+    "mem": "83.54MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351052.5228758,
+   "weir-weir-1": {
+    "cpu": 606.78,
+    "mem": "249.1MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.17,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.73,
+    "mem": "83.51MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351059.642873,
+   "weir-weir-1": {
+    "cpu": 610.28,
+    "mem": "250.1MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.17,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 7.94,
+    "mem": "84.09MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351066.7632353,
+   "weir-weir-1": {
+    "cpu": 610.83,
+    "mem": "250.8MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 9.62,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 6.21,
+    "mem": "88.48MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351073.873554,
+   "weir-weir-1": {
+    "cpu": 609.29,
+    "mem": "250.6MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.15,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.55,
+    "mem": "83.25MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351081.0278566,
+   "weir-weir-1": {
+    "cpu": 607.79,
+    "mem": "250.6MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 9.71,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.68,
+    "mem": "83.31MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351088.1788313,
+   "weir-weir-1": {
+    "cpu": 607.72,
+    "mem": "250.6MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.16,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.76,
+    "mem": "83.73MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351095.3048267,
+   "weir-weir-1": {
+    "cpu": 606.84,
+    "mem": "250.6MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.15,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.48,
+    "mem": "83.5MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351102.4153607,
+   "weir-weir-1": {
+    "cpu": 604.9,
+    "mem": "250.7MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 13.12,
+    "mem": "277.4MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.95,
+    "mem": "83.77MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351109.5450099,
+   "weir-weir-1": {
+    "cpu": 602.74,
+    "mem": "250.5MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.15,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.52,
+    "mem": "83.79MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351116.6518445,
+   "weir-weir-1": {
+    "cpu": 608.97,
+    "mem": "250.7MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 9.29,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 8.57,
+    "mem": "83.57MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351123.8006387,
+   "weir-weir-1": {
+    "cpu": 604.59,
+    "mem": "251.4MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.29,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.27,
+    "mem": "83.63MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351129.924624,
+   "weir-weir-1": {
+    "cpu": 608.72,
+    "mem": "251.1MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.17,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.53,
+    "mem": "83.67MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351137.0703242,
+   "weir-weir-1": {
+    "cpu": 610.56,
+    "mem": "251.4MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.13,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 6.22,
+    "mem": "83.56MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351144.1909637,
+   "weir-weir-1": {
+    "cpu": 606.56,
+    "mem": "251.2MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.15,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.31,
+    "mem": "83.84MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351151.3159769,
+   "weir-weir-1": {
+    "cpu": 609.83,
+    "mem": "251.2MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.16,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.38,
+    "mem": "83.88MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351158.4365084,
+   "weir-weir-1": {
+    "cpu": 608.23,
+    "mem": "250.9MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.18,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.45,
+    "mem": "83.92MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351165.5435224,
+   "weir-weir-1": {
+    "cpu": 603.95,
+    "mem": "251.2MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.12,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 9.01,
+    "mem": "84.08MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351172.669013,
+   "weir-weir-1": {
+    "cpu": 605.89,
+    "mem": "251.2MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.12,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.28,
+    "mem": "84.12MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351179.7724547,
+   "weir-weir-1": {
+    "cpu": 606.51,
+    "mem": "251.5MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.13,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.39,
+    "mem": "84.16MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351186.9042203,
+   "weir-weir-1": {
+    "cpu": 607.41,
+    "mem": "251.5MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.14,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 7.13,
+    "mem": "84.29MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351194.3083522,
+   "weir-weir-1": {
+    "cpu": 601.83,
+    "mem": "251.2MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 8.12,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.51,
+    "mem": "84.1MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351201.4261074,
+   "weir-weir-1": {
+    "cpu": 607.36,
+    "mem": "251MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.12,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.4,
+    "mem": "84.15MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351208.5493007,
+   "weir-weir-1": {
+    "cpu": 609.71,
+    "mem": "251MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.14,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 8.78,
+    "mem": "83.93MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351215.6711318,
+   "weir-weir-1": {
+    "cpu": 604.67,
+    "mem": "251MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.19,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.48,
+    "mem": "84.2MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351222.8022661,
+   "weir-weir-1": {
+    "cpu": 608.3,
+    "mem": "251.3MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.17,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.77,
+    "mem": "83.98MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351230.011876,
+   "weir-weir-1": {
+    "cpu": 602.42,
+    "mem": "251.3MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.19,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 7.51,
+    "mem": "84.01MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351237.126737,
+   "weir-weir-1": {
+    "cpu": 604.38,
+    "mem": "251.3MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.12,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.31,
+    "mem": "84.02MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351244.2260942,
+   "weir-weir-1": {
+    "cpu": 606.33,
+    "mem": "251.1MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 7.87,
+    "mem": "277.6MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.51,
+    "mem": "84.05MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351251.3321779,
+   "weir-weir-1": {
+    "cpu": 605.36,
+    "mem": "251.1MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.16,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 28.74,
+    "mem": "84.31MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351258.4391077,
+   "weir-weir-1": {
+    "cpu": 611.1,
+    "mem": "251.3MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.17,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.3,
+    "mem": "84.26MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351265.54015,
+   "weir-weir-1": {
+    "cpu": 605.91,
+    "mem": "251.1MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 1.69,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.23,
+    "mem": "84.42MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351272.6352675,
+   "weir-weir-1": {
+    "cpu": 610.4,
+    "mem": "251.3MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.24,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 6.67,
+    "mem": "84.51MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351279.7346406,
+   "weir-weir-1": {
+    "cpu": 606.52,
+    "mem": "251.3MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.12,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.24,
+    "mem": "84.52MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351286.8445437,
+   "weir-weir-1": {
+    "cpu": 610.46,
+    "mem": "251.1MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 9.11,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.28,
+    "mem": "84.53MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351293.9571943,
+   "weir-weir-1": {
+    "cpu": 608.71,
+    "mem": "251.1MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 0.16,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 6.02,
+    "mem": "85.52MiB"
+   },
+   "db_connections": 13
+  },
+  {
+   "t": 1791351301.0661008,
+   "weir-weir-1": {
+    "cpu": 610.76,
+    "mem": "251.6MiB"
+   },
+   "weir-hospital-rag-1": {
+    "cpu": 7.84,
+    "mem": "277.3MiB"
+   },
+   "weir-postgres-1": {
+    "cpu": 1.07,
+    "mem": "84.7MiB"
+   },
+   "db_connections": 13
+  }
+ ],
+ "lost_work": 0,
+ "stalled": false
+}

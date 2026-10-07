@@ -1,0 +1,14 @@
+# Power source during the 2026-10-07 load-test suite (UTC; logged each time it changed).
+# Runs 1-9 (05:02-06:03Z) and 10-21 (08:44-10:05Z) ran on battery; runs 22-31 (10:05Z onward) on AC power.
+# Pauses: 06:04-08:44Z (user break) and 10:21-15:24Z (lid closed); the suite resumed from its saved runs each time.
+2026-10-07T05:02:23Z Offline 86%
+2026-10-07T06:36:34Z Online 72%
+2026-10-07T06:41:35Z Offline 72%
+2026-10-07T07:43:26Z Online 49%
+2026-10-07T08:37:22Z Offline 89%
+2026-10-07T08:43:28Z Offline 89% (resume)
+2026-10-07T10:05:37Z Online 26%
+2026-10-07T10:05:50Z Online 26%
+2026-10-07T11:10:45Z Offline 56%
+2026-10-07T15:22:11Z Online 55%
+2026-10-07T15:24:33Z Online 56% (resume 2)
