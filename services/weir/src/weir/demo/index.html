@@ -1,5 +1,279 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Weir demo</title></head>
-<body><h1>Weir demo</h1></body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weir demo</title>
+<style>
+  :root {
+    --ink: #1f2933; --muted: #52606d; --line: #e4e7eb; --bg: #f5f7fa; --card: #ffffff; --blue: #2563eb;
+    --hit: #15803d; --small: #0e7490; --large: #6d28d9; --guard: #c2410c; --skip: #52606d; --err: #b91c1c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         color: var(--ink); background: var(--bg); }
+  header { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center;
+           padding: 12px 20px; background: var(--ink); color: #fff; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 600; }
+  #mode { font-size: 12px; padding: 3px 10px; border-radius: 12px; background: #fde68a; color: #78350f; }
+  #mode.real { background: #bbf7d0; color: #14532d; }
+  main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 20px;
+         max-width: 1200px; margin: 20px auto; padding: 0 20px; }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  form { display: flex; gap: 8px; margin-bottom: 14px; }
+  input[type="text"] { flex: 1; padding: 10px 12px; border: 1px solid #cbd2d9; border-radius: 6px; font: inherit; }
+  button { font: inherit; cursor: pointer; border-radius: 6px; }
+  button:disabled { opacity: .6; cursor: wait; }
+  #send { padding: 10px 18px; border: 0; background: var(--blue); color: #fff; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+          margin-bottom: 10px; }
+  .card .q { font-weight: 600; margin-bottom: 4px; }
+  .card .a { white-space: pre-wrap; }
+  .card .src { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .card.error { border-color: #fecaca; background: #fef2f2; color: var(--err); }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; font-size: 13px;
+          color: var(--muted); }
+  .badge { color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .03em; padding: 2px 8px; border-radius: 4px; }
+  .b-hit { background: var(--hit); } .b-small { background: var(--small); } .b-large { background: var(--large); }
+  .b-guard { background: var(--guard); } .b-skip { background: var(--skip); }
+  aside section { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+                  margin-bottom: 14px; }
+  aside h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .step { display: block; width: 100%; text-align: left; background: var(--bg); border: 1px solid var(--line);
+          padding: 8px 10px; margin-bottom: 6px; color: var(--ink); }
+  .step b { display: block; }
+  .step small { color: var(--muted); }
+  .step .result { display: block; font-size: 12px; margin-top: 2px; }
+  .step.pass { border-color: #86efac; } .step.pass .result { color: var(--hit); }
+  .step.other { border-color: #fdba74; } .step.other .result { color: var(--guard); }
+  dl { display: grid; grid-template-columns: auto auto; gap: 4px 12px; margin: 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  #s-saved { font-weight: 700; color: var(--hit); }
+  #empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Weir demo: Weir General Hospital FAQ</h1>
+  <span id="mode">mode unknown</span>
+</header>
+<main>
+  <section>
+    <form id="ask">
+      <input id="question" type="text" autocomplete="off" placeholder="Ask the hospital a question..." aria-label="Question">
+      <button id="send" type="submit">Ask</button>
+    </form>
+    <div id="answers"><p id="empty">Pick a step on the right, or ask your own question.</p></div>
+  </section>
+  <aside>
+    <section>
+      <h2>Guided demo</h2>
+      <div id="steps"></div>
+    </section>
+    <section>
+      <h2>Savings this session</h2>
+      <dl>
+        <dt>Requests</dt><dd id="s-n">0</dd>
+        <dt>From the cache</dt><dd id="s-hit">0%</dd>
+        <dt>Cost</dt><dd id="s-cost">$0.00000</dd>
+        <dt>Always-large cost</dt><dd id="s-cf">$0.00000</dd>
+        <dt>Saved</dt><dd id="s-saved">0%</dd>
+      </dl>
+    </section>
+  </aside>
+</main>
+<script>
+"use strict";
+// Weir demo page (Phase 6A addendum §3). Every question is a normal POST /v1/query with the public key.
+// The key arrives in the URL fragment (never sent to a server), moves to sessionStorage and leaves the URL.
+const NAMESPACE = "weir-general/en/public";
+const MODE_TEXT = { stub: "stub answers (no Groq key)", groq: "real answers (Groq)" };
+const PATH_TEXT = { hit: "a cache hit", guard_refused: "the cache refusing a look-alike", bypass: "the cache skipped",
+                    escalated: "the small model, escalated to the large one", small: "the small model",
+                    large: "the large model" };
+const totals = { n: 0, hits: 0, cost: 0, counterfactual: 0 };
+const $ = (id) => document.getElementById(id);
+
+const fragment = new URLSearchParams(location.hash.slice(1));
+if (fragment.get("key")) sessionStorage.setItem("weirKey", fragment.get("key"));
+if (fragment.get("mode")) sessionStorage.setItem("weirMode", fragment.get("mode"));
+if (location.hash) history.replaceState(null, "", location.pathname);   // keep the key out of the address bar
+
+const mode = sessionStorage.getItem("weirMode");
+$("mode").textContent = MODE_TEXT[mode] || "mode unknown";
+if (mode === "groq") $("mode").classList.add("real");
+
+function apiKey() {
+  let key = sessionStorage.getItem("weirKey");
+  if (!key) {
+    key = (window.prompt("Paste WEIR_KEY_PUBLIC from your .env file") || "").trim();
+    if (key) sessionStorage.setItem("weirKey", key);
+  }
+  return key;
+}
+
+function observedPath(meta) {
+  if (meta.cache_status === "hit") return "hit";
+  if (meta.guard_refused) return "guard_refused";
+  if (meta.cache_status === "bypass") return "bypass";
+  if (meta.escalated) return "escalated";
+  return meta.route;
+}
+
+function stepPassed(expect, meta) {
+  if (expect === "miss") return meta.cache_status === "miss" && !meta.guard_refused;
+  return observedPath(meta) === expect;
+}
+
+function badges(meta) {
+  if (meta.cache_status === "hit") return [["b-hit", "CACHE HIT"]];
+  const out = [];
+  if (meta.cache_status === "bypass") out.push(["b-skip", "CACHE SKIPPED"]);
+  if (meta.guard_refused) out.push(["b-guard", "CACHE REFUSED"]);
+  if (meta.escalated) out.push(["b-large", "SMALL → LARGE"]);
+  else if (meta.route === "small") out.push(["b-small", "SMALL MODEL"]);
+  else if (meta.route === "large") out.push(["b-large", "LARGE MODEL"]);
+  return out;
+}
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function money(x) { return "$" + x.toFixed(5); }
+
+function addCard(card) {
+  const empty = $("empty");
+  if (empty) empty.remove();
+  $("answers").prepend(card);
+}
+
+function renderAnswer(question, body) {
+  const meta = body.meta;
+  const card = el("div", "card");
+  card.append(el("div", "q", question), el("div", "a", body.answer));
+  if (body.sources && body.sources.length) {
+    card.append(el("div", "src", "Sources: " + body.sources.map((s) => s.title).join(", ")));
+  }
+  const line = el("div", "meta");
+  for (const [cls, label] of badges(meta)) line.append(el("span", "badge " + cls, label));
+  const details = [];
+  if (meta.similarity !== null && meta.similarity !== undefined) {
+    if (meta.cache_status === "hit") details.push("similarity " + meta.similarity.toFixed(2));
+    else if (meta.guard_refused) details.push("look-alike at similarity " + meta.similarity.toFixed(2));
+  }
+  details.push(meta.latency_ms.toLocaleString() + " ms", money(meta.cost_usd));
+  line.append(el("span", "", details.join(" · ")));
+  card.append(line);
+  addCard(card);
+}
+
+function renderError(question, message) {
+  const card = el("div", "card error");
+  card.append(el("div", "q", question), el("div", "", message));
+  addCard(card);
+}
+
+function errorText(status, body) {
+  if (status === 0) return "Weir isn't reachable. Is the stack running? Start it with: uv run demo.py";
+  if (status === 401) return "The key was rejected. Check WEIR_KEY_PUBLIC in .env, then reload the page.";
+  if (status === 503 && body && body.error === "rate_limited") {
+    return "The Groq free-tier limit was reached. Try again in a minute.";
+  }
+  return "Weir returned an error (" + status + (body && body.error ? ": " + body.error : "") + ").";
+}
+
+function tally(meta) {
+  totals.n += 1;
+  if (meta.cache_status === "hit") totals.hits += 1;
+  totals.cost += meta.cost_usd;
+  totals.counterfactual += meta.counterfactual_cost_usd;
+  $("s-n").textContent = String(totals.n);
+  $("s-hit").textContent = Math.round(100 * totals.hits / totals.n) + "%";
+  $("s-cost").textContent = money(totals.cost);
+  $("s-cf").textContent = money(totals.counterfactual);
+  const saved = totals.counterfactual > 0 ? 100 * (1 - totals.cost / totals.counterfactual) : 0;
+  $("s-saved").textContent = Math.round(saved) + "%";
+}
+
+function markStep(button, step, meta) {
+  const result = button.querySelector(".result");
+  button.classList.remove("pass", "other");
+  if (stepPassed(step.expect, meta)) {
+    button.classList.add("pass");
+    result.textContent = "As expected.";
+  } else {
+    const path = observedPath(meta);
+    button.classList.add("other");
+    result.textContent = "Got " + (PATH_TEXT[path] || path) + " instead"
+      + (path === "hit" ? ": it was already cached (run demo.py again for a fresh cache)." : ".");
+  }
+}
+
+function setBusy(busy) {
+  for (const b of document.querySelectorAll("button")) b.disabled = busy;
+}
+
+async function ask(question, button, step) {
+  question = question.trim();
+  if (!question) return;
+  const key = apiKey();
+  setBusy(true);
+  let status = 0;
+  let body = null;
+  try {
+    const response = await fetch("/v1/query", {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-API-Key": key },
+      body: JSON.stringify({ query: question, namespace: NAMESPACE }),
+    });
+    status = response.status;
+    body = await response.json().catch(() => null);
+  } catch (err) {
+    status = 0;
+  }
+  if (status === 200 && body && body.meta) {
+    renderAnswer(question, body);
+    tally(body.meta);
+    if (step) markStep(button, step, body.meta);
+  } else {
+    if (status === 401) sessionStorage.removeItem("weirKey");
+    const message = errorText(status, body);
+    renderError(question, message);
+    if (step) {
+      button.classList.remove("pass");
+      button.classList.add("other");
+      button.querySelector(".result").textContent = "Not answered: " + message;
+    }
+  }
+  setBusy(false);
+}
+
+$("ask").addEventListener("submit", (event) => {
+  event.preventDefault();
+  ask($("question").value);
+});
+
+fetch("/demo/questions.json")
+  .then((response) => response.json())
+  .then((data) => {
+    for (const step of data.steps) {
+      const button = el("button", "step");
+      button.type = "button";
+      button.dataset.step = String(step.n);
+      button.append(el("b", "", step.n + ". " + step.title), el("small", "", step.hint), el("span", "result"));
+      button.addEventListener("click", () => {
+        $("question").value = step.question;
+        ask(step.question, button, step);
+      });
+      $("steps").append(button);
+    }
+  })
+  .catch(() => $("steps").append(el("p", "", "The guided steps could not be loaded.")));
+</script>
+</body>
 </html>
