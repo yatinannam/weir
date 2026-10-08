@@ -21,7 +21,7 @@ It logs the **cost, counterfactual cost and latency of every request**, so each 
 > [!NOTE]
 > **Status: complete.** All six phases are built and measured: the gateway and baseline, the semantic cache, the model router, monitoring, load tests and a one-command demo. Every phase gate passed; one load-test check (the soak's memory reading) is recorded as incomplete.
 > - **Try it:** `uv run demo.py` (needs Docker Desktop and uv; a Groq key is optional).
-> - **Read it:** the [case study](docs/writeup.md) and the [five-minute demo script](docs/demo-script.md).
+> - **Read it:** the [case study](docs/writeup.md) (also [as a web page](https://claude.ai/artifact/Qz1NXbjKbN3NhgN8rM2nXB)) and the [five-minute demo script](docs/demo-script.md).
 > - Everything runs on free tiers.
 
 ## Contents
@@ -456,7 +456,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 
 | Doc | Contents |
 | :-- | :-- |
-| [`docs/writeup.md`](docs/writeup.md) | The case study: problem, design trade-offs, how quality was measured, results, what went wrong, resume bullets, interview talking points |
+| [`docs/writeup.md`](docs/writeup.md) | The case study: problem, design trade-offs, how quality was measured, results, what went wrong, resume bullets, interview talking points. Also [as a web page](https://claude.ai/artifact/Qz1NXbjKbN3NhgN8rM2nXB) |
 | [`docs/demo-script.md`](docs/demo-script.md) | The five-minute demo: preparation, a minute-by-minute script, what to do if something goes wrong |
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router, monitoring, load testing) |
