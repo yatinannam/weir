@@ -74,6 +74,7 @@ class QueryMeta(BaseModel):
     cost_usd: float
     counterfactual_cost_usd: float = 0.0   # the large model with no cache: the demo page's savings panel (Phase 6A)
     guard_refused: bool = False            # a look-alike at or above the threshold was refused by the entity guard
+    fallback: bool = False                 # the routed tier failed and the other tier answered (route stays as routed)
 
 
 class QueryResponse(BaseModel):
@@ -216,7 +217,8 @@ class Pipeline:
             meta=QueryMeta(request_id=str(row.request_id), cache_status=row.cache_status,
                            similarity=row.similarity, route=row.route, escalated=row.escalated, model=row.model,
                            latency_ms=row.latency_total_ms, cost_usd=float(row.cost_usd),
-                           counterfactual_cost_usd=float(row.counterfactual_cost_usd), guard_refused=guard_refused),
+                           counterfactual_cost_usd=float(row.counterfactual_cost_usd), guard_refused=guard_refused,
+                           fallback=outcome.fallback),
         )
 
     async def _lookup(self, namespace: str, normalized: str, versions: tuple[str, str],

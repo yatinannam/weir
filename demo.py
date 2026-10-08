@@ -38,6 +38,10 @@ SERVICES = ["postgres", "migrate", "hospital-rag", "weir"]
 HEALTH_TIMEOUT_S = 600
 KB_VERSION_WAIT_S = 35      # Weir re-reads KB versions every 30 s (configs/weir.yaml: rag.info_refresh_seconds)
 CACHE_WRITE_WAIT_S = 2      # cache writes are asynchronous: let step 1's answer land before step 2
+DOCKER_INFO_TIMEOUT_S = 30  # a wedged Docker Desktop must not hang the launcher
+DOCKER_RECHECK_S = 30       # while Weir isn't answering, check Docker itself this often
+# Child output is UTF-8 (Docker build logs, tqdm bars); Windows would otherwise decode it as cp1252 and crash.
+RUN_TEXT = {"capture_output": True, "text": True, "encoding": "utf-8", "errors": "replace"}
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -97,6 +101,8 @@ def observed_path(meta: dict) -> str:
         return "guard_refused"
     if meta.get("cache_status") == "bypass":
         return "bypass"
+    if meta.get("fallback"):                 # route is the router's decision; the other tier answered
+        return "fallback"
     if meta.get("escalated"):
         return "escalated"
     return str(meta.get("route"))
@@ -130,17 +136,39 @@ def tail(text: str, lines: int = 15) -> str:
     return "\n".join((text or "").strip().splitlines()[-lines:])
 
 
-def wait_healthy(http, sleep, out, timeout_s: int = HEALTH_TIMEOUT_S, every_s: int = 3) -> bool:
-    waited = 0
-    while waited < timeout_s:
+def docker_state(run) -> str:
+    """'ok', 'down', 'missing' or 'hung' for the Docker engine."""
+    try:
+        return "ok" if run(["docker", "info"], timeout=DOCKER_INFO_TIMEOUT_S, **RUN_TEXT).returncode == 0 else "down"
+    except FileNotFoundError:
+        return "missing"
+    except subprocess.TimeoutExpired:
+        return "hung"
+
+
+def wait_healthy(http, sleep, out, docker_ok: Callable[[], bool], clock: Callable[[], float],
+                 timeout_s: int = HEALTH_TIMEOUT_S, every_s: int = 3) -> str:
+    """'ok' once Weir is healthy, 'docker' if Docker stopped meanwhile, 'timeout' after timeout_s."""
+    start = clock()
+    unreachable_since = None
+    next_note = start + 30
+    while clock() - start < timeout_s:
         status, body = http("GET", f"{WEIR}/healthz")
         if status == 200 and isinstance(body, dict) and body.get("status") == "ok":
-            return True
+            return "ok"
+        if status == 0:                      # nothing answering: is Docker itself still up?
+            unreachable_since = unreachable_since if unreachable_since is not None else clock()
+            if clock() - unreachable_since >= DOCKER_RECHECK_S:
+                if not docker_ok():
+                    return "docker"
+                unreachable_since = clock()
+        else:
+            unreachable_since = None
         sleep(every_s)
-        waited += every_s
-        if waited % 30 == 0:
-            out(f"  still starting... ({waited} s)")
-    return False
+        if clock() >= next_note:
+            out(f"  still starting... ({int(clock() - start)} s)")
+            next_note += 30
+    return "timeout"
 
 
 def run_check(http, sleep, public_key: str, out) -> int:
@@ -174,21 +202,22 @@ def parse_args(argv):
     return p.parse_args(argv)
 
 
+DOCKER_PROBLEM = {"missing": "Docker isn't installed. Install Docker Desktop, then run this again.",
+                  "down": "Docker isn't running. Start Docker Desktop, then run this again.",
+                  "hung": "Docker isn't responding. Restart Docker Desktop, then run this again."}
+
+
 def main(argv=None, *, run=subprocess.run, http=http_json, opener=webbrowser.open, sleep=time.sleep,
-         root: Path = ROOT, out: Callable[[str], None] = print, environ: dict | None = None) -> int:
+         clock: Callable[[], float] = time.monotonic, root: Path = ROOT, out: Callable[[str], None] = print,
+         environ: dict | None = None) -> int:
     args = parse_args(argv)
     base = dict(os.environ if environ is None else environ)
-    try:
-        docker_ok = run(["docker", "info"], capture_output=True, text=True).returncode == 0
-    except FileNotFoundError:
-        out("Docker isn't installed. Install Docker Desktop, then run this again.")
-        return 1
-    if not docker_ok:
-        out("Docker isn't running. Start Docker Desktop, then run this again.")
+    state = docker_state(run)
+    if state != "ok":
+        out(DOCKER_PROBLEM[state])
         return 1
     if args.stop:
-        run(compose_command("stop", monitoring=True), cwd=root, env=compose_env(base, "stub"),
-            capture_output=True, text=True)
+        run(compose_command("stop", monitoring=True), cwd=root, env=compose_env(base, "stub"), **RUN_TEXT)
         out("Stopped. Start again with: uv run demo.py")
         return 0
 
@@ -198,7 +227,7 @@ def main(argv=None, *, run=subprocess.run, http=http_json, opener=webbrowser.ope
     env = read_env(root / ".env")
     mode = choose_mode(env, args.stub)
     out("Mode: " + ("the stub model (no Groq key needed)" if mode == "stub" else "real Groq models"))
-    compose = {"cwd": root, "env": compose_env(base, mode), "capture_output": True, "text": True}
+    compose = {"cwd": root, "env": compose_env(base, mode), **RUN_TEXT}
 
     services = SERVICES + (["prometheus", "grafana"] if args.dashboard else [])
     out("Starting the stack (the first run builds the images and takes a few minutes)...")
@@ -206,7 +235,11 @@ def main(argv=None, *, run=subprocess.run, http=http_json, opener=webbrowser.ope
     if proc.returncode != 0:
         out("docker compose failed:\n" + tail(proc.stderr))
         return 1
-    if not wait_healthy(http, sleep, out):
+    health = wait_healthy(http, sleep, out, docker_ok=lambda: docker_state(run) == "ok", clock=clock)
+    if health == "docker":
+        out("Docker stopped while Weir was starting. Start Docker Desktop, then run this again.")
+        return 1
+    if health != "ok":
         out(f"Weir didn't become healthy within {HEALTH_TIMEOUT_S // 60} minutes. Check: docker compose logs weir")
         return 1
 

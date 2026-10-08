@@ -90,6 +90,7 @@
 const NAMESPACE = "weir-general/en/public";
 const MODE_TEXT = { stub: "stub answers (no Groq key)", groq: "real answers (Groq)" };
 const PATH_TEXT = { hit: "a cache hit", guard_refused: "the cache refusing a look-alike", bypass: "the cache skipped",
+                    fallback: "a fallback: the routed model was unavailable, so the other one answered",
                     escalated: "the small model, escalated to the large one", small: "the small model",
                     large: "the large model" };
 const totals = { n: 0, hits: 0, cost: 0, counterfactual: 0 };
@@ -117,6 +118,7 @@ function observedPath(meta) {
   if (meta.cache_status === "hit") return "hit";
   if (meta.guard_refused) return "guard_refused";
   if (meta.cache_status === "bypass") return "bypass";
+  if (meta.fallback) return "fallback";      // route is the router's decision; the other tier answered
   if (meta.escalated) return "escalated";
   return meta.route;
 }
@@ -131,7 +133,8 @@ function badges(meta) {
   const out = [];
   if (meta.cache_status === "bypass") out.push(["b-skip", "CACHE SKIPPED"]);
   if (meta.guard_refused) out.push(["b-guard", "CACHE REFUSED"]);
-  if (meta.escalated) out.push(["b-large", "SMALL → LARGE"]);
+  if (meta.fallback) out.push(["b-guard", meta.route === "large" ? "FALLBACK TO SMALL" : "FALLBACK TO LARGE"]);
+  else if (meta.escalated) out.push(["b-large", "SMALL → LARGE"]);
   else if (meta.route === "small") out.push(["b-small", "SMALL MODEL"]);
   else if (meta.route === "large") out.push(["b-large", "LARGE MODEL"]);
   return out;
@@ -158,6 +161,9 @@ function renderAnswer(question, body) {
   card.append(el("div", "q", question), el("div", "a", body.answer));
   if (body.sources && body.sources.length) {
     card.append(el("div", "src", "Sources: " + body.sources.map((s) => s.title).join(", ")));
+  }
+  if (mode === "stub") {
+    card.append(el("div", "src", "Stub answer: the opening of the top document, not a model's reply."));
   }
   const line = el("div", "meta");
   for (const [cls, label] of badges(meta)) line.append(el("span", "badge " + cls, label));

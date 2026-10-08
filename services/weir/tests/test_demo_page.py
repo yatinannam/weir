@@ -1,4 +1,5 @@
 """Phase 6A demo page: the two static routes and the page's own guarantees."""
+import json
 import re
 from pathlib import Path
 
@@ -62,3 +63,14 @@ def test_page_shows_every_badge_mode_and_error_message():  # Review Focus 4
 
 def test_page_renders_server_text_safely():
     assert "innerHTML" not in page_html()          # answers and errors go through textContent only
+
+
+def test_page_marks_fallback_answers_and_stub_answers():  # Phase 6A final review I2 and M9
+    html = page_html()
+    assert "meta.fallback" in html and "FALLBACK TO SMALL" in html and "FALLBACK TO LARGE" in html
+    assert "Stub answer" in html                   # stub cards quote a document; say so on every card
+
+
+def test_look_alike_hint_holds_in_stub_and_real_mode():  # M9: the stub card can't show the weekend price
+    steps = json.loads((DEMO / "questions.json").read_text(encoding="utf-8"))["steps"]
+    assert "₹" not in steps[2]["hint"]

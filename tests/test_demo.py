@@ -172,3 +172,63 @@ def test_stop_stops_every_service(tmp_path):
     run = FakeRun()
     code, _, _ = run_main(project(tmp_path), ["--stop"], run=run)
     assert code == 0 and run.calls[-1][0] == ["docker", "compose", "--profile", "monitoring", "stop"]
+
+
+# --- Phase 6A final review fixes ----------------------------------------------------------------------
+
+def test_a_fallback_answer_never_passes_as_the_routed_tier():  # I2: the Groq limit must not earn a tick
+    meta = {"cache_status": "miss", "route": "large", "fallback": True}
+    assert demo.observed_path(meta) == "fallback" and not demo.step_passed("large", meta)
+
+
+def test_every_command_decodes_its_output_as_utf8(tmp_path):  # I1
+    run = FakeRun()
+    demo.main([], run=run, http=FakeHttp(namespaces=()), opener=lambda url: True, sleep=lambda s: None,
+              root=project(tmp_path), out=lambda line: None, environ={})
+    assert run.calls and all(kw.get("encoding") == "utf-8" and kw.get("errors") == "replace" for _, kw in run.calls)
+
+
+def test_utf8_progress_bars_do_not_break_output_capture():  # I1: tqdm's partial blocks crashed cp1252 decoding
+    import subprocess
+    import sys
+
+    proc = subprocess.run([sys.executable, "-c", "import sys; sys.stderr.buffer.write(bytes([0xe2, 0x96, 0x8f]))"],
+                          **demo.RUN_TEXT)
+    assert proc.stderr == "▏"
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+def test_docker_stopping_mid_start_is_reported_quickly(tmp_path):  # I3, Review Focus 1
+    class DownHttp(FakeHttp):
+        def __call__(self, method, url, headers=None, body=None, timeout=10):
+            return (0, None) if url.endswith("/healthz") else super().__call__(method, url, headers, body, timeout)
+
+    infos = iter([0, 1])                                       # docker info: up at the start, then gone
+
+    def run(cmd, **kwargs):
+        return SimpleNamespace(returncode=next(infos) if cmd == ["docker", "info"] else 0, stdout="", stderr="")
+
+    clock, lines = FakeClock(), []
+    code = demo.main([], run=run, http=DownHttp(), opener=lambda url: True, sleep=clock.sleep, clock=clock,
+                     root=project(tmp_path), out=lines.append, environ={})
+    assert code == 1 and any("Docker stopped" in line for line in lines) and clock.now <= 60
+
+
+def test_docker_not_responding_says_so(tmp_path):  # I3
+    import subprocess
+
+    def run(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(cmd, 30)
+
+    code, lines, opened = run_main(project(tmp_path), [], run=run)
+    assert code == 1 and "isn't responding" in lines[0] and not opened

@@ -541,3 +541,11 @@ async def test_guard_refused_only_for_a_look_alike_at_or_above_the_threshold():
     assert refused.meta.similarity == pytest.approx(1.0)
     for resp in (first, unrelated, hit, skipped):
         assert resp.meta.guard_refused is False
+
+
+async def test_meta_flags_an_answer_from_the_fallback_tier():  # Phase 6A final review I2
+    # route stays the router's decision; without the flag the demo page labelled a fallback as the routed tier
+    fell_back = await harness(fake_rag(responses={SMALL: LIMITED}), **ROUTER_ON).p.handle(ask("When can I visit?"))
+    normal = await harness(fake_rag(), **ROUTER_ON).p.handle(ask("When can I visit?"))
+    assert fell_back.meta.route == "small" and fell_back.meta.model == LARGE and fell_back.meta.fallback is True
+    assert normal.meta.route == "small" and normal.meta.fallback is False
