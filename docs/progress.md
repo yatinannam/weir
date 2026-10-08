@@ -358,3 +358,11 @@ Full Weir with the final settings, against the same-day-style baseline v4:
   The 12 minors are backlog M41–M44 (M44: hospital-rag's port has no Host check, worth fixing now that strangers run it).
 - **Suites:** weir 288, hospital-rag 47, eval 160, launcher 23; CI runs all four plus `promtool` and `k6 inspect`.
 - **Next:** Phase 6B (write-up and five-minute demo script).
+
+## 2026-10-08: Phase 6B (case study and demo script)
+
+- Agreed with the user: the write-up is an engineering case study for interviewers (D71); the demo covers the page's five steps, the dashboard and the load-test results, without the kill switch (D72). Bounded path: a short outline in chat, approved, no spec or plan document.
+- **`docs/writeup.md`:** the problem, design and trade-offs (entity guard, grounded-only caching, the strict router bar, fallback, counterfactual cost), how quality was measured, results (four-way and under load), what went wrong (37% wrong hits without the guard; the outage that cached stand-in answers, D40; model drift; the 100 req/s collapse; checks that passed without evidence; tooling near-misses), limitations, next steps, resume bullets and interview talking points. Every number traced to its results document before committing; two descriptions corrected in that pass (the router's features and the cache bypass rules).
+- **`docs/demo-script.md`:** preparation (a `--dashboard --check` run with real answers, a stub fallback), a minute-by-minute table, what to do if something goes wrong, likely questions.
+- **Dry run on the stub stack:** `uv run demo.py --stub --dashboard --check` passed all five steps; Grafana and the demo page answered.
+- **Next:** optional Phase 6C (a learned router); otherwise the backlog.

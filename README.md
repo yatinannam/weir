@@ -21,7 +21,7 @@ It logs the **cost, counterfactual cost and latency of every request**, so each 
 > [!NOTE]
 > **Status:**
 > - **Done:** Phases 0–5: gateway and baseline, semantic cache, the model router (tuned offline, measured live, every exit-gate check passed), monitoring (Prometheus metrics, 8 tested alerts, a Grafana dashboard over every run), and k6 load tests (31 runs; 4 of 5 checks passed and the soak's memory check is incomplete).
-> - **Phase 6:** 6A done: `uv run demo.py` starts everything and opens a demo page that shows how Weir handled each question. Next: 6B (write-up and demo script).
+> - **Phase 6:** 6A and 6B done: `uv run demo.py` starts everything and opens a demo page; the [case study](docs/writeup.md) and the [five-minute demo script](docs/demo-script.md) tell the story. Optional next: 6C (a learned router).
 > - Everything runs on free tiers.
 
 ## Contents
@@ -455,10 +455,12 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 
 | Doc | Contents |
 | :-- | :-- |
+| [`docs/writeup.md`](docs/writeup.md) | The case study: problem, design trade-offs, how quality was measured, results, what went wrong, resume bullets, interview talking points |
+| [`docs/demo-script.md`](docs/demo-script.md) | The five-minute demo: preparation, a minute-by-minute script, what to do if something goes wrong |
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router, monitoring, load testing) |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | Task-by-task implementation plans |
-| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D70) |
+| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D72) |
 | [`docs/progress.md`](docs/progress.md) | Phase-by-phase log |
 | [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary, load tests |
 | [`docs/backlog.md`](docs/backlog.md) | Deferred findings and ideas |
@@ -480,4 +482,4 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 | 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | Done |
 | 4 | Prometheus metrics, Grafana dashboard, alerts | Done |
 | 5 | k6 load tests (cold/warm, ramp, spike, soak, failure injection), ablation under load | Done |
-| 6 | One-command demo and demo page (6A, done), write-up and demo script (6B), optional learned router (6C) | In progress |
+| 6 | One-command demo and demo page (6A, done), case study and demo script (6B, done), optional learned router (6C) | In progress |

@@ -4,6 +4,8 @@ The record of everything planned, decided and measured for Weir. Start here.
 
 | Doc | What it is |
 | --- | --- |
+| [writeup.md](writeup.md) | The case study: start here for the story, results, lessons and interview talking points |
+| [demo-script.md](demo-script.md) | The five-minute demo script |
 | [weir-original.md](weir-original.md) | The original project spec: what Weir is and why |
 | [superpowers/specs/2026-09-30-weir-design.md](superpowers/specs/2026-09-30-weir-design.md) | The implementation design: how it is built. Where it disagrees with the original, it wins. |
 | [superpowers/specs/2026-10-02-phase-2-semantic-cache-design.md](superpowers/specs/2026-10-02-phase-2-semantic-cache-design.md) | Phase 2 addendum: semantic cache details, threshold sweep, cache eval |
