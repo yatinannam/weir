@@ -21,7 +21,7 @@ It logs the **cost, counterfactual cost and latency of every request**, so each 
 > [!NOTE]
 > **Status:**
 > - **Done:** Phases 0–5: gateway and baseline, semantic cache, the model router (tuned offline, measured live, every exit-gate check passed), monitoring (Prometheus metrics, 8 tested alerts, a Grafana dashboard over every run), and k6 load tests (31 runs; 4 of 5 checks passed and the soak's memory check is incomplete).
-> - **Next:** Phase 6 (demo chat page, write-up).
+> - **Phase 6:** 6A done: `uv run demo.py` starts everything and opens a demo page that shows how Weir handled each question. Next: 6B (write-up and demo script).
 > - Everything runs on free tiers.
 
 ## Contents
@@ -274,12 +274,15 @@ services/
 │       ├── router/         features, rules v1, grounding check            (Phase 3)
 │       ├── rag/            hospital-rag HTTP adapter
 │       ├── metrics/        async request-log writer, Prometheus metrics            (Phase 4)
+│       ├── demo/           the demo page and its five guided questions             (Phase 6A)
 │       └── llm/            price table (effective-dated)
 └── hospital-rag/       the RAG service Weir wraps: ingest, /retrieve, /generate, stub LLM
 eval/                   eval set (158 questions), key-fact checks, LLM judge, runner,
                         threshold sweep, workload replay, load-test orchestrator and report;
                         reports/ holds every raw result
 loadtest/               k6 scripts, request files (no keys), Toxiproxy config; results/ holds every run
+demo.py                 one-command demo launcher (uv run demo.py); tests/ holds its tests
+scripts/                demo_smoke.py: live Playwright check of the demo page and its screenshot
 kb/                     fictional hospital knowledge base (40 Markdown docs, public + staff)
 configs/                weir.yaml (every threshold), ablations/, entities.yaml, tenants.yaml, prices.yaml
 monitoring/             prometheus.yml, alert rules and their tests, Grafana provisioning, dashboard builder,
@@ -290,9 +293,26 @@ docs/                   specs, plans, decision log, progress log, results, backl
 
 ## Quick start
 
-**Prerequisites:**
-- Docker Desktop and [uv](https://docs.astral.sh/uv/)
-- a free [Groq API key](https://console.groq.com/keys)
+**Prerequisites:** Docker Desktop (running) and [uv](https://docs.astral.sh/uv/). A free [Groq API key](https://console.groq.com/keys) is optional.
+
+```bash
+uv run demo.py
+```
+
+That one command creates `.env` with fresh keys, starts the stack, loads the knowledge base, empties the demo cache and opens the demo page at <http://127.0.0.1:8000/demo>. Without a Groq key it uses the stub model: retrieval, the cache, the guard and the router are real, the generated answers are simulated, and the page says so. Add your key to `.env` as `GROQ_API_KEY` and run it again for real model answers. `uv run demo.py --stop` stops everything; `--dashboard` also starts Grafana; `--check` runs the guided story without a browser.
+
+<p align="center">
+  <img src="docs/images/demo.png" alt="The Weir demo page with real Groq answers: answer cards with cache and model badges, a guided five-step sidebar and a savings panel" width="900">
+</p>
+
+The guided sidebar walks the five-minute story, shown above with real Groq answers:
+1. **A weekday parking question:** a miss, answered by the large model (₹40).
+2. **The same question reworded:** a cache hit at similarity 0.98, in 23 ms, at no cost.
+3. **The weekend look-alike:** similarity 0.96, but the entity guard refuses the cached weekday answer, and the model answers ₹60.
+4. **An easy question:** the small model.
+5. **A hard, two-part question:** the large model.
+
+### Manual setup
 
 ```bash
 cp .env.example .env
@@ -328,7 +348,9 @@ curl -s http://127.0.0.1:8000/v1/query \
     "escalated": false,
     "model": "openai/gpt-oss-120b",
     "latency_ms": 7,
-    "cost_usd": 0.0
+    "cost_usd": 0.0,
+    "counterfactual_cost_usd": 0.00009,
+    "guard_refused": false
   }
 }
 ```
@@ -420,9 +442,10 @@ The orchestrator refuses to run unless hospital-rag reports the stub model, and 
 
 ```bash
 docker compose up -d postgres                       # DB tests use 127.0.0.1:5432/weir_test
-cd services/weir         && uv run pytest -q        # 274 tests
+cd services/weir         && uv run pytest -q        # 285 tests
 cd services/hospital-rag && uv run pytest -q        #  47 tests
-cd eval                  && uv run pytest -q        # 149 tests
+cd eval                  && uv run pytest -q        # 160 tests
+uv run --no-project --python 3.12 --with pytest pytest -q tests   # 18 launcher tests (demo.py)
 ```
 
 CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A fourth job runs `promtool check config`, the alert-rule unit tests and `k6 inspect` on the four load-test scripts.
@@ -434,7 +457,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router, monitoring, load testing) |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | Task-by-task implementation plans |
-| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D67) |
+| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D69) |
 | [`docs/progress.md`](docs/progress.md) | Phase-by-phase log |
 | [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary, load tests |
 | [`docs/backlog.md`](docs/backlog.md) | Deferred findings and ideas |
@@ -456,4 +479,4 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 | 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | Done |
 | 4 | Prometheus metrics, Grafana dashboard, alerts | Done |
 | 5 | k6 load tests (cold/warm, ramp, spike, soak, failure injection), ablation under load | Done |
-| 6 | Demo chat page, write-up, optional learned router | Planned |
+| 6 | One-command demo and demo page (6A, done), write-up and demo script (6B), optional learned router (6C) | In progress |
