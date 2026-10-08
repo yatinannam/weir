@@ -35,6 +35,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Launcher tests (demo.py)
+        run: uv run --no-project --python 3.12 --with pytest pytest -q tests
       - name: promtool check config
         run: >-
           docker run --rm -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" --entrypoint promtool
