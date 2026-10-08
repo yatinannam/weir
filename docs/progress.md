@@ -346,3 +346,15 @@ Full Weir with the final settings, against the same-day-style baseline v4:
   - Task 4: `uv run demo.py`, a standard-library launcher (flags `--stub`, `--keep-cache`, `--dashboard`, `--check`, `--no-browser`, `--stop`). 18 launcher tests, run in CI.
   - Task 5: the guided story verified live (`uv run demo.py --stub --check`, fresh demo cache): step 1 miss (large), step 2 hit at similarity 0.984, step 3 refused by the guard at 0.964, step 4 small, step 5 large. All five passed first time; the planned fallbacks were not needed. On a warm cache (`--keep-cache`) steps 1, 3, 4 and 5 report "got hit" and the check exits 1, as intended.
   - Task 6: `scripts/demo_smoke.py` (Playwright) clicks the five steps and checks every badge, tick and the savings panel, the key leaving the address bar, a repeated step reporting "already cached", and three error paths (no key: the page asks; a wrong key: "The key was rejected"; a simulated Groq rate limit). Passed in stub mode, then with real Groq models (5 model calls, user-approved): weekday ₹40 from the large model (1.35 s), the reworded question from the cache (23 ms, $0), the weekend look-alike refused by the guard and answered ₹60, orthopedics on the small model, the two-part question on the large model. The README screenshot `docs/images/demo.png` shows the real-answer run.
+
+## 2026-10-08: Phase 6A closed
+
+- **Task 7:** README quick start leads with `uv run demo.py` and the real-answer screenshot; the API example shows the new `meta` fields; repository layout and test counts updated; decisions D68–D70; backlog M41–M44.
+- **Final review** (fresh reviewer, code from `37bd79a`): 0 Critical, 3 Important, 12 Minor. It confirmed `guard_refused` is exact, the page has no injection path, the key never reaches printed output and the D55 mode pin holds on every Compose call. Fixed test-first:
+  - **Windows decoding (I1):** the launcher decoded Docker's output as cp1252, so a first build's progress bars could crash its reader and lose Compose's error text. Every command now decodes UTF-8.
+  - **Fallback answers (I2, D70):** under the Groq limit the page would have labelled a small-model answer LARGE MODEL and ticked the step. Weir's response now carries `fallback`, the page shows FALLBACK TO SMALL/LARGE, and `--check` fails it. Verified live with the stub's rate-limit fault.
+  - **Docker dying mid-start (I3):** the launcher re-checks Docker after 30 s of silence and says so, instead of waiting 10 minutes; a hung `docker info` times out.
+  - **Stub-mode trap card (re-graded up):** stub cards now say they quote the top document, and the step 3 hint no longer names a price the stub can't show.
+  The 12 minors are backlog M41–M44 (M44: hospital-rag's port has no Host check, worth fixing now that strangers run it).
+- **Suites:** weir 288, hospital-rag 47, eval 160, launcher 23; CI runs all four plus `promtool` and `k6 inspect`.
+- **Next:** Phase 6B (write-up and five-minute demo script).

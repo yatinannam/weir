@@ -350,7 +350,8 @@ curl -s http://127.0.0.1:8000/v1/query \
     "latency_ms": 7,
     "cost_usd": 0.0,
     "counterfactual_cost_usd": 0.00009,
-    "guard_refused": false
+    "guard_refused": false,
+    "fallback": false
   }
 }
 ```
@@ -442,10 +443,10 @@ The orchestrator refuses to run unless hospital-rag reports the stub model, and 
 
 ```bash
 docker compose up -d postgres                       # DB tests use 127.0.0.1:5432/weir_test
-cd services/weir         && uv run pytest -q        # 285 tests
+cd services/weir         && uv run pytest -q        # 288 tests
 cd services/hospital-rag && uv run pytest -q        #  47 tests
 cd eval                  && uv run pytest -q        # 160 tests
-uv run --no-project --python 3.12 --with pytest pytest -q tests   # 18 launcher tests (demo.py)
+uv run --no-project --python 3.12 --with pytest pytest -q tests   # 23 launcher tests (demo.py)
 ```
 
 CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A fourth job runs `promtool check config`, the alert-rule unit tests and `k6 inspect` on the four load-test scripts.
@@ -457,7 +458,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router, monitoring, load testing) |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | Task-by-task implementation plans |
-| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D69) |
+| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D70) |
 | [`docs/progress.md`](docs/progress.md) | Phase-by-phase log |
 | [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary, load tests |
 | [`docs/backlog.md`](docs/backlog.md) | Deferred findings and ideas |
