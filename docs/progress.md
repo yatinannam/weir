@@ -339,3 +339,9 @@ Full Weir with the final settings, against the same-day-style baseline v4:
 - Phase 6 split into three sub-projects (D62): 6A one-command demo and demo page, 6B write-up and demo script, 6C learned router if time allows.
 - Agreed with the user: the page is local only, served by Weir (D63); the command works without a Groq key (D64); guided demo buttons and a savings panel (D65); a static page plus a standard-library launcher, with the key in the URL fragment (D66); layout chosen from three mockups: answers plus a guided sidebar (D67).
 - Design presented in 4 sections (pieces and flow, page behaviour, launcher, guided questions and testing), each approved. Wrote the addendum: `superpowers/specs/2026-10-08-phase-6a-demo-page-design.md`. Work is on branch `phase-6`.
+- **Phase 6A build (2026-10-08):**
+  - Task 1: Weir's response `meta` gains `counterfactual_cost_usd` and `guard_refused` (additive). weir suite 278.
+  - Task 2: Weir serves `/demo` and `/demo/questions.json` (no key, out of the API docs, a Content-Security-Policy of `default-src 'self'`). weir 282.
+  - Task 3: the demo page (layout B): answer cards with path badges, the guided sidebar with ticks, the savings panel, plain error cards; the key moves from the URL fragment to `sessionStorage` and leaves the address bar; text is inserted with `textContent` only. weir 285; the script passes `node --check`.
+  - Task 4: `uv run demo.py`, a standard-library launcher (flags `--stub`, `--keep-cache`, `--dashboard`, `--check`, `--no-browser`, `--stop`). 18 launcher tests, run in CI.
+  - Task 5: the guided story verified live (`uv run demo.py --stub --check`, fresh demo cache): step 1 miss (large), step 2 hit at similarity 0.984, step 3 refused by the guard at 0.964, step 4 small, step 5 large. All five passed first time; the planned fallbacks were not needed. On a warm cache (`--keep-cache`) steps 1, 3, 4 and 5 report "got hit" and the check exits 1, as intended.
