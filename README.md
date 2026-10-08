@@ -19,14 +19,14 @@ Weir sits in front of an existing RAG service and decides, for every request:
 It logs the **cost, counterfactual cost and latency of every request**, so each saving is measured, not assumed. Weir is not a retriever, vector database or LLM framework. It wraps a RAG service it does not own.
 
 > [!NOTE]
-> **Status:**
-> - **Done:** Phases 0–5: gateway and baseline, semantic cache, the model router (tuned offline, measured live, every exit-gate check passed), monitoring (Prometheus metrics, 8 tested alerts, a Grafana dashboard over every run), and k6 load tests (31 runs; 4 of 5 checks passed and the soak's memory check is incomplete).
-> - **Phase 6:** 6A and 6B done: `uv run demo.py` starts everything and opens a demo page; the [case study](docs/writeup.md) and the [five-minute demo script](docs/demo-script.md) tell the story. Optional next: 6C (a learned router).
+> **Status: complete.** All six phases are built and measured: the gateway and baseline, the semantic cache, the model router, monitoring, load tests and a one-command demo. Every phase gate passed; one load-test check (the soak's memory reading) is recorded as incomplete.
+> - **Try it:** `uv run demo.py` (needs Docker Desktop and uv; a Groq key is optional).
+> - **Read it:** the [case study](docs/writeup.md) and the [five-minute demo script](docs/demo-script.md).
 > - Everything runs on free tiers.
 
 ## Contents
 
-[Results](#results) · [Architecture](#architecture) · [Request lifecycle](#request-lifecycle) · [Semantic cache](#semantic-cache) · [Router](#router-phase-3) · [Monitoring](#monitoring-phase-4) · [Stack](#stack) · [Quick start](#quick-start) · [API](#api) · [Configuration](#configuration) · [Evaluation](#evaluation) · [Tests](#tests) · [Docs](#documentation) · [Limitations](#limitations) · [Roadmap](#roadmap)
+[Results](#results) · [Quick start](#quick-start) · [Architecture](#architecture) · [Request lifecycle](#request-lifecycle) · [Semantic cache](#semantic-cache) · [Router](#router) · [Monitoring](#monitoring) · [Stack](#stack) · [Layout](#repository-layout) · [API](#api) · [Configuration](#configuration) · [Evaluation](#evaluation) · [Tests](#tests) · [Docs](#documentation) · [Limitations](#limitations) · [Roadmap](#roadmap)
 
 ---
 
@@ -87,6 +87,73 @@ Phase 5 drove Weir with k6 at a constant arrival rate. Retrieval, embeddings, th
 <p align="center">
   <img src="docs/results/loadtest-ramp.png" alt="p95 latency against request rate for full Weir and the baseline, log scale, with each run shown faintly" width="720">
 </p>
+
+## Quick start
+
+**Prerequisites:** Docker Desktop (running) and [uv](https://docs.astral.sh/uv/). A free [Groq API key](https://console.groq.com/keys) is optional.
+
+```bash
+uv run demo.py
+```
+
+That one command creates `.env` with fresh keys, starts the stack, loads the knowledge base, empties the demo cache and opens the demo page at <http://127.0.0.1:8000/demo>. Without a Groq key it uses the stub model: retrieval, the cache, the guard and the router are real, the generated answers are simulated, and the page says so. Add your key to `.env` as `GROQ_API_KEY` and run it again for real model answers. `uv run demo.py --stop` stops everything; `--dashboard` also starts Grafana; `--check` runs the guided story without a browser.
+
+<p align="center">
+  <img src="docs/images/demo.png" alt="The Weir demo page with real Groq answers: answer cards with cache and model badges, a guided five-step sidebar and a savings panel" width="900">
+</p>
+
+The guided sidebar walks the five-minute story, shown above with real Groq answers:
+1. **A weekday parking question:** a miss, answered by the large model (₹40).
+2. **The same question reworded:** a cache hit at similarity 0.98, in 23 ms, at no cost.
+3. **The weekend look-alike:** similarity 0.96, but the entity guard refuses the cached weekday answer, and the model answers ₹60.
+4. **An easy question:** the small model.
+5. **A hard, two-part question:** the large model.
+
+### Manual setup
+
+```bash
+cp .env.example .env
+# Fill in GROQ_API_KEY, then generate three tenant keys (WEIR_KEY_PUBLIC / _STAFF / _ADMIN):
+uv run python -c "import secrets; print(secrets.token_urlsafe(24))"
+
+docker compose up -d --build                     # postgres, migrations, hospital-rag, weir
+docker compose exec hospital-rag python -m hospital_rag.ingest --kb /app/kb
+```
+
+> [!TIP]
+> **On Windows:**
+> - In Git Bash, prefix the `exec` command with `MSYS_NO_PATHCONV=1`.
+> - Use `127.0.0.1` rather than `localhost`, which can stall on IPv6.
+
+Ask the same question twice. The second time it is a cache hit:
+
+```bash
+curl -s http://127.0.0.1:8000/v1/query \
+  -H "X-API-Key: $WEIR_KEY_PUBLIC" -H 'content-type: application/json' \
+  -d '{"query": "What are the ICU visiting hours?", "namespace": "weir-general/en/public"}'
+```
+
+```json
+{
+  "answer": "The ICU can be visited twice daily: 11 am – 11:30 am and 5 pm – 6 pm…",
+  "sources": [{ "id": "pub-visiting-hours-icu", "title": "ICU visiting hours" }],
+  "meta": {
+    "request_id": "…",
+    "cache_status": "hit",
+    "similarity": 1.0,
+    "route": "none",
+    "escalated": false,
+    "model": "openai/gpt-oss-120b",
+    "latency_ms": 7,
+    "cost_usd": 0.0,
+    "counterfactual_cost_usd": 0.00009,
+    "guard_refused": false,
+    "fallback": false
+  }
+}
+```
+
+Interactive API docs are at <http://127.0.0.1:8000/docs>. Set `LLM_MODE=stub` in `.env` to run without Groq: the stub answers from the first retrieved passage after a per-model delay fitted to measured Groq latencies (`STUB_TIMING=realistic`, the default; `fixed` gives a constant delay).
 
 ## Architecture
 
@@ -164,7 +231,7 @@ Every response carries `X-Request-ID`, which is also the primary key of its log 
 | **Write-back** | An answer is stored in the background only if it is grounded and cited, retrieval was confident, it isn't "couldn't find" and it wasn't truncated, partial or carrying personal data. |
 | **Invalidation** | TTL of 24 h. A `kb_version` change (a content hash of the documents) is picked up by the next miss. `DELETE /v1/cache` purges by namespace, source document or entry. A thumbs-down evicts the entry that served it. |
 
-## Router (Phase 3)
+## Router
 
 ```mermaid
 flowchart TD
@@ -200,14 +267,15 @@ flowchart TD
   - the small route no worse than the large model on the same questions
 - **Tuned values** (D37, D39): small only if the question is at most **16 tokens**, a single question with no reasoning words, and its top retrieval score is at least **0.86**; grounding `min_overlap` **0.3**. The live router matched the simulation almost exactly: 12.7% routed small vs 13% predicted, −7% vs −6%.
 
-## Monitoring (Phase 4)
+## Monitoring
 
 <p align="center">
   <img src="docs/images/dashboard-headline.png" alt="Weir Grafana dashboard: headline numbers and the configuration comparison" width="900">
 </p>
 
 ```bash
-docker compose --profile monitoring up -d       # adds Prometheus and Grafana to the stack
+uv run demo.py --dashboard                      # the stack plus Prometheus and Grafana
+docker compose --profile monitoring up -d       # or add them to a stack you started by hand
 ```
 
 - **Grafana:** <http://127.0.0.1:3000>. The user is `admin` and the password is `GRAFANA_ADMIN_PASSWORD` from `.env`.
@@ -261,7 +329,7 @@ The series the alerts use exist at 0 from startup, so the first fallback or erro
 | Eval judge | `qwen/qwen3.8-27b` on Groq | A different model family from the models under test |
 | Monitoring | Prometheus (`prom/prometheus:v2.55.1`), Grafana OSS (`11.3.0`), `prometheus-client` | Standard, free and self-hosted; provisioned from files, so there's no clicking to set up |
 | Load testing | k6 (`grafana/k6:0.54.0`), Toxiproxy (`2.9.0`), a stub model with per-model timing fitted to measured Groq latencies | Repeatable and free: no model quota spent; faults injected per model and on Weir's database link |
-| Packaging and CI | Docker Compose (with profiles), GitHub Actions (3 test suites against pgvector, `promtool` config and rule tests, `k6 inspect`) | — |
+| Packaging and CI | Docker Compose (with profiles), a standard-library launcher (`demo.py`), GitHub Actions (3 test suites against pgvector, launcher tests, `promtool` config and rule tests, `k6 inspect`) | — |
 
 ## Repository layout
 
@@ -290,73 +358,6 @@ monitoring/             prometheus.yml, alert rules and their tests, Grafana pro
 db/migrations/          001 init · 002 cache · 003 router · 004 monitoring (read-only user)
 docs/                   specs, plans, decision log, progress log, results, backlog
 ```
-
-## Quick start
-
-**Prerequisites:** Docker Desktop (running) and [uv](https://docs.astral.sh/uv/). A free [Groq API key](https://console.groq.com/keys) is optional.
-
-```bash
-uv run demo.py
-```
-
-That one command creates `.env` with fresh keys, starts the stack, loads the knowledge base, empties the demo cache and opens the demo page at <http://127.0.0.1:8000/demo>. Without a Groq key it uses the stub model: retrieval, the cache, the guard and the router are real, the generated answers are simulated, and the page says so. Add your key to `.env` as `GROQ_API_KEY` and run it again for real model answers. `uv run demo.py --stop` stops everything; `--dashboard` also starts Grafana; `--check` runs the guided story without a browser.
-
-<p align="center">
-  <img src="docs/images/demo.png" alt="The Weir demo page with real Groq answers: answer cards with cache and model badges, a guided five-step sidebar and a savings panel" width="900">
-</p>
-
-The guided sidebar walks the five-minute story, shown above with real Groq answers:
-1. **A weekday parking question:** a miss, answered by the large model (₹40).
-2. **The same question reworded:** a cache hit at similarity 0.98, in 23 ms, at no cost.
-3. **The weekend look-alike:** similarity 0.96, but the entity guard refuses the cached weekday answer, and the model answers ₹60.
-4. **An easy question:** the small model.
-5. **A hard, two-part question:** the large model.
-
-### Manual setup
-
-```bash
-cp .env.example .env
-# Fill in GROQ_API_KEY, then generate three tenant keys (WEIR_KEY_PUBLIC / _STAFF / _ADMIN):
-uv run python -c "import secrets; print(secrets.token_urlsafe(24))"
-
-docker compose up -d --build                     # postgres, migrations, hospital-rag, weir
-docker compose exec hospital-rag python -m hospital_rag.ingest --kb /app/kb
-```
-
-> [!TIP]
-> **On Windows:**
-> - In Git Bash, prefix the `exec` command with `MSYS_NO_PATHCONV=1`.
-> - Use `127.0.0.1` rather than `localhost`, which can stall on IPv6.
-
-Ask the same question twice. The second time it is a cache hit:
-
-```bash
-curl -s http://127.0.0.1:8000/v1/query \
-  -H "X-API-Key: $WEIR_KEY_PUBLIC" -H 'content-type: application/json' \
-  -d '{"query": "What are the ICU visiting hours?", "namespace": "weir-general/en/public"}'
-```
-
-```json
-{
-  "answer": "The ICU can be visited twice daily: 11 am – 11:30 am and 5 pm – 6 pm…",
-  "sources": [{ "id": "pub-visiting-hours-icu", "title": "ICU visiting hours" }],
-  "meta": {
-    "request_id": "…",
-    "cache_status": "hit",
-    "similarity": 1.0,
-    "route": "none",
-    "escalated": false,
-    "model": "openai/gpt-oss-120b",
-    "latency_ms": 7,
-    "cost_usd": 0.0,
-    "counterfactual_cost_usd": 0.00009,
-    "guard_refused": false,
-    "fallback": false
-  }
-}
-```
-
-Interactive API docs are at <http://127.0.0.1:8000/docs>. Set `LLM_MODE=stub` in `.env` to run without Groq: the stub answers from the first retrieved passage after a per-model delay fitted to measured Groq latencies (`STUB_TIMING=realistic`, the default; `fixed` gives a constant delay).
 
 ## API
 
@@ -449,7 +450,7 @@ cd eval                  && uv run pytest -q        # 160 tests
 uv run --no-project --python 3.12 --with pytest pytest -q tests   # 23 launcher tests (demo.py)
 ```
 
-CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A fourth job runs `promtool check config`, the alert-rule unit tests and `k6 inspect` on the four load-test scripts.
+CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A fourth job runs the launcher tests, `promtool check config`, the alert-rule unit tests and `k6 inspect` on the four load-test scripts.
 
 ## Documentation
 
@@ -468,7 +469,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 ## Limitations
 
 - **Small, synthetic benchmark.** There are 158 questions and 24 trap pairs on a fictional KB. "Zero wrong hits" is strong evidence for this set, not a guarantee.
-- **Hit rate depends on the workload.** 93% is for a 73.7%-repeat replay; a cold pass with only paraphrases repeating hits 15%.
+- **Hit rate depends on the workload.** 93% is for a 73.7%-repeat replay; a cold pass with only paraphrases repeating hits 14.6%.
 - **Load tests use a stub model on one laptop.** Retrieval, embeddings, the cache and the router are real; generation is simulated with timing fitted to measured Groq latencies. k6 shares the machine, and its capacity varied between rounds (a 15 W-class CPU, 21 of 31 runs on battery), so the ceilings are this laptop's, not Weir's.
 - **Grounding is lexical.** It catches unfinished, uncited and "not found" answers, but not a fluent answer that omits or invents a detail using the source's own words. The strict routing cut-offs, not grounding, keep such questions on the large model.
 - **The large model isn't stable over time.** One hard question drifted between runs and another flips between attempts, so every Phase 3 comparison uses a same-day baseline.
@@ -482,4 +483,5 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 | 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | Done |
 | 4 | Prometheus metrics, Grafana dashboard, alerts | Done |
 | 5 | k6 load tests (cold/warm, ramp, spike, soak, failure injection), ablation under load | Done |
-| 6 | One-command demo and demo page (6A, done), case study and demo script (6B, done), optional learned router (6C) | In progress |
+| 6 | One-command demo and demo page, case study, five-minute demo script | Done |
+| Next | Possible, not planned: a learned router (kept only if it beats the rules on cost at equal quality), load shedding under saturation ([M31](docs/backlog.md)), hardening hospital-rag's local port ([M44](docs/backlog.md)) | Not started |

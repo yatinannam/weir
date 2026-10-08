@@ -366,3 +366,9 @@ Full Weir with the final settings, against the same-day-style baseline v4:
 - **`docs/demo-script.md`:** preparation (a `--dashboard --check` run with real answers, a stub fallback), a minute-by-minute table, what to do if something goes wrong, likely questions.
 - **Dry run on the stub stack:** `uv run demo.py --stub --dashboard --check` passed all five steps; Grafana and the demo page answered.
 - **Next:** optional Phase 6C (a learned router); otherwise the backlog.
+
+## 2026-10-08: Project complete; README polished
+
+- The user decided the main project is done: Phase 6C (a learned router) and the backlog stay as possible next steps, not planned work.
+- README polish: the status note says the project is complete, with one-line "Try it" (`uv run demo.py`) and "Read it" (case study, demo script) pointers; Quick start moved up to follow Results (the original spec's README order); section headings lost their internal phase tags; the roadmap marks Phase 6 done and lists the optional next steps (learned router, M31, M44); small accuracy fixes (CI runs the launcher tests too; the cold-pass hit rate is 14.6%; `uv run demo.py --dashboard` starts monitoring).
+- The case study is also published as a private web page (a Claude artifact); the user decides whether to share it publicly. `docs/writeup.md` stays the source of truth.
