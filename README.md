@@ -9,6 +9,7 @@
 ![fastapi](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
 ![postgres](https://img.shields.io/badge/Postgres_16-pgvector_0.8-4169E1?logo=postgresql&logoColor=white)
 ![cost](https://img.shields.io/badge/infra_cost-%240_(free_tiers)-success)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 </div>
 
@@ -18,15 +19,11 @@ Weir sits in front of an existing RAG service and decides, for every request:
 
 It logs the **cost, counterfactual cost and latency of every request**, so each saving is measured, not assumed. Weir is not a retriever, vector database or LLM framework. It wraps a RAG service it does not own.
 
-> [!NOTE]
-> **Status: complete.** All six phases are built and measured: the gateway and baseline, the semantic cache, the model router, monitoring, load tests and a one-command demo. Every phase gate passed; one load-test check (the soak's memory reading) is recorded as incomplete.
-> - **Try it:** `uv run demo.py` (needs Docker Desktop and uv; a Groq key is optional).
-> - **Read it:** the [case study](docs/writeup.md) (also [as a web page](https://claude.ai/artifact/Qz1NXbjKbN3NhgN8rM2nXB)) and the [five-minute demo script](docs/demo-script.md).
-> - Everything runs on free tiers.
+**Try it:** `uv run demo.py` · **Read:** the [case study](docs/writeup.md) ([web page](https://claude.ai/artifact/Qz1NXbjKbN3NhgN8rM2nXB)) · the [five-minute demo script](docs/demo-script.md)
 
 ## Contents
 
-[Results](#results) · [Quick start](#quick-start) · [Architecture](#architecture) · [Request lifecycle](#request-lifecycle) · [Semantic cache](#semantic-cache) · [Router](#router) · [Monitoring](#monitoring) · [Stack](#stack) · [Layout](#repository-layout) · [API](#api) · [Configuration](#configuration) · [Evaluation](#evaluation) · [Tests](#tests) · [Docs](#documentation) · [Limitations](#limitations) · [Roadmap](#roadmap)
+[Results](#results) · [Quick start](#quick-start) · [Architecture](#architecture) · [Request lifecycle](#request-lifecycle) · [Semantic cache](#semantic-cache) · [Router](#router) · [Monitoring](#monitoring) · [Stack](#stack) · [Layout](#repository-layout) · [API](#api) · [Configuration](#configuration) · [Evaluation](#evaluation) · [Tests](#tests) · [Docs](#documentation) · [Limitations](#limitations) · [License](#license)
 
 ---
 
@@ -474,14 +471,6 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 - **Grounding is lexical.** It catches unfinished, uncited and "not found" answers, but not a fluent answer that omits or invents a detail using the source's own words. The strict routing cut-offs, not grounding, keep such questions on the large model.
 - **The large model isn't stable over time.** One hard question drifted between runs and another flips between attempts, so every Phase 3 comparison uses a same-day baseline.
 
-## Roadmap
+## License
 
-| Phase | Scope | Status |
-| :-: | :-- | :-: |
-| 0–1 | Gateway, RAG adapter, request logging, eval set, baseline | Done |
-| 2 | Semantic cache, entity guard, threshold sweep, cache eval | Done |
-| 3 | Router: features, rules, grounding check, escalation and fallback, offline-tuned cut-offs, live ablation | Done |
-| 4 | Prometheus metrics, Grafana dashboard, alerts | Done |
-| 5 | k6 load tests (cold/warm, ramp, spike, soak, failure injection), ablation under load | Done |
-| 6 | One-command demo and demo page, case study, five-minute demo script | Done |
-| Next | Possible, not planned: a learned router (kept only if it beats the rules on cost at equal quality), load shedding under saturation ([M31](docs/backlog.md)), hardening hospital-rag's local port ([M44](docs/backlog.md)) | Not started |
+[MIT](LICENSE) © 2026 Yatin Annam
