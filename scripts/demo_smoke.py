@@ -3,11 +3,13 @@
     uv run --with playwright python -m playwright install chromium   # once, ~150 MB
     uv run demo.py --stub --no-browser                               # a fresh stack and an empty demo cache
     uv run --with playwright python scripts/demo_smoke.py
-
+    uv run --with playwright python scripts/demo_smoke.py --mode groq   # after `uv run demo.py --no-browser`
+                                                                         # with a Groq key: about 5 model calls
 Clicks the five guided steps and checks every badge and tick, the savings panel, the key leaving the address
 bar, a repeated step, and the three error paths (no key, a wrong key, a Groq rate limit).
 Saves docs/images/demo.png. Never prints a key.
 """
+import argparse
 import json
 import re
 import sys
@@ -24,6 +26,7 @@ CACHE_WRITE_WAIT_MS = 2000
 PASS = re.compile(r"\bpass\b")
 OTHER = re.compile(r"\bother\b")
 BADGE = {2: "CACHE HIT", 3: "CACHE REFUSED", 4: "SMALL MODEL", 5: "LARGE MODEL"}
+MODE_TEXT = {"stub": "stub answers (no Groq key)", "groq": "real answers (Groq)"}
 
 
 def ask_free_text(page, question: str) -> None:
@@ -44,13 +47,16 @@ def guided_steps(page) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Live smoke for the Weir demo page.")
+    parser.add_argument("--mode", choices=sorted(MODE_TEXT), default="stub", help="the mode demo.py started")
+    mode = parser.parse_args().mode
     key = demo.read_env(demo.ROOT / ".env")["WEIR_KEY_PUBLIC"]
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1400, "height": 900}, device_scale_factor=1)
 
-        page.goto(demo.demo_url(key, "stub"))
-        expect(page.locator("#mode")).to_have_text("stub answers (no Groq key)")
+        page.goto(demo.demo_url(key, mode))
+        expect(page.locator("#mode")).to_have_text(MODE_TEXT[mode])
         assert "key=" not in page.url, "the key stayed in the address bar"
         expect(page.locator("button.step")).to_have_count(5)
         guided_steps(page)
@@ -71,7 +77,7 @@ def main() -> None:
         page.unroute("**/v1/query")
 
         wrong = browser.new_context().new_page()                          # Review Focus 3: a wrong key
-        wrong.goto(demo.demo_url("not-the-key", "stub"))
+        wrong.goto(demo.demo_url("not-the-key", mode))
         ask_free_text(wrong, "Is there a pharmacy open at night?")
         expect(wrong.locator(".card.error").first).to_contain_text("The key was rejected")
 
