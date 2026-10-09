@@ -376,5 +376,5 @@ Full Weir with the final settings, against the same-day-style baseline v4:
 ## 2026-10-09: Pitch video
 
 - A two-minute (117 s) 1080p pitch film of the whole workflow, made with HyperFrames: the problem (repeats, over-provisioning), the danger (37% wrong matches without the guard), how a request flows, the five demo steps recreated from the real demo page, the entity guard, the results, load and failure, the dashboard and stack, where it fits. Every number comes from `docs/writeup.md` or the real demo screenshot. Music and sound effects; no voice.
-- Published as the asset of the `v1.0.0` GitHub release (25 MB, kept out of git); the README links it from a poster image (`docs/images/pitch-poster.jpg`).
+- Hosted as a GitHub user attachment so the README plays it inline (the user uploaded it), and kept as the asset of the `v1.0.0` GitHub release for download (25 MB, kept out of git). A first version linked a poster image instead; the user preferred the inline player.
 - The editable source (storyboard, composition, render settings) lives locally in `brag-output/`, which is gitignored.

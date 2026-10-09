@@ -6,7 +6,7 @@ The record of everything planned, decided and measured for Weir. Start here.
 | --- | --- |
 | [writeup.md](writeup.md) | The case study: start here for the story, results, lessons and interview talking points |
 | [demo-script.md](demo-script.md) | The five-minute demo script |
-| [Pitch video](https://github.com/yatinannam/weir/releases/download/v1.0.0/weir-pitch.mp4) | The two-minute pitch film (a release asset; poster at `images/pitch-poster.jpg`) |
+| [Pitch video](https://github.com/user-attachments/assets/bff90a78-2a70-44f0-9c72-94d8cd902407) | The two-minute pitch film, played inline on the README (also [as a download](https://github.com/yatinannam/weir/releases/download/v1.0.0/weir-pitch.mp4)) |
 | [weir-original.md](weir-original.md) | The original project spec: what Weir is and why |
 | [superpowers/specs/2026-09-30-weir-design.md](superpowers/specs/2026-09-30-weir-design.md) | The implementation design: how it is built. Where it disagrees with the original, it wins. |
 | [superpowers/specs/2026-10-02-phase-2-semantic-cache-design.md](superpowers/specs/2026-10-02-phase-2-semantic-cache-design.md) | Phase 2 addendum: semantic cache details, threshold sweep, cache eval |
