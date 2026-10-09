@@ -21,7 +21,7 @@ It logs the **cost, counterfactual cost and latency of every request**, so each 
 
 **Try it:** `uv run demo.py` · **Read:** the [case study](docs/writeup.md) ([web page](https://claude.ai/artifact/Qz1NXbjKbN3NhgN8rM2nXB)) · the [five-minute demo script](docs/demo-script.md)
 
-https://github.com/user-attachments/assets/bff90a78-2a70-44f0-9c72-94d8cd902407
+https://github.com/user-attachments/assets/e2c106bf-0dc8-4f55-8e54-e6d97f661f81
 
 ## Contents
 
@@ -457,7 +457,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 | :-- | :-- |
 | [`docs/writeup.md`](docs/writeup.md) | The case study: problem, design trade-offs, how quality was measured, results, what went wrong, resume bullets, interview talking points. Also [as a web page](https://claude.ai/artifact/Qz1NXbjKbN3NhgN8rM2nXB) |
 | [`docs/demo-script.md`](docs/demo-script.md) | The five-minute demo: preparation, a minute-by-minute script, what to do if something goes wrong |
-| [Pitch video](https://github.com/user-attachments/assets/bff90a78-2a70-44f0-9c72-94d8cd902407) | A two-minute film of the whole workflow: the problem, how Weir works, the live demo and the measured results (also [as a download](https://github.com/yatinannam/weir/releases/download/v1.0.0/weir-pitch.mp4)) |
+| [Pitch video](https://github.com/user-attachments/assets/e2c106bf-0dc8-4f55-8e54-e6d97f661f81) | A two-minute film of the whole workflow: the problem, how Weir works, the live demo and the measured results (also [as a download](https://github.com/yatinannam/weir/releases/download/v1.0.0/weir-pitch.mp4)) |
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router, monitoring, load testing) |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | Task-by-task implementation plans |
