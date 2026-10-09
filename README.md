@@ -19,7 +19,11 @@ Weir sits in front of an existing RAG service and decides, for every request:
 
 It logs the **cost, counterfactual cost and latency of every request**, so each saving is measured, not assumed. Weir is not a retriever, vector database or LLM framework. It wraps a RAG service it does not own.
 
-**Try it:** `uv run demo.py` · **Read:** the [case study](docs/writeup.md) ([web page](https://claude.ai/artifact/Qz1NXbjKbN3NhgN8rM2nXB)) · the [five-minute demo script](docs/demo-script.md)
+**Watch:** the [two-minute pitch video](https://github.com/yatinannam/weir/releases/download/v1.0.0/weir-pitch.mp4) · **Try it:** `uv run demo.py` · **Read:** the [case study](docs/writeup.md) ([web page](https://claude.ai/artifact/Qz1NXbjKbN3NhgN8rM2nXB)) · the [five-minute demo script](docs/demo-script.md)
+
+<p align="center">
+  <a href="https://github.com/yatinannam/weir/releases/download/v1.0.0/weir-pitch.mp4"><img src="docs/images/pitch-poster.jpg" alt="Weir: the two-minute pitch video" width="720"></a>
+</p>
 
 ## Contents
 
@@ -455,6 +459,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 | :-- | :-- |
 | [`docs/writeup.md`](docs/writeup.md) | The case study: problem, design trade-offs, how quality was measured, results, what went wrong, resume bullets, interview talking points. Also [as a web page](https://claude.ai/artifact/Qz1NXbjKbN3NhgN8rM2nXB) |
 | [`docs/demo-script.md`](docs/demo-script.md) | The five-minute demo: preparation, a minute-by-minute script, what to do if something goes wrong |
+| [Pitch video](https://github.com/yatinannam/weir/releases/download/v1.0.0/weir-pitch.mp4) | A two-minute film of the whole workflow: the problem, how Weir works, the live demo and the measured results (MP4, 1080p) |
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router, monitoring, load testing) |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | Task-by-task implementation plans |

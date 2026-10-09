@@ -372,3 +372,9 @@ Full Weir with the final settings, against the same-day-style baseline v4:
 - The user decided the main project is done: Phase 6C (a learned router) and the backlog stay as possible next steps, not planned work.
 - README polish: the status note says the project is complete, with one-line "Try it" (`uv run demo.py`) and "Read it" (case study, demo script) pointers; Quick start moved up to follow Results (the original spec's README order); section headings lost their internal phase tags; the roadmap marks Phase 6 done and lists the optional next steps (learned router, M31, M44); small accuracy fixes (CI runs the launcher tests too; the cold-pass hit rate is 14.6%; `uv run demo.py --dashboard` starts monitoring).
 - The case study is also published as a private web page (a Claude artifact); the user decides whether to share it publicly. `docs/writeup.md` stays the source of truth.
+
+## 2026-10-09: Pitch video
+
+- A two-minute (117 s) 1080p pitch film of the whole workflow, made with HyperFrames: the problem (repeats, over-provisioning), the danger (37% wrong matches without the guard), how a request flows, the five demo steps recreated from the real demo page, the entity guard, the results, load and failure, the dashboard and stack, where it fits. Every number comes from `docs/writeup.md` or the real demo screenshot. Music and sound effects; no voice.
+- Published as the asset of the `v1.0.0` GitHub release (25 MB, kept out of git); the README links it from a poster image (`docs/images/pitch-poster.jpg`).
+- The editable source (storyboard, composition, render settings) lives locally in `brag-output/`, which is gitignored.

@@ -19,3 +19,6 @@ Thumbs.db
 
 # brainstorming mockups and plan workspaces (local scratch)
 .superpowers/
+
+# pitch video source and renders (the video ships as a release asset)
+brag-output/
