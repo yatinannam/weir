@@ -86,7 +86,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         refresher.start()
         cleanup = Periodic(store.delete_expired, cfg.cache.cleanup_interval_minutes * 60, "cache-cleanup")
         cleanup.start()
-        embedder = await asyncio.to_thread(Embedder, cfg.cache.embed_model, s.embed_cache_dir)
+        embedder = await asyncio.to_thread(Embedder, cfg.cache.embed_model, s.embed_cache_dir, cfg.cache.embed_threads,
+                                           cfg.cache.embed_spin)
         cache = CacheDeps(embedder=embedder, versions=versions, store=store, writer=cache_jobs,
                           lexicon=Lexicon.from_yaml(s.weir_configs_dir / "entities.yaml"),
                           rules=BypassRules(cfg.bypass))

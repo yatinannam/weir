@@ -370,6 +370,7 @@ docs/                   specs, plans, decision log, progress log, results, backl
 
 Errors carry the `request_id`:
 - a provider rate limit → `503` with `Retry-After`
+- CPU overload: cache lookups keep timing out while embedding → `503` `overloaded` with `Retry-After: 1`, no model call (D75)
 - a timeout → `504`
 - a bad upstream response → `502`
 

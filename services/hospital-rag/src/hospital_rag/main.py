@@ -53,7 +53,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             yield
             return
         s = Settings()
-        embedder = Embedder(s.embed_model, s.embed_cache_dir)
+        embedder = Embedder(s.embed_model, s.embed_cache_dir, s.embed_threads, s.embed_spin)
         if s.llm_mode == "stub":
             timing = (LognormalTiming({s.stub_small_model: LatencyProfile(s.stub_small_median_ms, s.stub_small_p95_ms),
                                        s.stub_large_model: LatencyProfile(s.stub_large_median_ms, s.stub_large_p95_ms)},

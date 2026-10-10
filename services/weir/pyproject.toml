@@ -16,6 +16,7 @@ dependencies = [
   "fastembed>=0.4",
   "tokenizers>=0.19",
   "prometheus-client>=0.20",
+  "onnxruntime>=1.20",
 ]
 
 [dependency-groups]

@@ -30,7 +30,11 @@ cache:
   min_retrieval_score: 0.30  # never cache answers built on weak retrieval
   cleanup_interval_minutes: 60
   embed_model: BAAI/bge-small-en-v1.5
+  embed_threads: 1          # ONNX threads per embedding call; concurrency comes from parallel requests (D74)
+  embed_spin: false         # true: ~9 ms faster when idle, but each extra thread keeps a core busy (D74)
   lookup_timeout_ms: 500    # embed + lookup budget; on timeout the request bypasses the cache
+  overload_timeouts: 3      # ...unless it timed out while embedding 3 times in overload_window_s: then shed with 503 (D75); 0 = never
+  overload_window_s: 10
 
 bypass:                      # questions that never read or write the cache (addendum §3.2)
   time_sensitive: [today, tonight, now, right now, currently, at the moment, this week, wait time, waiting time, open now]

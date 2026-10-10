@@ -35,7 +35,7 @@ async def ingest(kb_dir: Path, pool: AsyncConnectionPool, embedder: Embedder, ma
 
 async def _main(kb_dir: Path) -> None:
     settings = Settings()
-    embedder = Embedder(settings.embed_model, settings.embed_cache_dir)
+    embedder = Embedder(settings.embed_model, settings.embed_cache_dir, settings.embed_threads, settings.embed_spin)
     pool = await open_pool(settings.database_url)
     try:
         await ingest(kb_dir, pool, embedder, settings.chunk_max_tokens)

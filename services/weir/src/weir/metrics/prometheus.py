@@ -20,7 +20,7 @@ LATENCY_BUCKETS = (0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 15.0, 
 
 CACHE_STATUSES = ("hit", "miss", "bypass")
 ROUTES = ("none", "small", "large")
-STATUSES = ("ok", "error", "timeout")
+STATUSES = ("ok", "error", "timeout", "shed")
 
 
 class WeirMetrics:

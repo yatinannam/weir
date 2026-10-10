@@ -549,3 +549,72 @@ async def test_meta_flags_an_answer_from_the_fallback_tier():  # Phase 6A final 
     normal = await harness(fake_rag(), **ROUTER_ON).p.handle(ask("When can I visit?"))
     assert fell_back.meta.route == "small" and fell_back.meta.model == LARGE and fell_back.meta.fallback is True
     assert normal.meta.route == "small" and normal.meta.fallback is False
+
+
+# --- M31: overload. A lookup that runs out of time while still embedding means the CPU is saturated;
+# sending it on to retrieval and a model adds more work, so after a few in a row Weir sheds it instead.
+
+class Clock:
+    def __init__(self):
+        self.t = 1000.0
+
+    def __call__(self):
+        return self.t
+
+
+def overloaded(h, timeouts=3, window_s=10.0):
+    from weir.cache.overload import OverloadGuard
+
+    h.cfg.cache.lookup_timeout_ms = 50
+    h.embedder.delay_s = 0.3
+    clock = Clock()
+    h.p._overload = OverloadGuard(timeouts, window_s, clock=clock)
+    return clock
+
+
+async def test_one_slow_embedding_still_bypasses_the_cache():
+    h = harness(fake_rag())
+    overloaded(h)
+    resp = await h.p.handle(ask("When can I visit?"))
+    [row] = h.sink.rows
+    assert resp.answer == "Answer." and row.bypass_reason == "error" and row.status == "ok"
+
+
+async def test_repeated_embedding_timeouts_shed_with_503_and_skip_the_model():
+    h = harness(fake_rag())
+    overloaded(h, timeouts=3)
+    for q in ("When can I visit?", "How much is parking?"):
+        assert (await h.p.handle(ask(q))).answer == "Answer."
+    with pytest.raises(PipelineError) as exc:
+        await h.p.handle(ask("Where is the ICU?"))
+    assert (exc.value.status_code, exc.value.error, exc.value.retry_after) == (503, "overloaded", 1)
+    shed = h.sink.rows[-1]
+    assert shed.status == "shed" and shed.bypass_reason == "overloaded" and shed.route == "none"
+    assert shed.latency_retrieval_ms is None and shed.model_calls == 0 and shed.cost_usd == 0
+    assert exc.value.request_id == str(shed.request_id)
+
+
+async def test_a_slow_database_never_sheds():  # D51: a slow cache database must stay invisible to users
+    h = harness(fake_rag())
+    overloaded(h, timeouts=2)
+    h.embedder.delay_s = 0.0
+    h.store.hang_lookup = True
+    for q in ("When can I visit?", "How much is parking?", "Where is the ICU?"):
+        assert (await h.p.handle(ask(q))).answer == "Answer."
+    assert {r.status for r in h.sink.rows} == {"ok"}
+
+
+async def test_timeouts_older_than_the_window_are_forgotten():
+    h = harness(fake_rag())
+    clock = overloaded(h, timeouts=2, window_s=10)
+    await h.p.handle(ask("When can I visit?"))
+    clock.t += 11
+    assert (await h.p.handle(ask("How much is parking?"))).answer == "Answer."
+    assert {r.status for r in h.sink.rows} == {"ok"}
+
+
+async def test_zero_turns_shedding_off():
+    h = harness(fake_rag())
+    overloaded(h, timeouts=0)
+    for q in ("When can I visit?", "How much is parking?", "Where is the ICU?", "Is there a pharmacy?"):
+        assert (await h.p.handle(ask(q))).answer == "Answer."

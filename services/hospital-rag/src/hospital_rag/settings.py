@@ -23,5 +23,7 @@ class Settings(BaseSettings):
     reasoning_effort: str | None = "low"  # gpt-oss models: low | medium | high
     embed_model: str = "BAAI/bge-small-en-v1.5"
     embed_cache_dir: str | None = None
+    embed_threads: int = 1     # ONNX threads per embedding call; concurrency comes from parallel requests (M33)
+    embed_spin: bool = False   # True: faster embeddings when idle, one busy core per extra thread (D74)
     retrieve_k: int = 4
     chunk_max_tokens: int = 250

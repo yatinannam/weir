@@ -44,6 +44,12 @@ class RunSpec:
     config: str
     repeat: int
     smoke: bool = False
+    ramp_steps: tuple[int, ...] | None = None   # a custom ramp (rates in req/s) instead of RAMP_RATES
+    step_s: int | None = None                   # seconds per custom ramp step
+
+    def __post_init__(self) -> None:            # summary.json stores the steps as a JSON list
+        if self.ramp_steps is not None:
+            object.__setattr__(self, "ramp_steps", tuple(self.ramp_steps))
 
     @property
     def name(self) -> str:
@@ -65,6 +71,9 @@ def k6_env(spec: RunSpec) -> dict[str, str]:
     if spec.scenario in ("cold", "warm", "soak"):
         return {"RATE": "10", "DURATION": "20s" if s else ("30m" if spec.scenario == "soak" else "5m")}
     if spec.scenario == "ramp":
+        if spec.ramp_steps:
+            # a custom ramp explores overload, so k6 must not abort at the 5% error threshold
+            return {"RAMP_STEPS": ",".join(map(str, spec.ramp_steps)), "STEP_S": str(spec.step_s or 90), "NO_ABORT": "1"}
         return {"RAMP_STEPS": "5,10,20" if s else ",".join(map(str, RAMP_RATES)), "STEP_S": "10" if s else "90"}
     if spec.scenario == "spike":
         return {"BASE_S": "5", "BURST_S": "5", "AFTER_S": "10"} if s else {}

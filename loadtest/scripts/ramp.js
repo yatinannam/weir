@@ -6,7 +6,8 @@ const stages = rates.flatMap((r) => [{ target: r, duration: '1s' }, { target: r,
 
 export const options = {
   summaryTrendStats: SUMMARY_STATS,
-  thresholds: { errors: [{ threshold: 'rate<0.05', abortOnFail: true, delayAbortEval: '20s' }] },
+  // an overload ramp (NO_ABORT=1) keeps going past the error budget to show how Weir degrades (M31)
+  thresholds: __ENV.NO_ABORT ? {} : { errors: [{ threshold: 'rate<0.05', abortOnFail: true, delayAbortEval: '20s' }] },
   scenarios: {
     traffic: {
       executor: 'ramping-arrival-rate', startRate: rates[0], timeUnit: '1s',

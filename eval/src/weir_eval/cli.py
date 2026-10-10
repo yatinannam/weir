@@ -275,7 +275,11 @@ def cmd_loadtest_run(args: argparse.Namespace) -> int:
     from .loadtest.orchestrate import RunSpec, keep_awake, run_once_more_if_stalled, suite_runs
 
     root = LOADTEST_DIR / "results" / (args.out or datetime.now(UTC).strftime("%Y-%m-%d"))
-    runs = suite_runs() if args.lt_command == "suite" else [RunSpec(args.scenario, args.config, args.repeat)]
+    if args.lt_command == "suite":
+        runs = suite_runs()
+    else:
+        steps = tuple(int(r) for r in args.ramp_steps.split(",")) if args.ramp_steps else None
+        runs = [RunSpec(args.scenario, args.config, args.repeat, ramp_steps=steps, step_s=args.step_s)]
     if args.smoke:
         runs = list({(r.scenario, r.config): RunSpec(r.scenario, r.config, 1, smoke=True) for r in runs}.values())
     with keep_awake():
@@ -390,6 +394,8 @@ def main() -> None:
             p.add_argument("scenario", choices=["cold", "warm", "ramp", "spike", "soak", "failure"])
             p.add_argument("--config", required=True, choices=["baseline", "cache_only", "router_only", "full"])
             p.add_argument("--repeat", type=int, default=1)
+            p.add_argument("--ramp-steps", help="ramp only: comma-separated rates, e.g. 100,150,200 (default: Phase 5's)")
+            p.add_argument("--step-s", type=int, help="ramp only: seconds per step with --ramp-steps (default 90)")
         p.add_argument("--smoke", action="store_true", help="every scenario for ~20 s, to check the wiring")
         p.add_argument("--out", help="results subfolder name (default: today's date)")
         p.set_defaults(func=cmd_loadtest_run)

@@ -1,5 +1,6 @@
 """Test doubles shared by the cache, pipeline and API tests."""
 import asyncio
+import time
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -42,10 +43,13 @@ class FakeEmbedder:
     def __init__(self, aliases: dict[str, str] | None = None):
         self.aliases = {normalize(k): normalize(v) for k, v in (aliases or {}).items()}
         self.fail = False
+        self.delay_s = 0.0  # > 0: a CPU too busy to embed in time (M31)
 
     def embed(self, text: str) -> np.ndarray:
         if self.fail:
             raise RuntimeError("embedder down")
+        if self.delay_s:
+            time.sleep(self.delay_s)
         text = self.aliases.get(text, text)
         seed = int(hashlib.sha256(text.encode()).hexdigest()[:8], 16)
         v = np.random.default_rng(seed).standard_normal(384).astype(np.float32)

@@ -42,7 +42,11 @@ class CacheConfig(_Strict):
     min_retrieval_score: float = 0.30
     cleanup_interval_minutes: float = 60.0
     embed_model: str = "BAAI/bge-small-en-v1.5"
+    embed_threads: int = Field(1, ge=1)  # ONNX threads per embedding; requests run in parallel instead (M33)
+    embed_spin: bool = False             # True: ~9 ms faster embeddings when idle, one busy core per extra thread (D74)
     lookup_timeout_ms: int = 500  # give up on the cache (bypass) rather than stall the request
+    overload_timeouts: int = Field(3, ge=0)      # embedding timeouts within the window that mean saturation; 0 = never shed
+    overload_window_s: float = Field(10.0, gt=0)
 
 
 class BypassConfig(_Strict):

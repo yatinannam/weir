@@ -187,6 +187,9 @@ function renderError(question, message) {
 function errorText(status, body) {
   if (status === 0) return "Weir isn't reachable. Is the stack running? Start it with: uv run demo.py";
   if (status === 401) return "The key was rejected. Check WEIR_KEY_PUBLIC in .env, then reload the page.";
+  if (status === 503 && body && body.error === "overloaded") {
+    return "Weir is overloaded right now and turned this question away. Try again in a second.";
+  }
   if (status === 503 && body && body.error === "rate_limited") {
     return "The Groq free-tier limit was reached. Try again in a minute.";
   }

@@ -29,6 +29,12 @@ def test_k6_env_per_scenario_and_smoke_is_short():
     assert k6_env(RunSpec("failure", "full", 1, smoke=True))["PHASE_S"] == "5"
 
 
+def test_a_custom_ramp_overrides_the_steps_and_their_length():  # M31: push past capacity on purpose
+    spec = RunSpec("ramp", "full", 1, ramp_steps=(100, 150, 200), step_s=60)
+    assert k6_env(spec) == {"RAMP_STEPS": "100,150,200", "STEP_S": "60", "NO_ABORT": "1"}
+    assert RunSpec(**json.loads(json.dumps(__import__("dataclasses").asdict(spec)))).ramp_steps == (100, 150, 200)
+
+
 def test_k6_command_passes_keys_by_name_only():  # Review Focus 5
     cmd = k6_command(RunSpec("cold", "full", 1), Path("C:/x/loadtest"), "results/d/cold-full-r1")
     assert "WEIR_KEY_PUBLIC" in cmd and "WEIR_KEY_STAFF" in cmd

@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .cache.entities import Lexicon
 from .cache.guards import BypassRules, bypass_reason, store_block_reason
+from .cache.overload import OverloadGuard
 from .cache.store import CacheEntry, Candidate
 from .cache.versions import VersionCache
 from .config import Tier, WeirConfig
@@ -126,6 +127,7 @@ class Pipeline:
         self._cache = cache
         self._now = now
         self._features = FeatureExtractor(cache.embedder.count_tokens, cache.rules, cfg.router.reasoning_words)
+        self._overload = OverloadGuard(cfg.cache.overload_timeouts, cfg.cache.overload_window_s)
 
     async def handle(self, req: QueryRequest) -> QueryResponse:
         started = time.perf_counter()
@@ -155,6 +157,13 @@ class Pipeline:
                 hit, vector = await asyncio.wait_for(
                     self._lookup(req.namespace, normalized, versions, row),
                     self._cfg.cache.lookup_timeout_ms / 1000)
+            except TimeoutError:
+                # Still embedding when time ran out: the CPU is the bottleneck, and falling through would embed
+                # again and call a model. Several of these in a row mean saturation, so shed (M31, D75).
+                if row.latency_embed_ms is None and self._overload.saturated_after_timeout():
+                    raise self._shed(row, started) from None
+                log.warning("cache lookup timed out; bypassing the cache")
+                reason = "error"
             except Exception:  # noqa: BLE001 - a cache outage must never become a user outage
                 log.exception("cache lookup failed; bypassing the cache")
                 reason = "error"
@@ -220,6 +229,14 @@ class Pipeline:
                            counterfactual_cost_usd=float(row.counterfactual_cost_usd), guard_refused=guard_refused,
                            fallback=outcome.fallback),
         )
+
+    def _shed(self, row: RequestLogRow, started: float) -> PipelineError:
+        row.status = "shed"
+        row.bypass_reason = "overloaded"
+        row.error_detail = "overloaded: cache lookups keep timing out while embedding"
+        row.latency_total_ms = _ms(started)
+        self._log.submit(row)
+        return PipelineError(503, "overloaded", str(row.request_id), retry_after=1)
 
     async def _lookup(self, namespace: str, normalized: str, versions: tuple[str, str],
                       row: RequestLogRow) -> tuple[Candidate | None, Any]:

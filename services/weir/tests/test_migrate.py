@@ -15,7 +15,8 @@ EXPECTED_TABLES = {
 
 def test_applies_all_then_is_idempotent(clean_db_url):
     assert apply_migrations(clean_db_url, MIGRATIONS) == ["001_init.sql", "002_phase2_cache.sql",
-                                                          "003_phase3_router.sql", "004_phase4_monitoring.sql"]
+                                                          "003_phase3_router.sql", "004_phase4_monitoring.sql",
+                                                          "005_shed_status.sql"]
     assert apply_migrations(clean_db_url, MIGRATIONS) == []
 
 
