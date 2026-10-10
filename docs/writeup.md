@@ -122,7 +122,7 @@ Every check now has to be able to say "not run" instead of "pass".
 - **A small, synthetic benchmark.** 158 questions and 24 trap pairs is evidence, not proof. "0 wrong hits" holds for this set.
 - **Hit rate depends on traffic.** 93% is for a 73.7%-repeat replay; a cold pass where only paraphrases repeat gets 14.6%.
 - **Grounding is lexical.** It catches unfinished, uncited and "not found" answers, but not a fluent answer that invents a detail using the source's own words. The strict router bar, not grounding, keeps those questions on the large model.
-- **Load tests use a stub model on one laptop,** shared with the load generator. The ceilings are this machine's, not Weir's.
+- **Load tests use a stub model on one laptop,** shared with the load generator. The ceilings are this machine's, not Weir's, and so are the overload limits (32 lookups, 64 requests on the model path).
 
 ## 7. What I'd do next
 
@@ -158,4 +158,4 @@ One or two of these is enough on a resume; the rest are for conversation.
 
 **How does it behave under load and failure?** After the hardening it holds 100 req/s at about 20 ms p95 in 3 of 3 ramps (60 req/s for the baseline) and 200 req/s with no errors. Past capacity it sheds with a quick 503 instead of collapsing: 221 req/s answered at 158 ms p95 when offered 250. Failures stayed invisible: 0 errors under injected rate limits, model timeouts and a slow database.
 
-**What would you do next?** Shed load under saturation, try a learned router, and warm the cache from logs.
+**What would you do next?** Try a learned router, warm the cache from logs, and add a cross-encoder check for matches just above the threshold.
