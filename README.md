@@ -434,6 +434,7 @@ LLM_MODE=stub docker compose up -d --build postgres migrate hospital-rag weir   
 set -a && . ./.env && set +a && cd eval
 uv run python -m weir_eval loadtest make-workloads              # request files: questions only, never keys
 uv run python -m weir_eval loadtest run cold --config full      # one run (cold | warm | ramp | spike | soak | failure)
+uv run python -m weir_eval loadtest run ramp --config full --ramp-steps 100,150,200,250,300 --step-s 60 \n    --out overload                                              # past capacity: never aborts on errors (M31)
 uv run python -m weir_eval loadtest suite                       # all 31 runs (~4.3 h); resumable, skips finished runs
 uv run python -m weir_eval loadtest report ../loadtest/results/<date>   # docs/results/loadtest-<date>.md + chart
 ```

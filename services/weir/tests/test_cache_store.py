@@ -56,10 +56,10 @@ async def test_increment_and_deletes(store, migrated_db_url):
     old = make_entry(expires_at=datetime.now(UTC) - timedelta(minutes=1))
     for e in (a, b, c, old):
         await store.insert(e)
-    await store.increment_hits(a.id)
-    await store.increment_hits(a.id)
+    await store.add_hits({a.id: 2, b.id: 1})           # one statement for a second's worth of hits (D76)
     with psycopg.connect(migrated_db_url) as conn:
         assert conn.execute("select hit_count from weir.cache_entries where id = %s", (a.id,)).fetchone()[0] == 2
+        assert conn.execute("select hit_count from weir.cache_entries where id = %s", (b.id,)).fetchone()[0] == 1
     assert await store.delete_expired() == 1
     assert await store.delete(source_id="pub-x") == 1
     assert await store.delete(entry_id=b.id) == 1

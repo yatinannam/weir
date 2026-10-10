@@ -74,9 +74,12 @@ class CacheStore:
                  Jsonb(e.sources), e.source_ids, e.model, e.tokens_in, e.tokens_out, e.expires_at),
             )
 
-    async def increment_hits(self, entry_id: UUID) -> None:
+    async def add_hits(self, counts: dict[UUID, int]) -> None:
+        ids, ns = list(counts), list(counts.values())
         async with self._pool.connection() as conn:
-            await conn.execute("update weir.cache_entries set hit_count = hit_count + 1 where id = %s", (entry_id,))
+            await conn.execute(
+                "update weir.cache_entries c set hit_count = c.hit_count + v.n"
+                " from unnest(%s::uuid[], %s::int[]) as v(id, n) where c.id = v.id", (ids, ns))
 
     async def delete(self, *, namespace: str | None = None, source_id: str | None = None,
                      entry_id: UUID | None = None) -> int:

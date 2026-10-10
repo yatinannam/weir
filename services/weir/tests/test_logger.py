@@ -67,3 +67,17 @@ async def test_router_fields_are_written(migrated_db_url):
         got = conn.execute("select route_reason, escalated, model_calls, grounding_passed, grounding_reason, "
                            "grounding_overlap from weir.request_log").fetchone()
     assert got == ("simple", True, 2, False, "low_overlap", 0.25)
+
+
+@pytest.mark.db
+async def test_a_large_backlog_is_written_in_few_batches(migrated_db_url):  # D76: COPY in batches of up to 500
+    pool = await open_pool(migrated_db_url)
+    writer = LogWriter(pool)
+    for _ in range(1200):
+        writer.submit(row())
+    writer.start()
+    await writer.stop()
+    await pool.close()
+    with psycopg.connect(migrated_db_url) as conn:
+        assert conn.execute("select count(*) from weir.request_log").fetchone()[0] == 1200
+    assert writer.batches == 3 and writer.failed == 0 and writer.dropped == 0

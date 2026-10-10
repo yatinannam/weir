@@ -52,10 +52,11 @@ class RequestLogRow:
 
 
 COLUMNS = [f.name for f in fields(RequestLogRow)]
-INSERT_SQL = (
+INSERT_SQL = (  # one row; the writer uses COPY_SQL for batches
     f"insert into weir.request_log ({', '.join(COLUMNS)}) "
     f"values ({', '.join(['%s'] * len(COLUMNS))})"
 )
+COPY_SQL = f"copy weir.request_log ({', '.join(COLUMNS)}) from stdin"
 
 
 class LogSink(Protocol):
@@ -63,7 +64,8 @@ class LogSink(Protocol):
 
 
 class LogWriter:
-    def __init__(self, pool, max_queue: int = 10_000, batch_size: int = 100, flush_interval_s: float = 0.5):
+    # COPY in batches of up to 500: at ~250 req/s, 100-row INSERT batches fell behind and dropped rows (D76)
+    def __init__(self, pool, max_queue: int = 10_000, batch_size: int = 500, flush_interval_s: float = 0.5):
         self._pool = pool
         self._queue: asyncio.Queue[RequestLogRow] = asyncio.Queue(max_queue)
         self._batch_size = batch_size
@@ -71,6 +73,7 @@ class LogWriter:
         self._task: asyncio.Task | None = None
         self.dropped = 0
         self.failed = 0
+        self.batches = 0
 
     def start(self) -> None:
         self._task = asyncio.create_task(self._run())
@@ -80,7 +83,8 @@ class LogWriter:
             self._queue.put_nowait(row)
         except asyncio.QueueFull:
             self.dropped += 1
-            log.warning("request log queue full; dropped row %s", row.request_id)
+            if self.dropped % 1000 == 1:  # one line per 1,000: a log line per row costs CPU exactly when it's short
+                log.warning("request log queue full; %d rows dropped so far", self.dropped)
 
     async def stop(self, timeout_s: float = 5.0) -> None:
         if self._task is None:
@@ -111,7 +115,10 @@ class LogWriter:
     async def _write(self, batch: list[RequestLogRow]) -> None:
         try:
             async with self._pool.connection() as conn, conn.cursor() as cur:
-                await cur.executemany(INSERT_SQL, [astuple(r) for r in batch])
+                async with cur.copy(COPY_SQL) as copy:
+                    for r in batch:
+                        await copy.write_row(astuple(r))
+            self.batches += 1
         except Exception:  # noqa: BLE001 - logging must never break requests
             self.failed += len(batch)
             log.exception("failed to write %d request log rows", len(batch))

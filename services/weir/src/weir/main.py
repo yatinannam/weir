@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 import math
 import os
@@ -19,6 +20,7 @@ from .admin import AdminService
 from .auth import TenantRegistry
 from .background import BackgroundQueue, Periodic
 from .cache.embedder import Embedder
+from .cache.hits import HitCounter
 from .cache.entities import Lexicon
 from .cache.guards import BypassRules
 from .cache.store import CacheStore
@@ -88,9 +90,12 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         cleanup.start()
         embedder = await asyncio.to_thread(Embedder, cfg.cache.embed_model, s.embed_cache_dir, cfg.cache.embed_threads,
                                            cfg.cache.embed_spin)
+        hits = HitCounter(store)
+        hit_flusher = Periodic(hits.flush, 1.0, "hit-counts")
+        hit_flusher.start()
         cache = CacheDeps(embedder=embedder, versions=versions, store=store, writer=cache_jobs,
                           lexicon=Lexicon.from_yaml(s.weir_configs_dir / "entities.yaml"),
-                          rules=BypassRules(cfg.bypass))
+                          rules=BypassRules(cfg.bypass), hits=hits)
 
         async def health() -> dict[str, bool]:
             try:
@@ -111,6 +116,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         finally:
             await refresher.stop()
             await cleanup.stop()
+            await hit_flusher.stop()
+            with contextlib.suppress(Exception):  # the last second of hit counts; bookkeeping only
+                await hits.flush()
             await cache_jobs.stop()
             await writer.stop()
             await rag.aclose()

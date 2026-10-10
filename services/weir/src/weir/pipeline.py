@@ -19,7 +19,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .cache.entities import Lexicon
 from .cache.guards import BypassRules, bypass_reason, store_block_reason
-from .cache.overload import OverloadGuard
 from .cache.store import CacheEntry, Candidate
 from .cache.versions import VersionCache
 from .config import Tier, WeirConfig
@@ -101,6 +100,7 @@ class CacheDeps:
     writer: Any            # .submit(job)
     lexicon: Lexicon
     rules: BypassRules
+    hits: Any              # .add(entry_id): coalesced hit counts (HitCounter)
 
 
 @dataclass
@@ -127,7 +127,8 @@ class Pipeline:
         self._cache = cache
         self._now = now
         self._features = FeatureExtractor(cache.embedder.count_tokens, cache.rules, cfg.router.reasoning_words)
-        self._overload = OverloadGuard(cfg.cache.overload_timeouts, cfg.cache.overload_window_s)
+        self._model_path = 0  # requests now retrieving or waiting on a model (M31: the overload signal)
+        self._lookups = 0     # cache lookups (embed + vector search) now running
 
     async def handle(self, req: QueryRequest) -> QueryResponse:
         started = time.perf_counter()
@@ -153,19 +154,26 @@ class Pipeline:
         vector = None
         guard_refused = False
         if reason is None:
+            cap = self._cfg.cache.max_lookups
+            if cap and self._lookups >= cap:
+                # Front door: lookups pile up only when the machine is saturated. Turning the excess away before
+                # any embedding keeps the admitted lookups fast, so cache hits keep flowing (M31, D75).
+                raise self._shed(row, started, "too many cache lookups running")
+            self._lookups += 1
             try:
                 hit, vector = await asyncio.wait_for(
                     self._lookup(req.namespace, normalized, versions, row),
                     self._cfg.cache.lookup_timeout_ms / 1000)
-            except TimeoutError:
-                # Still embedding when time ran out: the CPU is the bottleneck, and falling through would embed
-                # again and call a model. Several of these in a row mean saturation, so shed (M31, D75).
-                if row.latency_embed_ms is None and self._overload.saturated_after_timeout():
-                    raise self._shed(row, started) from None
-                log.warning("cache lookup timed out; bypassing the cache")
-                reason = "error"
-            except Exception:  # noqa: BLE001 - a cache outage must never become a user outage
-                log.exception("cache lookup failed; bypassing the cache")
+            except Exception as e:  # noqa: BLE001 - a cache outage must never become a user outage...
+                if self._overloaded():
+                    # ...but when the model path is already full, the lookup failed because the machine is
+                    # saturated, and falling through would add the work that feeds the overload (M31, D75).
+                    raise self._shed(row, started, f"cache lookup failed with {self._model_path} requests "
+                                                   "on the model path") from e
+                if isinstance(e, TimeoutError):
+                    log.warning("cache lookup timed out; bypassing the cache")
+                else:
+                    log.exception("cache lookup failed; bypassing the cache")
                 reason = "error"
             else:
                 if hit is not None:
@@ -173,8 +181,11 @@ class Pipeline:
                 row.cache_status = "miss"
                 # a miss whose best candidate reached the threshold can only be the entity guard refusing it
                 guard_refused = row.similarity is not None and row.similarity >= self._cfg.cache.threshold
+            finally:
+                self._lookups -= 1
         row.bypass_reason = reason
 
+        self._model_path += 1
         try:
             t = time.perf_counter()
             retrieved = await self._rag.retrieve(req.query, req.namespace, self._cfg.rag.retrieve_k)
@@ -195,6 +206,8 @@ class Pipeline:
             row.latency_total_ms = _ms(started)
             self._log.submit(row)
             raise PipelineError(500, "internal", str(row.request_id)) from e
+        finally:
+            self._model_path -= 1
 
         generated = outcome.generated
         if retrieved.kb_version and generated.finish_reason != "skipped":
@@ -230,10 +243,14 @@ class Pipeline:
                            fallback=outcome.fallback),
         )
 
-    def _shed(self, row: RequestLogRow, started: float) -> PipelineError:
+    def _overloaded(self) -> bool:
+        limit = self._cfg.cache.overload_inflight
+        return limit > 0 and self._model_path >= limit
+
+    def _shed(self, row: RequestLogRow, started: float, why: str) -> PipelineError:
         row.status = "shed"
         row.bypass_reason = "overloaded"
-        row.error_detail = "overloaded: cache lookups keep timing out while embedding"
+        row.error_detail = f"overloaded: {why}"
         row.latency_total_ms = _ms(started)
         self._log.submit(row)
         return PipelineError(503, "overloaded", str(row.request_id), retry_after=1)
@@ -271,8 +288,7 @@ class Pipeline:
                                                         hit.tokens_out, today)
         row.answer_len = len(hit.answer)
         row.latency_total_ms = _ms(started)
-        store, entry_id = self._cache.store, hit.id
-        self._cache.writer.submit(lambda: store.increment_hits(entry_id))
+        self._cache.hits.add(hit.id)
         self._log.submit(row)
         return QueryResponse(
             answer=hit.answer, sources=[Source(**s) for s in hit.sources],

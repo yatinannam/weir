@@ -1,3 +1,4 @@
+import asyncio
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -8,6 +9,7 @@ import pytest
 
 from weir.cache.entities import Lexicon
 from weir.cache.guards import BypassRules
+from weir.cache.hits import HitCounter
 from weir.cache.versions import VersionCache
 from weir.config import WeirConfig, load_config
 from weir.llm.pricing import PriceTable
@@ -82,7 +84,8 @@ def harness(rag, overlay=None, versions=VERSIONS, aliases=None, **config_overrid
         setattr(getattr(cfg, section), key, value)
     sink, store, writer, embedder = ListSink(), FakeStore(now=lambda: FIXED_NOW), InlineQueue(), FakeEmbedder(aliases)
     cache = CacheDeps(embedder=embedder, versions=VersionCache(fetch=None, initial=versions), store=store,
-                      writer=writer, lexicon=Lexicon.from_yaml(CONFIGS / "entities.yaml"), rules=BypassRules(cfg.bypass))
+                      writer=writer, lexicon=Lexicon.from_yaml(CONFIGS / "entities.yaml"), rules=BypassRules(cfg.bypass),
+                      hits=HitCounter(store))
     p = Pipeline(cfg, rag, PriceTable.from_yaml(CONFIGS / "prices.yaml"), sink, cache, now=lambda: FIXED_NOW)
     return Harness(p, sink, store, writer, embedder, cfg)
 
@@ -123,7 +126,7 @@ async def test_identical_question_hits_without_calling_rag():
     hit = h.sink.rows[1]
     assert hit.cost_usd == 0 and hit.counterfactual_cost_usd == Decimal("0.00045")
     assert hit.model_calls == 0 and hit.cache_entry_id == h.store.entries[0].id
-    await h.writer.drain()
+    await h.p._cache.hits.flush()
     assert h.store.hits == {h.store.entries[0].id: 1}
 
 
@@ -551,40 +554,38 @@ async def test_meta_flags_an_answer_from_the_fallback_tier():  # Phase 6A final 
     assert normal.meta.route == "small" and normal.meta.fallback is False
 
 
-# --- M31: overload. A lookup that runs out of time while still embedding means the CPU is saturated;
-# sending it on to retrieval and a model adds more work, so after a few in a row Weir sheds it instead.
+# --- M31: overload. A failed cache lookup normally falls through to retrieval and a model, but when many
+# requests are already on that path the machine is saturated, and falling through feeds the overload.
 
-class Clock:
-    def __init__(self):
-        self.t = 1000.0
+def slow_rag():
+    """A RAG client whose retrieval waits until released, so requests stay on the model path."""
+    client = fake_rag()
+    client.release = asyncio.Event()
+    orig = client.retrieve
 
-    def __call__(self):
-        return self.t
-
-
-def overloaded(h, timeouts=3, window_s=10.0):
-    from weir.cache.overload import OverloadGuard
-
-    h.cfg.cache.lookup_timeout_ms = 50
-    h.embedder.delay_s = 0.3
-    clock = Clock()
-    h.p._overload = OverloadGuard(timeouts, window_s, clock=clock)
-    return clock
+    async def retrieve(*a, **kw):
+        await client.release.wait()
+        return await orig(*a, **kw)
+    client.retrieve = retrieve
+    return client
 
 
-async def test_one_slow_embedding_still_bypasses_the_cache():
+async def test_a_failed_lookup_bypasses_while_the_model_path_is_quiet():  # D51: a slow cache stays invisible
     h = harness(fake_rag())
-    overloaded(h)
+    h.cfg.cache.lookup_timeout_ms = 50
+    h.store.hang_lookup = True
     resp = await h.p.handle(ask("When can I visit?"))
     [row] = h.sink.rows
     assert resp.answer == "Answer." and row.bypass_reason == "error" and row.status == "ok"
 
 
-async def test_repeated_embedding_timeouts_shed_with_503_and_skip_the_model():
-    h = harness(fake_rag())
-    overloaded(h, timeouts=3)
-    for q in ("When can I visit?", "How much is parking?"):
-        assert (await h.p.handle(ask(q))).answer == "Answer."
+async def test_failed_lookups_are_shed_once_the_model_path_is_full():
+    rag = slow_rag()
+    h = harness(rag)
+    h.cfg.cache.overload_inflight = 2
+    h.store.fail_lookup = True
+    waiting = [asyncio.create_task(h.p.handle(ask(q))) for q in ("When can I visit?", "How much is parking?")]
+    await asyncio.sleep(0.05)                                   # both bypassed and are now retrieving
     with pytest.raises(PipelineError) as exc:
         await h.p.handle(ask("Where is the ICU?"))
     assert (exc.value.status_code, exc.value.error, exc.value.retry_after) == (503, "overloaded", 1)
@@ -592,29 +593,77 @@ async def test_repeated_embedding_timeouts_shed_with_503_and_skip_the_model():
     assert shed.status == "shed" and shed.bypass_reason == "overloaded" and shed.route == "none"
     assert shed.latency_retrieval_ms is None and shed.model_calls == 0 and shed.cost_usd == 0
     assert exc.value.request_id == str(shed.request_id)
+    rag.release.set()
+    assert [r.answer for r in await asyncio.gather(*waiting)] == ["Answer.", "Answer."]
+    assert h.p._model_path == 0
 
 
-async def test_a_slow_database_never_sheds():  # D51: a slow cache database must stay invisible to users
+async def test_cache_hits_are_served_when_the_model_path_is_full():  # shedding never touches a working cache
     h = harness(fake_rag())
-    overloaded(h, timeouts=2)
-    h.embedder.delay_s = 0.0
-    h.store.hang_lookup = True
-    for q in ("When can I visit?", "How much is parking?", "Where is the ICU?"):
-        assert (await h.p.handle(ask(q))).answer == "Answer."
-    assert {r.status for r in h.sink.rows} == {"ok"}
-
-
-async def test_timeouts_older_than_the_window_are_forgotten():
-    h = harness(fake_rag())
-    clock = overloaded(h, timeouts=2, window_s=10)
     await h.p.handle(ask("When can I visit?"))
-    clock.t += 11
-    assert (await h.p.handle(ask("How much is parking?"))).answer == "Answer."
-    assert {r.status for r in h.sink.rows} == {"ok"}
+    await h.writer.drain()
+    h.cfg.cache.overload_inflight = 1
+    h.p._model_path = 5
+    assert (await h.p.handle(ask("When can I visit?"))).meta.cache_status == "hit"
 
 
 async def test_zero_turns_shedding_off():
     h = harness(fake_rag())
-    overloaded(h, timeouts=0)
-    for q in ("When can I visit?", "How much is parking?", "Where is the ICU?", "Is there a pharmacy?"):
-        assert (await h.p.handle(ask(q))).answer == "Answer."
+    h.cfg.cache.overload_inflight = 0
+    h.store.fail_lookup = True
+    h.p._model_path = 1000
+    assert (await h.p.handle(ask("When can I visit?"))).answer == "Answer."
+    h.p._model_path = 0
+
+
+async def test_the_model_path_count_goes_back_down_after_errors():
+    h = harness(fake_rag(generate_response=httpx.Response(504, json={"error": "timeout"})))
+    with pytest.raises(PipelineError):
+        await h.p.handle(ask("When can I visit?"))
+    assert h.p._model_path == 0
+
+
+async def test_lookups_beyond_the_cap_are_shed_before_any_embedding():  # the front door (D75)
+    h = harness(fake_rag())
+    h.cfg.cache.max_lookups = 2
+    h.p._lookups = 2                                             # two lookups already running
+    with pytest.raises(PipelineError) as exc:
+        await h.p.handle(ask("When can I visit?"))
+    assert (exc.value.status_code, exc.value.error) == (503, "overloaded")
+    [row] = h.sink.rows
+    assert row.status == "shed" and row.error_detail == "overloaded: too many cache lookups running"
+    assert row.latency_embed_ms is None and row.embed_tokens is None and row.latency_retrieval_ms is None
+    h.p._lookups = 0
+
+
+async def test_the_lookup_count_goes_back_down_after_hits_misses_and_timeouts():
+    h = harness(fake_rag())
+    h.cfg.cache.max_lookups = 1                                  # one at a time: a leak would shed the next one
+    await h.p.handle(ask("When can I visit?"))                   # miss
+    await h.writer.drain()
+    await h.p.handle(ask("When can I visit?"))                   # hit
+    h.cfg.cache.lookup_timeout_ms = 50
+    h.store.hang_lookup = True
+    await h.p.handle(ask("How much is parking?"))                # timeout, bypass
+    assert h.p._lookups == 0 and [r.status for r in h.sink.rows] == ["ok", "ok", "ok"]
+
+
+async def test_requests_that_skip_the_cache_by_rule_are_never_shed_at_the_door():
+    h = harness(fake_rag())
+    h.cfg.cache.max_lookups = 1
+    h.p._lookups = 1
+    resp = await h.p.handle(ask("When can I visit?", options=QueryOptions(bypass_cache=True)))
+    assert resp.answer == "Answer." and h.sink.rows[0].status == "ok"
+    h.p._lookups = 0
+
+
+async def test_hits_on_one_entry_coalesce_into_one_write():  # D76: no per-hit UPDATE, nothing queued per hit
+    h = harness(fake_rag())
+    await h.p.handle(ask("When can I visit?"))
+    await h.writer.drain()                                       # the miss stored its entry
+    for _ in range(5):
+        await h.p.handle(ask("When can I visit?"))
+    assert h.writer.jobs == []                                   # hits queue nothing
+    await h.p._cache.hits.flush()
+    await h.p._cache.hits.flush()                                # nothing pending: no second write
+    assert h.store.hits == {h.store.entries[0].id: 5}

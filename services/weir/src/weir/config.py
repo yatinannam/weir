@@ -45,8 +45,8 @@ class CacheConfig(_Strict):
     embed_threads: int = Field(1, ge=1)  # ONNX threads per embedding; requests run in parallel instead (M33)
     embed_spin: bool = False             # True: ~9 ms faster embeddings when idle, one busy core per extra thread (D74)
     lookup_timeout_ms: int = 500  # give up on the cache (bypass) rather than stall the request
-    overload_timeouts: int = Field(3, ge=0)      # embedding timeouts within the window that mean saturation; 0 = never shed
-    overload_window_s: float = Field(10.0, gt=0)
+    max_lookups: int = Field(32, ge=0)        # cache lookups running at once; beyond it, shed at the door; 0 = no limit
+    overload_inflight: int = Field(64, ge=0)  # a failed lookup is shed, not bypassed, at this many on the model path; 0 = never
 
 
 class BypassConfig(_Strict):
