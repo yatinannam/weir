@@ -385,3 +385,17 @@ Full Weir with the final settings, against the same-day-style baseline v4:
 - hospital-rag now refuses any Host header but `127.0.0.1`, `localhost` and `hospital-rag` with a 400, before a route runs (D73). A rebinding page can point its domain at 127.0.0.1 but can't change the Host header the browser sends, so it can no longer reach `/generate` or `/stub/faults`.
 - Tests: 8 new (4 local names pass, 4 rebinding hosts refused with no model call); hospital-rag suite 55 passed.
 - Live check in stub mode: `/healthz` 200 from 127.0.0.1 and localhost, a forged `Host: evil.example:8001` gets 400 on `/stub/faults`, and `uv run demo.py --stub --check` passed all five steps (Weir reaches hospital-rag by its Docker name).
+
+## 2026-10-10 to 2026-10-11: Hardening, steps 2–4 (M33, M31, D76, re-measured)
+
+Full numbers: [`results/hardening-2026-10-10.md`](results/hardening-2026-10-10.md).
+- **M33 (D74):** both embedders now run ONNX with spinning off and 1 thread (`embed_threads`, `embed_spin`). Warm 10 req/s: Weir CPU 607% → 24%; p50 10 → 22 ms (a paced embedding takes ~15.5 ms without a hot spinning core, ~6 ms with one). Thread counts 1/2/4/8 measured in the container first.
+- **M31 (D75), three designs, each measured on a new overload ramp (100–300 req/s, D77):**
+  1. A breaker on lookups that timed out while still embedding: built, tested, then rejected. With M33 the embedding isn't the bottleneck: 3,226 of 3,314 timeouts came after embedding, and it shed 36 requests while Weir still collapsed (30 req/s served at 250).
+  2. A cap of 64 requests on the model path for failed lookups: no fall-through, but 97% shed, because every request still paid for a lookup.
+  3. Plus a front-door cap of 32 concurrent lookups. At 250 req/s: 221 req/s OK, 11% shed, p95 158 ms, nothing fell through.
+- **D76:** the overload runs exposed the background writers dropping work above ~200 req/s (16,940 log rows and 15,424 cache jobs in one run). Hit counts are now summed in memory and flushed once a second; the request log uses COPY in batches of up to 500. Re-run: 0 dropped, 60,052 rows logged.
+- **Standard ramp re-run (3 repeats, AC power):** 3 of 3 hold 100 req/s (was 2 of 3), p95 at 100 req/s 19/21/20 ms (was 42 median), Weir peak CPU ~147% (was 773–1,346%).
+- **Tooling (D77):** `loadtest run ramp --ramp-steps --step-s` for past-capacity ramps that never abort; the raw k6 file is streamed during compaction. One overload run's post-processing was killed for low memory before this fix; its numbers come from the request log and k6's summary.
+- **Suites:** weir 300, hospital-rag 57, eval 161, launcher 23.
+- New migration `005_shed_status.sql` (status `shed`); Prometheus counts `status="shed"`, and the existing error-rate alert includes it.

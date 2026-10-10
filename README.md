@@ -79,7 +79,8 @@ Phase 5 drove Weir with k6 at a constant arrival rate. Retrieval, embeddings, th
 | **Full Weir** | **10 ms** | **33 ms** | 1,002 ms | 95.4% | 0% |
 
 - **With a warm cache, full Weir's p95 is 15 ms against the baseline's 1,439 ms (99% lower)** at 10 req/s.
-- **Full Weir held 100 req/s at a p95 of about 41 ms in 2 of 3 ramps; the baseline held 60 req/s at about 1.5 s.** A step only counts if k6 sent every request on time (no dropped iterations), p95 stayed within 2 s and errors within 1%. In the third ramp, full Weir collapsed at 100 req/s: once cache lookups began timing out under CPU load, 1,832 requests bypassed to retrieval and the model, which added load until requests hit k6's 60 s timeout. That's a real overload mode, now in the backlog (M31).
+- **Full Weir held 100 req/s at a p95 of about 41 ms in 2 of 3 ramps; the baseline held 60 req/s at about 1.5 s.** A step only counts if k6 sent every request on time (no dropped iterations), p95 stayed within 2 s and errors within 1%. In the third ramp, full Weir collapsed at 100 req/s: once cache lookups began timing out under CPU load, 1,832 requests bypassed to retrieval and the model, which added load until requests hit k6's 60 s timeout.
+- **Fixed and re-measured ([hardening report](docs/results/hardening-2026-10-10.md)): 3 of 3 ramps now hold 100 req/s, at a p95 of 19–21 ms, with Weir's peak CPU down from 773–1,346% to about 147%.** The embedding threads no longer spin-wait (607% → 24% CPU at 10 req/s, D74). Past capacity, Weir sheds instead of collapsing: at most 32 cache lookups run at once, and a failed lookup never falls through to the model when 64 requests are already there (D75). At 250 req/s it answers 221 req/s successfully at a p95 of 158 ms and turns 11% away with a quick 503; without the limits it collapsed to 35 req/s at a p95 of 34 s. The overload runs also showed the request log dropping rows above ~200 req/s; it now writes with COPY and drops nothing (D76).
 - **Failures stayed invisible to users: 0 errors in every phase of 3 failure runs.** Across the 3 runs, with the large model rate-limited, 541 requests fell back to the small model; with the small model timing out, 60 fell back to the large one. With Weir's database link delayed by 2 s, the cache was bypassed 1,191 times; the median p95 was 1,943 ms, inside the 2 s budget, though one of the 3 runs reached 2,068 ms.
 - **A 60 req/s burst never left the budget** (worst 10-second p95: 22 ms). Over **30 minutes at 10 req/s**, p95 moved from 13.1 to 14.6 ms with 0 errors; memory held at about 250 MiB for the 25 minutes it was sampled, but `docker stats` returned nothing for the last 5, so the no-leak check is recorded as incomplete.
 
@@ -434,7 +435,7 @@ LLM_MODE=stub docker compose up -d --build postgres migrate hospital-rag weir   
 set -a && . ./.env && set +a && cd eval
 uv run python -m weir_eval loadtest make-workloads              # request files: questions only, never keys
 uv run python -m weir_eval loadtest run cold --config full      # one run (cold | warm | ramp | spike | soak | failure)
-uv run python -m weir_eval loadtest run ramp --config full --ramp-steps 100,150,200,250,300 --step-s 60 \n    --out overload                                              # past capacity: never aborts on errors (M31)
+uv run python -m weir_eval loadtest run ramp --config full --ramp-steps 100,150,200,250,300 --step-s 60   # past capacity; never aborts
 uv run python -m weir_eval loadtest suite                       # all 31 runs (~4.3 h); resumable, skips finished runs
 uv run python -m weir_eval loadtest report ../loadtest/results/<date>   # docs/results/loadtest-<date>.md + chart
 ```
@@ -445,9 +446,9 @@ The orchestrator refuses to run unless hospital-rag reports the stub model, and 
 
 ```bash
 docker compose up -d postgres                       # DB tests use 127.0.0.1:5432/weir_test
-cd services/weir         && uv run pytest -q        # 288 tests
-cd services/hospital-rag && uv run pytest -q        #  55 tests
-cd eval                  && uv run pytest -q        # 160 tests
+cd services/weir         && uv run pytest -q        # 300 tests
+cd services/hospital-rag && uv run pytest -q        #  57 tests
+cd eval                  && uv run pytest -q        # 161 tests
 uv run --no-project --python 3.12 --with pytest pytest -q tests   # 23 launcher tests (demo.py)
 ```
 
@@ -462,9 +463,9 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router, monitoring, load testing) |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | Task-by-task implementation plans |
-| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D72) |
+| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D77) |
 | [`docs/progress.md`](docs/progress.md) | Phase-by-phase log |
-| [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary, load tests |
+| [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary, load tests, hardening under load |
 | [`docs/backlog.md`](docs/backlog.md) | Deferred findings and ideas |
 
 ## Limitations
@@ -472,6 +473,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 - **Small, synthetic benchmark.** There are 158 questions and 24 trap pairs on a fictional KB. "Zero wrong hits" is strong evidence for this set, not a guarantee.
 - **Hit rate depends on the workload.** 93% is for a 73.7%-repeat replay; a cold pass with only paraphrases repeating hits 14.6%.
 - **Load tests use a stub model on one laptop.** Retrieval, embeddings, the cache and the router are real; generation is simulated with timing fitted to measured Groq latencies. k6 shares the machine, and its capacity varied between rounds (a 15 W-class CPU, 21 of 31 runs on battery), so the ceilings are this laptop's, not Weir's.
+- **The overload limits were measured on this laptop.** 32 concurrent lookups and 64 requests on the model path sit well above normal concurrency and well below a collapse here; another machine may want other values (`configs/weir.yaml`). Shed requests get a 503 with `Retry-After: 1`, so clients should retry.
 - **Grounding is lexical.** It catches unfinished, uncited and "not found" answers, but not a fluent answer that omits or invents a detail using the source's own words. The strict routing cut-offs, not grounding, keep such questions on the large model.
 - **The large model isn't stable over time.** One hard question drifted between runs and another flips between attempts, so every Phase 3 comparison uses a same-day baseline.
 

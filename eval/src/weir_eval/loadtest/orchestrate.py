@@ -325,7 +325,10 @@ def execute(spec: RunSpec, results_root: Path, env: dict) -> dict:
     sampler.stop()
     time.sleep(3)                                                   # request-log rows are written asynchronously
     raw_path = run_dir / "k6-raw.json"
-    points = compact_points(raw_path.read_text(encoding="utf-8").splitlines()) if raw_path.exists() else []
+    points = []
+    if raw_path.exists():  # stream it: a 300 req/s ramp writes ~220 MB, and reading it whole ran the laptop out of memory
+        with raw_path.open(encoding="utf-8") as raw:
+            points = compact_points(raw)
     with gzip.open(run_dir / "requests.csv.gz", "wt", encoding="utf-8") as f:
         f.write("t_ms,kind,value,status\n" + "".join(f"{t},{k},{v},{s}\n" for t, k, v, s in points))
     raw_path.unlink(missing_ok=True)

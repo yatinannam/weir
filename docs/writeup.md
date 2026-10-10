@@ -85,7 +85,7 @@ The cache does most of the work on realistic, repeat-heavy traffic. The router a
 
 **Under load** ([load-test report](results/loadtest-2026-10-07.md)): 31 k6 runs at constant arrival rates, using a stub model whose delays are fitted to measured Groq latencies (Groq's free tier can't sustain load tests). Retrieval, embeddings, the cache and the router were all real.
 - At 10 req/s with a warm cache, full Weir's p95 was **15 ms** against the baseline's **1,439 ms**.
-- Highest rate within a 2 s p95 budget on one laptop: **full Weir 100 req/s** in 2 of 3 ramps (p95 about 41 ms), **baseline 60 req/s** (p95 about 1.5 s).
+- Highest rate within a 2 s p95 budget on one laptop: **full Weir 100 req/s** in 2 of 3 ramps (p95 about 41 ms), **baseline 60 req/s** (p95 about 1.5 s). After the hardening in §5, **3 of 3** ramps held 100 req/s at a p95 of **19–21 ms**, and an overload ramp held **200 req/s** with no errors ([hardening report](results/hardening-2026-10-10.md)).
 - **Failure injection:** the large model rate-limited, the small model timing out, and Weir's database link delayed by 2 s, each for a minute under traffic. There were **0 user-facing errors** in all 3 runs: 541 and 60 requests fell back to the other model, and 1,191 skipped the slow cache (median p95 1.94 s; one of the three runs reached 2.07 s).
 
 ![p95 against request rate](results/loadtest-ramp.png)
@@ -98,7 +98,15 @@ The cache does most of the work on realistic, repeat-heavy traffic. The router a
 
 **The model under test moved.** Comparisons against a three-day-old baseline missed the "facts no lower" gate by 0.003–0.006. That traced to the large model itself drifting on two questions, not to Weir. Same-day baselines became a rule.
 
-**Load testing found a real overload mode.** In one of three ramps, full Weir collapsed at 100 req/s. With the CPU saturated by embedding, cache lookups started missing their time budget, and Weir bypassed the cache (by design: a cache outage must never become a user outage). But each bypass turns a 15 ms hit into a full retrieval and model call, which adds load, which causes more bypasses. **1,832 requests fell through** before the run hit k6's 60 s timeout. The safety valve amplified the overload. The next step is to shed load or serve stale entries when lookups time out from saturation ([backlog M31](backlog.md)).
+**Load testing found a real overload mode.** In one of three ramps, full Weir collapsed at 100 req/s. With the CPU saturated by embedding, cache lookups started missing their time budget, and Weir bypassed the cache (by design: a cache outage must never become a user outage). But each bypass turns a 15 ms hit into a full retrieval and model call, which adds load, which causes more bypasses. **1,832 requests fell through** before the run hit k6's 60 s timeout. The safety valve amplified the overload.
+
+**Fixing it took three tries, and measuring each one** ([hardening report](results/hardening-2026-10-10.md)):
+- **The embedding threads first.** ONNX Runtime's threads spin-wait between runs: Weir read **607% CPU at 10 req/s**. With spinning off and one thread per call it reads **24%** ([D74](decisions.md)). That costs about 10 ms per request on an idle machine and saves several cores, the right trade for a cost-cutting gateway.
+- **First shedding design: count lookups that timed out while still embedding.** It shed 36 requests and Weir still collapsed. The data said why: with the threads fixed, **3,226 of 3,314** timeouts came *after* embedding. Past ~200 req/s the whole laptop saturates, and the timeout lands in whichever step comes last.
+- **Second: cap the model path.** No more fall-through, but it shed 97%, because each request still paid for a lookup before being turned away.
+- **Final ([D75](decisions.md)): limit concurrency at the front door too.** At most 32 lookups run at once and the excess gets a quick 503 before any work. At 250 req/s Weir now answers **221 req/s successfully at a 158 ms p95**, sheds 11%, and sends nothing down the expensive path. Before, it collapsed to 35 req/s at 34 s.
+
+**The overload test also found silent data loss.** Above ~200 req/s the background writers fell behind and dropped **16,940 request-log rows**, which are the source of every cost number, and cache entries queued behind per-hit UPDATEs. Hit counts are now summed in memory and the log is written with COPY; the re-run dropped nothing ([D76](decisions.md)).
 
 **Testing the tests.** Fresh-context reviewers at the end of each phase kept finding checks that would pass without evidence:
 - a failure-injection check where every request was a cache hit, so the injected model faults never met a request ([D54](decisions.md))
@@ -118,7 +126,6 @@ Every check now has to be able to say "not run" instead of "pass".
 
 ## 7. What I'd do next
 
-- **Shed load instead of bypassing the cache under saturation** (M31), and cap the embedding threads, which spin-wait at about 600% CPU (M33).
 - **A learned router:** a small classifier trained on the logged features and outcomes, kept only if it beats the rules on cost at equal quality.
 - **Cache warming** from the most frequent questions in past logs, and a cross-encoder check for matches just above the threshold.
 
@@ -130,6 +137,7 @@ Every check now has to be able to say "not run" instead of "pass".
 - Designed a **158-question eval set** with paraphrase clusters and **24 look-alike trap pairs**, and built an entity guard that cut wrong cache hits at the chosen 0.90 threshold from **37% to 0%**.
 - Logged per-request cost, counterfactual cost and latency to Postgres and Prometheus, with a Grafana dashboard over every run and **8 alerts** covered by **22 promtool tests**.
 - Load-tested with k6 (31 runs): p95 **15 ms vs 1,439 ms** for the baseline at 10 req/s on a warm cache, and **0 user-facing errors** under injected model rate limits, model timeouts and a 2 s database delay.
+- Found and fixed an overload collapse with concurrency-based load shedding and a 25× CPU cut: at 250 req/s, from **35 req/s served at a 34 s p95** to **221 req/s at 158 ms**, with **0 request-log rows lost** (16,940 before).
 - Shipped a one-command demo (`uv run demo.py`) with a guided page that shows cache hits, guard refusals and routing live.
 
 One or two of these is enough on a resume; the rest are for conversation.
@@ -140,7 +148,7 @@ One or two of these is enough on a resume; the rest are for conversation.
 
 **How do you know quality held?** A fixed eval set, two independent scores (key facts and a judge from a different model family), same-day baselines because the model drifts, and a gate per phase that had to pass before moving on.
 
-**What went wrong?** The outage that cached stand-in answers (D40), or the 100 req/s collapse where the cache's safety valve fed the overload. Both were found by measuring, not by reading code.
+**What went wrong?** The outage that cached stand-in answers (D40), or the 100 req/s collapse where the cache's safety valve fed the overload. Both were found by measuring, not by reading code, and the collapse took three measured attempts to fix: the obvious signal (embedding timeouts) turned out to be the wrong one.
 
 **When would you not use a semantic cache?** On low-repeat traffic (the cold pass gets only 14.6% hits), for personalised answers (bypassed by rule), and for fast-changing content (the knowledge-base version is part of the cache key, so an edit invalidates old answers).
 
@@ -148,6 +156,6 @@ One or two of these is enough on a resume; the rest are for conversation.
 
 **Why is the router's saving so small?** Deliberately. A looser bar would save about 38% but made 2 of 158 answers worse. I'd rather show the trade-off than hide it.
 
-**How does it behave under load and failure?** It held 100 req/s at about 41 ms p95 in 2 of 3 ramps, against 60 req/s for the baseline. Failures stayed invisible: 0 errors under injected rate limits, model timeouts and a slow database. It also has one real overload mode, which I can explain.
+**How does it behave under load and failure?** After the hardening it holds 100 req/s at about 20 ms p95 in 3 of 3 ramps (60 req/s for the baseline) and 200 req/s with no errors. Past capacity it sheds with a quick 503 instead of collapsing: 221 req/s answered at 158 ms p95 when offered 250. Failures stayed invisible: 0 errors under injected rate limits, model timeouts and a slow database.
 
 **What would you do next?** Shed load under saturation, try a learned router, and warm the cache from logs.
