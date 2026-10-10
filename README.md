@@ -21,7 +21,7 @@ It logs the **cost, counterfactual cost and latency of every request**, so each 
 
 **Try it:** `uv run demo.py` · **Read:** the [case study](docs/writeup.md) ([web page](https://claude.ai/artifact/Qz1NXbjKbN3NhgN8rM2nXB)) · the [five-minute demo script](docs/demo-script.md)
 
-https://github.com/user-attachments/assets/e2c106bf-0dc8-4f55-8e54-e6d97f661f81
+https://github.com/user-attachments/assets/565ee2ef-6c73-4232-b23c-f78b1f9173a9
 
 ## Contents
 
