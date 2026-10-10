@@ -121,7 +121,6 @@ Every check now has to be able to say "not run" instead of "pass".
 - **Shed load instead of bypassing the cache under saturation** (M31), and cap the embedding threads, which spin-wait at about 600% CPU (M33).
 - **A learned router:** a small classifier trained on the logged features and outcomes, kept only if it beats the rules on cost at equal quality.
 - **Cache warming** from the most frequent questions in past logs, and a cross-encoder check for matches just above the threshold.
-- **Harden the RAG service's local port** against DNS rebinding before anyone runs this with a real key on a shared machine (M44).
 
 ---
 

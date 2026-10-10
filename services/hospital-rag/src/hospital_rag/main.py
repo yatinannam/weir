@@ -6,6 +6,7 @@ from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, Field
 
@@ -38,6 +39,13 @@ class FaultIn(BaseModel):
     delay_ms: int = Field(5000, ge=0, le=60000)
 
 
+# The names hospital-rag is really called by: tools on the host (127.0.0.1, localhost) and Weir on the
+# Docker network (hospital-rag). Anything else is refused with a 400 before a route runs, which stops
+# DNS rebinding: a web page can point its own domain at 127.0.0.1, but the browser still sends that
+# domain as the Host header (backlog M44).
+ALLOWED_HOSTS = ("127.0.0.1", "localhost", "hospital-rag")
+
+
 def create_app(deps: Deps | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -62,6 +70,7 @@ def create_app(deps: Deps | None = None) -> FastAPI:
             await pool.close()
 
     app = FastAPI(title="hospital-rag", lifespan=lifespan)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(ALLOWED_HOSTS))
     if deps is not None:
         app.state.deps = deps
 

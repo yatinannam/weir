@@ -378,3 +378,10 @@ Full Weir with the final settings, against the same-day-style baseline v4:
 - A two-minute (117 s) 1080p pitch film of the whole workflow, made with HyperFrames: the problem (repeats, over-provisioning), the danger (37% wrong matches without the guard), how a request flows, the five demo steps recreated from the real demo page, the entity guard, the results, load and failure, the dashboard and stack, where it fits. Every number comes from `docs/writeup.md` or the real demo screenshot. Music and sound effects; no voice.
 - Hosted as a GitHub user attachment so the README plays it inline (the user uploaded it), and kept as the asset of the `v1.0.0` GitHub release for download (25 MB, kept out of git). A first version linked a poster image instead; the user preferred the inline player. The inline copy is a 7.3 MB web encode (x264 CRF 27, `-tune animation`, faststart) so the player starts faster; the release keeps the 25 MB original. GitHub strips `<video>` tags that point at files in the repo, so committing the video would not have played inline.
 - The editable source (storyboard, composition, render settings) lives locally in `brag-output/`, which is gitignored.
+
+## 2026-10-10: Hardening, step 1: DNS-rebinding fix (M44)
+
+- Agreed with the user: the next work is hardening, in order M44 (this), M33 (embedding threads), M31 (overload protection), then a re-run of the ramp test.
+- hospital-rag now refuses any Host header but `127.0.0.1`, `localhost` and `hospital-rag` with a 400, before a route runs (D73). A rebinding page can point its domain at 127.0.0.1 but can't change the Host header the browser sends, so it can no longer reach `/generate` or `/stub/faults`.
+- Tests: 8 new (4 local names pass, 4 rebinding hosts refused with no model call); hospital-rag suite 55 passed.
+- Live check in stub mode: `/healthz` 200 from 127.0.0.1 and localhost, a forged `Host: evil.example:8001` gets 400 on `/stub/faults`, and `uv run demo.py --stub --check` passed all five steps (Weir reaches hospital-rag by its Docker name).

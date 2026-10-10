@@ -444,7 +444,7 @@ The orchestrator refuses to run unless hospital-rag reports the stub model, and 
 ```bash
 docker compose up -d postgres                       # DB tests use 127.0.0.1:5432/weir_test
 cd services/weir         && uv run pytest -q        # 288 tests
-cd services/hospital-rag && uv run pytest -q        #  47 tests
+cd services/hospital-rag && uv run pytest -q        #  55 tests
 cd eval                  && uv run pytest -q        # 160 tests
 uv run --no-project --python 3.12 --with pytest pytest -q tests   # 23 launcher tests (demo.py)
 ```

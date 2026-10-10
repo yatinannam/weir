@@ -34,7 +34,7 @@ class FakeEmbedder:
 
 
 def client_for(deps):
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://t")
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://localhost:8001")
 
 
 GEN_BODY = {"query": "When?", "namespace": NS, "model": "m", "chunks": [{"id": "pub-a#0", "text": "Open 4 pm to 8 pm"}]}
@@ -150,3 +150,21 @@ async def test_fault_body_is_validated():
         assert (await c.post("/stub/faults", json={"model": "m", "mode": "explode"})).status_code == 422
         assert (await c.post("/stub/faults", json={"model": "m", "mode": "timeout",
                                                     "delay_ms": 999999})).status_code == 422
+
+
+# --- M44: DNS rebinding. A malicious page can resolve its own domain to 127.0.0.1, but the browser
+# still sends that domain in the Host header, so only the names this service is really called by pass.
+
+@pytest.mark.parametrize("host", ["localhost:8001", "127.0.0.1:8001", "hospital-rag:8001", "localhost"])
+async def test_requests_from_local_names_pass(host):
+    async with client_for(Deps(None, FakeEmbedder(), FakeLLM(), 4)) as c:
+        r = await c.post("/generate", json=GEN_BODY, headers={"Host": host})
+    assert r.status_code == 200
+
+
+@pytest.mark.parametrize("host", ["evil.example:8001", "evil.example", "127.0.0.1.evil.example:8001", ""])
+async def test_rebinding_hosts_are_refused_before_the_model_is_called(host):
+    llm = FakeLLM()
+    async with client_for(Deps(None, FakeEmbedder(), llm, 4)) as c:
+        r = await c.post("/generate", json=GEN_BODY, headers={"Host": host})
+    assert r.status_code == 400 and llm.calls == 0
