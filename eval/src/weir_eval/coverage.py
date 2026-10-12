@@ -8,6 +8,11 @@ check should flag each copy.
 from weir.router.coverage import check, details, passage, required_types, strip_type
 
 
+# hospital-rag's refusal (prompt.NOT_FOUND_MESSAGE). Saved answers don't carry its not_found flag; live, Weir
+# never runs the check on a refusal (it cites nothing), and grounding escalates it.
+NOT_FOUND = "couldn't find that in weir general hospital's information"
+
+
 def _good(record: dict) -> bool:
     return record.get("judge_score") == 5 and record.get("fact_score") == 1.0
 
@@ -16,6 +21,10 @@ async def coverage_rows(records: list[dict], rag, k: int) -> tuple[list[dict], l
     rows, synthetic = [], []
     for r in records:
         if r.get("status_code") != 200:
+            continue
+        if NOT_FOUND in r["answer"].lower():
+            rows.append({"id": r["id"], "passed": True, "reason": "skipped:not_found", "strict_passed": True,
+                         "required": sorted(required_types(r["query"])), "passage": []})
             continue
         retrieved = await rag.retrieve(r["query"], r["namespace"], k)
         cited = {s["id"] for s in (r.get("sources") or [])}

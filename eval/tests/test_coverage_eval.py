@@ -47,3 +47,9 @@ def test_the_cli_loads_and_knows_the_new_flags(monkeypatch, capsys):  # a syntax
             cli.main()
     out = capsys.readouterr().out
     assert "--rag-url" in out and "--coverage-mode" in out
+
+
+async def test_a_refusal_is_skipped_not_flagged():  # D79: refusals are grounding's job
+    refusal = rec("q-136", "Sorry, I couldn't find that in Weir General Hospital's information.")
+    rows, synthetic = await coverage_rows([refusal], FakeRag(), 4)
+    assert rows[0]["passed"] and rows[0]["reason"] == "skipped:not_found" and synthetic == []

@@ -712,3 +712,14 @@ async def test_a_large_answer_missing_detail_is_logged_not_recalled():
     [row] = h.sink.rows
     assert not resp.meta.escalated and row.model_calls == 1
     assert row.coverage_passed is False and row.coverage_reason == "missing:time"
+
+
+async def test_a_not_found_answer_is_left_to_grounding():  # D79: coverage never judges a refusal
+    h = harness(camp_rag(), **ROUTER_ON)
+    h.p._rag = fake_rag(chunks=CAMP_CHUNKS, top_score=0.95, cited=[], generate_response=httpx.Response(200, json={
+        "answer": "Sorry, I couldn't find that in Weir General Hospital's information.", "cited_chunk_ids": [],
+        "invalid_citations": 0, "not_found": True, "finish_reason": "stop", "tokens_in": 100, "tokens_out": 10,
+        "model": SMALL, "prompt_version": "p1", "latency_ms": 5}))
+    await h.p.handle(ask(CAMP_Q))
+    [row] = h.sink.rows
+    assert row.escalated_for == "grounding" and row.coverage_passed is None

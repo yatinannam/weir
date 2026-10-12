@@ -13,8 +13,8 @@ router:                      # Phase 3 addendum §3.2 / §5
   default_tier: large        # used when the router is disabled
   small_model: openai/gpt-oss-20b
   large_model: openai/gpt-oss-120b
-  short_query_tokens: 16     # tuned offline, D37 (docs/results/router-tuning.md)
-  high_confidence: 0.86      # tuned offline, D37: only very strong retrieval matches go small
+  short_query_tokens: 25     # re-tuned with the coverage check, D80 (was 16, D37)
+  high_confidence: 0.72      # re-tuned with the coverage check, D80 (was 0.86, D37)
   low_confidence: 0.50       # tuned offline, D37 (no eval question scores below 0.62)
   max_model_calls: 2         # never more than 2 model calls per request
   coverage_check: true       # escalate a small answer lacking the kind of detail asked for (D79); false = off
