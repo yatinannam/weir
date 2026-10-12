@@ -147,3 +147,30 @@ def test_dump_keeps_only_passing_settings_and_counts():
     assert out["chosen"]["setting"]["short_query_tokens"] in GRID["short_query_tokens"]
     assert all("_sim" not in p and p["tune"]["share_small"] > 0 for p in out["passing"])
     assert dump(results, None, {})["chosen"] is None
+
+
+def test_a_coverage_failure_escalates_in_simulation():  # D79
+    from dataclasses import replace
+
+    ok = row()
+    flagged = replace(ok, small_coverage=False)
+    [kept] = simulate([ok], SET, CFG)
+    [esc] = simulate([flagged], SET, CFG)
+    assert kept["tier"] == "small" and not kept["escalated"] and esc["escalated"]
+    assert esc["cost"] == ok.small_cost + ok.base_cost and esc["judge"] == ok.base_judge
+
+
+def test_build_rows_reads_coverage_by_mode():  # D79
+    queries = [q("q-1", "d-01", split="tune")]
+    feats_row = {"q-1": {k: getattr(feats(), k) for k in ("tokens", "has_reasoning_words", "num_questions",
+                                                          "top_score", "score_gap", "context_tokens", "is_clinical")}}
+    base = {"q-1": {"status_code": 200, "judge_score": 5, "fact_score": 1.0, "meta": {"cost_usd": 0.0004}}}
+    small = {"q-1": {"status_code": 200, "judge_score": 5, "fact_score": 1.0,
+                     "meta": {"cost_usd": 0.0002, "model": CFG.router.small_model}}}
+    ground = {"q-1": {"grounding_reason": None, "grounding_overlap": 0.9}}
+    cov = {"q-1": {"passed": True, "strict_passed": False}}
+    [typed] = build_rows(queries, feats_row, base, small, ground, CFG.router.small_model, coverage=cov)
+    [strict] = build_rows(queries, feats_row, base, small, ground, CFG.router.small_model, coverage=cov,
+                          coverage_mode="strict")
+    [none] = build_rows(queries, feats_row, base, small, ground, CFG.router.small_model)
+    assert (typed.small_coverage, strict.small_coverage, none.small_coverage) == (True, False, None)

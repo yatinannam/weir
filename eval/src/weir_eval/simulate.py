@@ -42,6 +42,7 @@ class Row:
     small_cost: float
     small_reason: str | None      # grounding reason Weir logged for the small answer
     small_overlap: float | None
+    small_coverage: bool | None = None  # D79: False -> the coverage check flags the small answer (escalates)
 
 
 @dataclass(frozen=True)
@@ -58,7 +59,8 @@ def settings() -> list[Setting]:
 
 def small_passes(row: Row, min_overlap: float) -> bool:
     return (row.small_judge is not None and row.small_reason in (None, "low_overlap")
-            and row.small_overlap is not None and row.small_overlap >= min_overlap)
+            and row.small_overlap is not None and row.small_overlap >= min_overlap
+            and row.small_coverage is not False)
 
 
 def _config_for(setting: Setting, cfg: WeirConfig) -> WeirConfig:
@@ -140,7 +142,8 @@ def choose(results: list[tuple[Setting, dict[str, dict]]]) -> tuple[Setting, dic
 
 
 def build_rows(queries: list[EvalQuery], features: dict[str, dict], baseline: dict[str, dict],
-               small: dict[str, dict], grounding: dict[str, dict], small_model: str) -> list[Row]:
+               small: dict[str, dict], grounding: dict[str, dict], small_model: str,
+               coverage: dict[str, dict] | None = None, coverage_mode: str = "type") -> list[Row]:
     rows = []
     for q in queries:
         b = baseline[q.id]
@@ -159,6 +162,8 @@ def build_rows(queries: list[EvalQuery], features: dict[str, dict], baseline: di
             small_cost=s["meta"]["cost_usd"] if usable else 0.0,
             small_reason=g["grounding_reason"] if usable else "unavailable",
             small_overlap=g["grounding_overlap"] if usable else None,
+            small_coverage=(None if not coverage or q.id not in coverage
+                            else coverage[q.id]["passed" if coverage_mode == "type" else "strict_passed"]),
         ))
     return rows
 

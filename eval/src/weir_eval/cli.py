@@ -243,12 +243,15 @@ def cmd_simulate(args: argparse.Namespace) -> int:
     small_dir = Path(args.small)
     rows = build_rows(load_queries(QUERIES), _first_by_id(_read_jsonl(EVAL_DIR / "datasets" / "features.jsonl")),
                       _first_by_id(_load_results(Path(args.baseline))), _first_by_id(_load_results(small_dir)),
-                      _first_by_id(_read_jsonl(small_dir / "grounding.jsonl")), cfg.router.small_model)
+                      _first_by_id(_read_jsonl(small_dir / "grounding.jsonl")), cfg.router.small_model,
+                      coverage=_first_by_id(_read_jsonl(Path(args.coverage))) if args.coverage else None,
+                      coverage_mode=args.coverage_mode)
     results = run_grid(rows, cfg)
     chosen = choose(results)
     out_dir = EVAL_DIR / "reports" / f"simulate-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
     out_dir.mkdir(parents=True)
-    header = {"baseline": Path(args.baseline).name, "small": small_dir.name}
+    header = {"baseline": Path(args.baseline).name, "small": small_dir.name,
+              "coverage": args.coverage_mode if args.coverage else None}
     (out_dir / "simulate.json").write_text(json.dumps(dump(results, chosen, header), separators=(",", ":")),
                                            encoding="utf-8")
     (out_dir / "summary.md").write_text(render(chosen, results, header), encoding="utf-8")
@@ -402,6 +405,8 @@ def main() -> None:
     sim = sub.add_parser("simulate", help="offline router simulation over the rule grid (no model calls)")
     sim.add_argument("--baseline", default=str(EVAL_DIR / "reports" / "baseline-v3"))
     sim.add_argument("--small", required=True, help="small-model trial report dir (with grounding.jsonl)")
+    sim.add_argument("--coverage", help="coverage.jsonl from `weir_eval coverage` on the small trial (D79)")
+    sim.add_argument("--coverage-mode", choices=["type", "strict"], default="type")
     sim.set_defaults(func=cmd_simulate)
     gt = sub.add_parser("gate", help="Phase 3 exit gate: report vs baseline v3 on the same questions")
     gt.add_argument("report_dir")
