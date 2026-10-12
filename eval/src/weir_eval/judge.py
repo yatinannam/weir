@@ -63,7 +63,10 @@ class Judge:
 
     async def grade(self, query: str, facts: list[str], source_text: str, answer: str,
                     unanswerable: bool = False) -> JudgeVerdict:
-        payload = [RUBRIC_VERSION, self._model, query, facts, answer] + (["unanswerable"] if unanswerable else [])
+        # the source is part of the verdict: without it, correcting a question's sources reused the old one (D78)
+        source_hash = hashlib.sha256(source_text.encode()).hexdigest()
+        payload = ([RUBRIC_VERSION, self._model, query, facts, answer, source_hash]
+                   + (["unanswerable"] if unanswerable else []))
         key = hashlib.sha256(json.dumps(payload).encode()).hexdigest()
         cached = self._cache_dir / f"{key}.json"
         if cached.exists():

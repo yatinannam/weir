@@ -29,7 +29,7 @@ A hospital FAQ chatbot answers the same few questions all day: visiting hours, p
 - **Repeats.** "When can I visit the ICU?" and "What are the ICU visiting hours?" deserve the same answer, but they're different strings, so an exact-match cache misses.
 - **Over-provisioning.** "What's the orthopedics consultation fee?" doesn't need the large model, but sending everything to the large one is the safe default.
 
-The obvious fixes are dangerous in a hospital setting. A semantic cache that matches on meaning will happily serve the ICU's visiting hours to someone asking about the general ward, because the two questions are almost identical to an embedding model. A router that sends questions to a smaller model can quietly drop a detail, such as a phone extension. So the project was framed as a measurement problem first: **build the baseline and the eval set before any optimization, and only keep an optimization if quality holds.**
+The obvious fixes are dangerous in a hospital setting. A semantic cache that matches on meaning will happily serve the ICU's visiting hours to someone asking about the general ward, because the two questions are almost identical to an embedding model. A router that sends questions to a smaller model can quietly drop a detail, such as a time range. So the project was framed as a measurement problem first: **build the baseline and the eval set before any optimization, and only keep an optimization if quality holds.**
 
 Weir is a **gateway**, not a new RAG system. It wraps an existing retrieval service (`hospital-rag`) it doesn't own, which is how this would be deployed in front of a real hospital system.
 
@@ -57,7 +57,7 @@ flowchart LR
 
 **Only grounded answers are cached** ([D35](decisions.md)). An answer is cached only if it cites the retrieved passages and its words actually come from them. A cache multiplies whatever it stores, so a bad answer cached once would be served to everyone who asks. Later, answers from a fallback to the small model were excluded too ([D40](decisions.md), see §5).
 
-**The router has a strict bar.** Simple features decide the route: question length, how well the top document matches, whether the question asks more than one thing or needs reasoning, and clinical words, which always go large. The cut-offs were tuned offline by replaying both models' answers over a rule grid, with the rule that **no question may get visibly worse** ([D37](decisions.md); [router tuning](results/router-tuning.md)). That bar sends only 13% of questions to the small model, which answered every one of them at 5/5 with full facts. A looser bar would have saved about 38% but made 2 of 158 answers worse, including an invented phone extension. In a hospital FAQ that's a real error, and the cache already delivers the big saving.
+**The router has a strict bar.** Simple features decide the route: question length, how well the top document matches, whether the question asks more than one thing or needs reasoning, and clinical words, which always go large. The cut-offs were tuned offline by replaying both models' answers over a rule grid, with the rule that **no question may get visibly worse** ([D37](decisions.md); [router tuning](results/router-tuning.md)). That bar sends only 13% of questions to the small model, which answered every one of them at 5/5 with full facts. A looser bar would have saved about 38% but made 1 of 158 answers worse: the small model gave the blood donation camp's day and left out its hours. In a hospital FAQ that's a real error, and the cache already delivers the big saving.
 
 **Escalation and fallback.** If a small-model answer fails the grounding check, Weir escalates to the large model once. If a model is down or rate-limited, Weir falls back to the other tier. There's a hard cap of two model calls per request.
 
@@ -76,10 +76,10 @@ flowchart LR
 
 | Configuration | Cold: cost / 1k | Cold: judge, facts | Replay: hit rate | Replay: cost / 1k | Replay: p50 |
 | :-- | --: | --: | --: | --: | --: |
-| Baseline | $0.0988 | 4.90, 0.978 | 0% | $0.0970 | 747 ms |
+| Baseline | $0.0988 | 4.91, 0.978 | 0% | $0.0970 | 747 ms |
 | Cache only | $0.0847 (−14%) | 4.91, 0.981 | 93.3% | $0.0050 | 56 ms |
-| Router only | $0.0921 (−7%) | 4.90, 0.978 | 0% | $0.0936 | 732 ms |
-| **Full Weir** | **$0.0786 (−20%)** | **4.90, 0.978** | **93.0%** | **$0.0055 (−94%)** | **14 ms** |
+| Router only | $0.0921 (−7%) | 4.91, 0.978 | 0% | $0.0936 | 732 ms |
+| **Full Weir** | **$0.0786 (−20%)** | **4.91, 0.978** | **93.0%** | **$0.0055 (−94%)** | **14 ms** |
 
 The cache does most of the work on realistic, repeat-heavy traffic. The router adds a smaller, safe saving that shows on cold traffic.
 
@@ -154,7 +154,7 @@ One or two of these is enough on a resume; the rest are for conversation.
 
 **What did each part contribute?** The cache: −94% cost on repeat-heavy traffic. The router: −7% on its own, safely. Together on a cold pass: −20%, with quality identical.
 
-**Why is the router's saving so small?** Deliberately. A looser bar would save about 38% but made 2 of 158 answers worse. I'd rather show the trade-off than hide it.
+**Why is the router's saving so small?** Deliberately. A looser bar would save about 38% but made 1 of 158 answers worse (a left-out time range). I'd rather show the trade-off than hide it. A second "worse" answer turned out to be the eval set's fault: the judge was shown the wrong source page and called a correct extension number invented (D78).
 
 **How does it behave under load and failure?** After the hardening it holds 100 req/s at about 20 ms p95 in 3 of 3 ramps (60 req/s for the baseline) and 200 req/s with no errors. Past capacity it sheds with a quick 503 instead of collapsing: 221 req/s answered at 158 ms p95 when offered 250. Failures stayed invisible: 0 errors under injected rate limits, model timeouts and a slow database.
 

@@ -15,7 +15,7 @@ Requests: 158 (ok 158, errors 0)
 | --- | --- |
 | Cost per 1,000 requests (USD, list prices) | 0.0763 |
 | Latency p50 / p95 / p99 (ms, sequential, client-side) | 788 / 7180 / 27692 |
-| Judge score mean (1-5) | 4.892 (0 not judged) |
+| Judge score mean (1-5) | 4.899 (0 not judged) |
 | Key-fact score mean (0-1) | 0.975 |
 | Cache hit rate | 14.6% |
 | Cache hits / wrong hits | 23 / 0 |
@@ -27,7 +27,7 @@ Requests: 158 (ok 158, errors 0)
 | --- | --- | --- | --- |
 | distinct | 35 | 4.657 | 0.914 |
 | paraphrase | 65 | 5 | 1.0 |
-| trap | 48 | 4.896 | 0.979 |
+| trap | 48 | 4.917 | 0.979 |
 | unanswerable | 10 | 5 | 1.0 |
 
 ## By difficulty
@@ -36,7 +36,7 @@ Requests: 158 (ok 158, errors 0)
 | --- | --- | --- | --- |
 | easy | 95 | 5 | 1.0 |
 | hard | 15 | 4.2 | 0.8 |
-| medium | 48 | 4.896 | 0.979 |
+| medium | 48 | 4.917 | 0.979 |
 
 ## Latency by cache status
 
@@ -49,7 +49,7 @@ Requests: 158 (ok 158, errors 0)
 
 | Route | n | Judge | Facts | Cost / 1k | p50 (ms) | p95 (ms) |
 | --- | --- | --- | --- | --- | --- | --- |
-| large | 117 | 4.855 | 0.966 | $0.0960 | 839 | 8291 |
+| large | 117 | 4.863 | 0.966 | $0.0960 | 839 | 8291 |
 | none | 23 | 5 | 1.0 | $0.0000 | 32 | 57 |
 | small | 18 | 5 | 1.0 | $0.0457 | 691 | 6144 |
 
@@ -59,7 +59,6 @@ Escalation rate (of requests routed small): 0.0%
 
 | id | judge | facts | your verdict |
 | --- | --- | --- | --- |
-| q-154 | 4 | 1.00 |  |
 | q-001 | 5 | 1.00 |  |
 | q-002 | 5 | 1.00 |  |
 | q-003 | 5 | 1.00 |  |
@@ -79,3 +78,4 @@ Escalation rate (of requests routed small): 0.0%
 | q-017 | 5 | 1.00 |  |
 | q-018 | 5 | 1.00 |  |
 | q-019 | 5 | 1.00 |  |
+| q-020 | 5 | 1.00 |  |

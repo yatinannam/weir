@@ -104,5 +104,14 @@ async def test_unanswerable_note_and_separate_cache_key(tmp_path):
     await judge.grade("q", ["f"], "", "a")
     await judge.grade("q", ["f"], "", "a", unanswerable=True)
     assert len(call.prompts) == 2 and "does NOT contain" in call.prompts[1] and "(none)" in call.prompts[1]
-    legacy = hashlib.sha256(json.dumps([RUBRIC_VERSION, "m", "q", ["f"], "a"]).encode()).hexdigest()
-    assert (tmp_path / f"{legacy}.json").exists()  # answerable keys unchanged: Phase 1 grades stay valid
+    source = hashlib.sha256(b"").hexdigest()
+    answerable = hashlib.sha256(json.dumps([RUBRIC_VERSION, "m", "q", ["f"], "a", source]).encode()).hexdigest()
+    assert (tmp_path / f"{answerable}.json").exists()  # D78: the key covers the source the judge was shown
+
+
+async def test_a_changed_source_is_judged_again(tmp_path):  # D78: fixing a question's sources must take effect
+    call = FakeCall([json.dumps({"score": 2, "reason": "unsupported"}), json.dumps({"score": 5, "reason": "supported"})])
+    judge = Judge(call, tmp_path, "m", sleep=no_sleep)
+    before = await judge.grade("q?", ["f"], "CARDIOLOGY PAGE", "Neurology is ext. 2150.")
+    after = await judge.grade("q?", ["f"], "CARDIOLOGY PAGE\n\nDIRECTORY", "Neurology is ext. 2150.")
+    assert (before.score, after.score) == (2, 5) and len(call.prompts) == 2

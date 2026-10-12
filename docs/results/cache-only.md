@@ -13,7 +13,7 @@ Raw data:
 
 | Configuration | Requests | Cache hit rate | Cost per 1,000 requests | p50 | p95 | Judge (1–5) | Facts | Wrong hits |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Baseline v3 (no cache) | 158 | 0% | $0.0980 | 617 ms | 3.5 s | 4.90 | 0.981 | — |
+| Baseline v3 (no cache) | 158 | 0% | $0.0980 | 617 ms | 3.5 s | 4.91 | 0.981 | — |
 | Cache only, cold pass | 158 | 14.6% | $0.0847 | 686 ms | 1.3 s | **4.91** | 0.981‡ | **0** |
 | Cache only, warm replay | 300 | **93.3%** | **$0.0050** | **56 ms** | 579 ms | 4.79* | 0.948* | **0**† |
 
@@ -28,7 +28,7 @@ Raw data:
 | --- | --- | --- |
 | Trap pairs at the chosen threshold (sweep) | 0, false-hit rate under 1% on every split | **0 of 24 / 0%** (see `cache-threshold.md`) |
 | Wrong hits on trap questions (cache run) | 0 | **0** |
-| Cold-pass quality vs the baseline, same 158 questions | judge within 0.1, facts no lower | **judge 4.91 vs 4.90; facts 0.981 vs 0.981** (after the D38 matcher fix; 0.978 as first reported, see ‡). The cache itself caused no fact losses. |
+| Cold-pass quality vs the baseline, same 158 questions | judge within 0.1, facts no lower | **judge 4.91 vs 4.91; facts 0.981 vs 0.981** (after the D38 matcher fix; 0.978 as first reported, see ‡). The cache itself caused no fact losses. |
 
 **Passed.** Only one question's grade differed from the baseline: q-078 went from 4 to 5, on a miss. That's normal variation.
 

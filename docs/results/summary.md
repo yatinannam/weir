@@ -18,19 +18,21 @@ Only paraphrases repeat here, so this is the hard case for a cache.
 
 | Configuration | Cache hits | Routed small | Cost / 1k | p50 | p95 | Judge | Facts | Wrong cache hits |
 | :-- | --: | --: | --: | --: | --: | --: | --: | --: |
-| Baseline v3 (Oct 3) | 0% | 0% | $0.0980 | 617 ms | 3.5 s | 4.90 | 0.981 | — |
+| Baseline v3 (Oct 3) | 0% | 0% | $0.0980 | 617 ms | 3.5 s | 4.91 | 0.981 | — |
 | Cache only (Oct 3) | 14.6% | 0% | $0.0847 (−14% vs v3) | 686 ms | 1.3 s | 4.91 | 0.981 | 0 |
-| **Baseline v4 (Oct 5)** | 0% | 0% | **$0.0988** | 767 ms | 1.1 s | **4.90** | **0.978** | — |
-| Router only (Oct 5) | 0% | 12.7% | $0.0921 (**−7%**) | 781 ms | 1.5 s | 4.90 | 0.978 | — |
-| **Full Weir (Oct 6)**† | 14.6% | 11.4% | $0.0786 (**−20%**) | 876 ms | 1.6 s | **4.90** | **0.978** | **0** |
-| Full Weir, cut-off 0.6 (Oct 5)‡ | 14.6% | 11.4% | $0.0763 (−23%) | 788 ms | 7.2 s | 4.89 | 0.975§ | 0 |
+| **Baseline v4 (Oct 5)** | 0% | 0% | **$0.0988** | 767 ms | 1.1 s | **4.91** | **0.978** | — |
+| Router only (Oct 5) | 0% | 12.7% | $0.0921 (**−7%**) | 781 ms | 1.5 s | 4.91 | 0.978 | — |
+| **Full Weir (Oct 6)**† | 14.6% | 11.4% | $0.0786 (**−20%**) | 876 ms | 1.6 s | **4.91** | **0.978** | **0** |
+| Full Weir, cut-off 0.6 (Oct 5)‡ | 14.6% | 11.4% | $0.0763 (−23%) | 788 ms | 7.2 s | 4.90 | 0.975§ | 0 |
 
 **On a cold pass, each technique saves a little, and they add up:**
 - the cache saves about 14% (paraphrase hits only)
 - the router saves about 7%
 - together, about 20%
 
-Quality is identical to the same-day baseline (judge 4.90, facts 0.978).
+Quality is identical to the same-day baseline (judge 4.91, facts 0.978).
+
+Cold-pass judge scores were corrected on 2026-10-12 (D78): q-154's eval entry listed the wrong source page, so the judge marked two correct answers down. Every cold average rose by 0.006 (0.019 for runs where the small model answered q-154); the replay figures don't include q-154 and are unchanged.
 
 ## Replay: 300 requests, Zipf-skewed (seed 7), 73.7% repeats
 

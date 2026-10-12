@@ -399,3 +399,11 @@ Full numbers: [`results/hardening-2026-10-10.md`](results/hardening-2026-10-10.m
 - **Tooling (D77):** `loadtest run ramp --ramp-steps --step-s` for past-capacity ramps that never abort; the raw k6 file is streamed during compaction. One overload run's post-processing was killed for low memory before this fix; its numbers come from the request log and k6's summary.
 - **Suites:** weir 300, hospital-rag 57, eval 161, launcher 23.
 - New migration `005_shed_status.sql` (status `shed`); Prometheus counts `status="shed"`, and the existing error-rate alert includes it.
+
+## 2026-10-12: Eval correction: q-154 was a labelling gap, not a model error (D78)
+
+- While designing a stronger answer check, the two "real losses" behind D37's strict router bar were re-read. q-154's small-model answer ("Cardiology OPD (ext. 2140) and Neurology OPD (ext. 2150)") is correct: the departments directory lists both. The eval entry gave the judge only the cardiology page, so it called ext. 2150 invented (2/5) and marked the large model's correct answer 4/5.
+- Fixes: the entry now lists `pub-departments-directory`; the judge cache key includes the source text (it didn't, so the first re-judge silently re-used the old verdicts; new test). The 8 runs that judged q-154 were re-judged: 5/5 for both models everywhere.
+- Corrected figures: cold-pass judge averages +0.006 (baselines, cache only, router only, full: 4.90 → 4.91; cut-off 0.6 run 4.89 → 4.90), +0.019 where the small model answered (small trial 4.87 → 4.89; degraded full run 4.87 → 4.89). Replay figures are unchanged (q-154 isn't in the workload). The dated entries above keep the figures as measured then.
+- Router simulation re-run (`eval/reports/simulate-20261012T134826Z/`): the strict bar picks the same setting. The looser D37 option saves 38% with 77% of questions on the small model and makes **1** of 158 answers worse (q-036, which left out "10 am to 3 pm"), plus 1 better (q-078).
+- So the stronger check needs to catch **omissions**, not invented details: with one, the 38% option could be safe.

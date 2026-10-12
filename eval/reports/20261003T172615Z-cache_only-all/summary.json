@@ -20,7 +20,7 @@
       "p95": 1278,
       "p99": 1662
     },
-    "judge_mean": 4.905,
+    "judge_mean": 4.911,
     "judge_errors": 0,
     "fact_mean": 0.981,
     "cache_hit_rate": 0.14556962025316456,
@@ -61,7 +61,7 @@
       },
       "trap": {
         "n": 48,
-        "judge_mean": 4.896,
+        "judge_mean": 4.917,
         "fact_mean": 0.979
       },
       "unanswerable": {
@@ -83,9 +83,28 @@
       },
       "medium": {
         "n": 48,
-        "judge_mean": 4.896,
+        "judge_mean": 4.917,
         "fact_mean": 0.979
       }
-    }
+    },
+    "by_route": {
+      "large": {
+        "n": 135,
+        "judge_mean": 4.896,
+        "fact_mean": 0.978,
+        "cost_per_1k_usd": 0.09914555555555556,
+        "p50": 707,
+        "p95": 1279
+      },
+      "none": {
+        "n": 23,
+        "judge_mean": 5,
+        "fact_mean": 1.0,
+        "cost_per_1k_usd": 0.0,
+        "p50": 43,
+        "p95": 77
+      }
+    },
+    "escalation_rate": null
   }
 }

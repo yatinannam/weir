@@ -25,9 +25,9 @@ The router's settings were tuned on 2026-10-04 by **offline simulation**, withou
 
 | Split | Questions | Cost / 1k (baseline) | Judge (baseline) | Facts (baseline) | Routed small | Escalated | Small-route judge vs large |
 | --- | --: | --- | --- | --- | --: | --: | --- |
-| tune | 110 | $0.0913 ($0.0983) | 4.89 (4.89) | 0.982 (0.982) | 14% | 0% | 5.00 vs 5.00 |
+| tune | 110 | $0.0913 ($0.0983) | 4.90 (4.90) | 0.982 (0.982) | 14% | 0% | 5.00 vs 5.00 |
 | **holdout** | 48 | $0.0925 ($0.0973) | 4.92 (4.92) | 0.979 (0.979) | 10% | 0% | 5.00 vs 5.00 |
-| all | 158 | $0.0917 ($0.0980) | 4.90 (4.90) | 0.981 (0.981) | 13% | 0% | 5.00 vs 5.00 |
+| all | 158 | $0.0917 ($0.0980) | 4.91 (4.91) | 0.981 (0.981) | 13% | 0% | 5.00 vs 5.00 |
 
 - **Simulated saving: about 6%, with zero quality loss on both tune and holdout.**
 - 20 questions go to the small model, and every one of them scored 5/5 from both models.
@@ -38,7 +38,7 @@ The router's settings were tuned on 2026-10-04 by **offline simulation**, withou
 
 | | Small (gpt-oss-20b) | Large (baseline v3) |
 | --- | --: | --: |
-| Judge (1–5) | 4.87 | 4.90 |
+| Judge (1–5) | 4.89 | 4.91 |
 | Key facts | 0.972 (0.953 before the D38 matcher fix) | 0.981 |
 | Cost / 1k requests | $0.0467 (**−52%**) | $0.0980 |
 | p50 / p95 latency | 561 ms / 754 ms | 617 ms / 3.5 s |
@@ -48,7 +48,7 @@ The router's settings were tuned on 2026-10-04 by **offline simulation**, withou
   - hard multi-document questions are where the small model loses (4.20 vs 4.33)
   - traps are slightly worse (4.85 vs 4.90)
 - It gave up ("not found") on **4 answerable questions**: q-141, q-143, q-150 and q-157. The grounding check catches these, so in live use they escalate to the large model.
-- It answered **152 of 158** at 5/5.
+- It answered **153 of 158** at 5/5 (152 before the D78 correction of q-154).
 
 ### Why the planned grid found nothing (D37)
 
@@ -59,11 +59,11 @@ Five questions in the tune split had a small answer that **passed grounding** ye
 | Question | Small | Large | What happened | Real loss? |
 | --- | --- | --- | --- | --- |
 | q-036 "When is the blood donation camp held?" | judge 3, facts 0.5 | 5, 1.0 | Gave "first Saturday" but **omitted "10 am to 3 pm"** | **Yes** |
-| q-154 "Which OPD Block department is on the first floor?" | judge 2 | 4 | Right departments, **invented an extension number** | **Yes** |
+| q-154 "Which OPD Block department is on the first floor?" | judge 2 → **5** | 4 → **5** | Right departments and extensions. The eval entry listed only the cardiology page, so the judge never saw the directory that gives "ext. 2150" | No: a labelling gap, fixed 2026-10-12 (D78) |
 | q-151 / q-152 (refund on cancelling 3 days / 1 day before) | judge 5, facts 0 → **1.0** after D38 | 5, 1.0 | Wrote "90 %" / "50 %" with a space, which the fact matcher didn't accept | No: a matcher gap, fixed (D38) |
 | q-129 "Pediatric ward desk extension?" | judge 5, facts 0 → **1.0** after D38 | 5, 1.0 | "extension is 2171", while the key wants "ext. 2171" / "extension 2171" | No: a matcher gap, fixed (D38) |
 
-**Neither real loss is something a lexical grounding check can catch.** Both answers only use words from the source. q-036 looks as easy as a question gets (8 tokens, top score 0.855), so the planned grid sent it to the small model at every setting.
+**The real loss is not something a lexical grounding check can catch:** the answer only uses words from the source, and what's wrong is what it leaves out. q-036 looks as easy as a question gets (8 tokens, top score 0.855), so the planned grid sent it to the small model at every setting.
 
 Widening `high_confidence` to 0.60–0.95 in 0.01 steps (5,400 settings) gave **720 passing settings**. The chosen one is the cheapest on tune; ties go to the most conservative values, which is why it picked the highest `low_confidence` and `min_overlap` among them. `low_confidence` and `min_overlap` don't change the outcome on this question set:
 - every question's top score is ≥ 0.62, so weak retrieval never triggers
@@ -72,11 +72,11 @@ Widening `high_confidence` to 0.60–0.95 in 0.01 steps (5,400 settings) gave **
 ### The option not taken
 
 A looser bar would have saved **~38%**, with 77% of questions going small. That bar allows judge within 0.1 overall *and* on the small route, and facts within 0.01. The cost would have been:
-- overall judge 4.88 vs 4.90
+- overall judge 4.90 vs 4.91
 - facts 0.978 vs 0.981
-- 2 of 158 answers worse: q-036 and q-154 above
+- 1 of 158 answers worse: q-036 above, a left-out time range (q-154 was counted as a second until D78 showed it was a labelling gap), and 1 better (q-078)
 
-The user chose the strict bar (option A, D37). In a hospital FAQ, an invented phone extension is a real error, and the cache already delivers the large saving.
+The user chose the strict bar (option A, D37). In a hospital FAQ, a left-out time range is a real error, and the cache already delivers the large saving. Re-run on 2026-10-12 after D78 (`eval/reports/simulate-20261012T134826Z/`): the strict bar picks the same setting, because q-036 alone decides it.
 
 ## Caveats
 

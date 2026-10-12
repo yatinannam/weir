@@ -24,7 +24,7 @@ The final full-Weir runs (2026-10-06) use the shipped settings: `grounding.min_o
 | Escalated (small answer failed grounding) | 0 | — |
 | Cost per 1,000 requests | **$0.0921 (−7%)** | $0.0988 |
 | p50 / p95 latency | 781 ms / 1.5 s | 767 ms / 1.1 s |
-| Judge (1–5) | **4.90** | 4.90 |
+| Judge (1–5) | **4.91** | 4.91 |
 | Key facts | **0.978** | 0.978 |
 
 - **The router saves 7% with no quality change.**
@@ -37,7 +37,7 @@ The final full-Weir runs (2026-10-06) use the shipped settings: `grounding.min_o
 | Route | Requests | Judge | Facts | Cost / 1k | p50 | p95 |
 | --- | --: | --: | --: | --: | --: | --: |
 | small (gpt-oss-20b) | 20 | **5.00** | **1.00** | $0.0456 | 663 ms | 1.1 s |
-| large (gpt-oss-120b) | 138 | 4.88 | 0.975 | $0.0989 | 791 ms | 1.5 s |
+| large (gpt-oss-120b) | 138 | 4.89 | 0.975 | $0.0989 | 791 ms | 1.5 s |
 
 - **On the small route:**
   - A small-routed request costs **54% less** than a large one.
@@ -71,7 +71,7 @@ They are covered by unit tests instead.
 | Cache hits / routed small | 14.6% / 11.4% | 14.6% / 11.4% | 0% / 0% |
 | Cost per 1,000 | **$0.0786 (−20%)** | $0.0763 (−23%) | $0.0988 |
 | p50 / p95 | 876 ms / 1.6 s | 788 ms / 7.2 s | 767 ms / 1.1 s |
-| Judge / facts | **4.90 / 0.978** | 4.89 / 0.975* | 4.90 / 0.978 |
+| Judge / facts | **4.91 / 0.978** | 4.90 / 0.975* | 4.91 / 0.978 |
 | **Replay, 300 requests, 73.7% repeats** | | | |
 | Cache hits | **93.0%** | 89.7% | 0% |
 | Cost per 1,000 | **$0.0055 (−94%)** | $0.0090 (−91%) | $0.0970 |
@@ -99,10 +99,10 @@ The offline simulation predicted the live router almost exactly.
 
 | Report | Cost lower | Judge within 0.1 | Facts no lower | Small route ≥ large | 0 wrong hits | Result |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: |
-| Router only, cold | −7% | 4.90 = 4.90 | 0.978 = 0.978 | 5.00 = 5.00 | yes | **pass** |
-| **Full Weir (final), cold** | −20% | 4.90 = 4.90 | 0.978 = 0.978 | 5.00 = 5.00 | yes | **pass** |
+| Router only, cold | −7% | 4.91 = 4.91 | 0.978 = 0.978 | 5.00 = 5.00 | yes | **pass** |
+| **Full Weir (final), cold** | −20% | 4.91 = 4.91 | 0.978 = 0.978 | 5.00 = 5.00 | yes | **pass** |
 | **Full Weir (final), replay** | −94% | 4.79 vs 4.79 | 0.948 vs 0.947 | — | yes | **pass** |
-| Full Weir (cut-off 0.6), cold | −23% | 4.89 vs 4.90 | near miss: 0.975 vs 0.978 (q-150, large route, noise) | 5.00 = 5.00 | yes | pass\* |
+| Full Weir (cut-off 0.6), cold | −23% | 4.90 vs 4.91 | near miss: 0.975 vs 0.978 (q-150, large route, noise) | 5.00 = 5.00 | yes | pass\* |
 | Full Weir (cut-off 0.6), replay | −91% | 4.79 = 4.79 | 0.947 = 0.947 | — | yes | pass |
 | Router only, replay (derived) | −4% | 4.79 = 4.79 | 0.947 = 0.947 | 5.00 = 5.00 | yes | **pass** |
 
@@ -130,7 +130,7 @@ This was the re-measurement after lowering `min_overlap` to 0.3 (D39). Reports: 
 - The large model was rate-limited for most of the run.
 - 93 of 117 large-routed cold questions were answered by the small model.
 - Cold cost fell to $0.0474. That is the outage, not the router.
-- Judge 4.87 (still within 0.1).
+- Judge 4.89 (still within 0.1).
 - The replay hit 93.0% at $0.0030 / 1k.
 
 **This is not a clean test of D39.** It did, however, expose a design gap: the stand-in small answers were **cached**, including the two known small-model mistakes, and would have been served for 24 hours after the outage. **D40 fixes this:** answers from a fallback down to the small model are no longer cached.
@@ -143,7 +143,7 @@ The clean re-run of full Weir with D39 + D40 was done on 2026-10-06, once the qu
 - **The router's saving is limited by its strict quality bar.** That was the user's choice (D37).
 - **Grounding is lexical.**
   - It catches unfinished, uncited or "not found" answers.
-  - It does **not** catch a fluent answer that omits a detail or invents one using words from the source (q-036, q-154).
+  - It does **not** catch a fluent answer that omits a detail or invents one using words from the source (q-036 left out a time range; q-154, once listed here, was an eval-set labelling gap, D78).
   - The strict routing cut-offs, not grounding, keep those questions on the large model.
 - **The large model is not stable over time** (q-141 drift, q-150 noise). Every comparison uses a same-day baseline.
 - **Latency is sequential and paced, not load-tested.** Load tests are Phase 5.

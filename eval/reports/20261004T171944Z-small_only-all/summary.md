@@ -15,7 +15,7 @@ Requests: 158 (ok 158, errors 0)
 | --- | --- |
 | Cost per 1,000 requests (USD, list prices) | 0.0467 |
 | Latency p50 / p95 / p99 (ms, sequential, client-side) | 561 / 754 / 1505 |
-| Judge score mean (1-5) | 4.867 (0 not judged) |
+| Judge score mean (1-5) | 4.886 (0 not judged) |
 | Key-fact score mean (0-1) | 0.972 |
 | Cache hit rate | 0.0% |
 | Cache hits / wrong hits | 0 / 0 |
@@ -27,7 +27,7 @@ Requests: 158 (ok 158, errors 0)
 | --- | --- | --- | --- |
 | distinct | 35 | 4.657 | 0.914 |
 | paraphrase | 65 | 4.969 | 0.992 |
-| trap | 48 | 4.854 | 0.979 |
+| trap | 48 | 4.917 | 0.979 |
 | unanswerable | 10 | 5 | 1.0 |
 
 ## By difficulty
@@ -36,7 +36,7 @@ Requests: 158 (ok 158, errors 0)
 | --- | --- | --- | --- |
 | easy | 95 | 4.979 | 0.995 |
 | hard | 15 | 4.2 | 0.8 |
-| medium | 48 | 4.854 | 0.979 |
+| medium | 48 | 4.917 | 0.979 |
 
 ## Latency by cache status
 
@@ -48,7 +48,6 @@ Requests: 158 (ok 158, errors 0)
 
 | id | judge | facts | your verdict |
 | --- | --- | --- | --- |
-| q-154 | 2 | 1.00 |  |
 | q-001 | 5 | 1.00 |  |
 | q-002 | 5 | 1.00 |  |
 | q-003 | 5 | 1.00 |  |
@@ -68,3 +67,4 @@ Requests: 158 (ok 158, errors 0)
 | q-017 | 5 | 1.00 |  |
 | q-018 | 5 | 1.00 |  |
 | q-019 | 5 | 1.00 |  |
+| q-020 | 5 | 1.00 |  |

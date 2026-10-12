@@ -37,10 +37,10 @@ These are measured on *Weir General Hospital*, a fictional hospital FAQ: 40 docu
 
 | Configuration | Cache hits | Routed small | Cost / 1k req | p50 | Judge (1–5) | Key facts | Wrong cache hits |
 | :-- | --: | --: | --: | --: | --: | --: | --: |
-| Baseline: always the large model, no cache | 0% | 0% | $0.0988 | 767 ms | 4.90 | 0.978 | — |
+| Baseline: always the large model, no cache | 0% | 0% | $0.0988 | 767 ms | 4.91 | 0.978 | — |
 | Cache only | 14.6% | 0% | $0.0847 (−14%) | 686 ms | 4.91 | 0.981 | **0** |
-| Router only | 0% | 12.7% | $0.0921 (−7%) | 781 ms | 4.90 | 0.978 | — |
-| **Full Weir** (cache + router) | 14.6% | 11.4% | **$0.0786 (−20%)** | 876 ms | **4.90** | **0.978** | **0** |
+| Router only | 0% | 12.7% | $0.0921 (−7%) | 781 ms | 4.91 | 0.978 | — |
+| **Full Weir** (cache + router) | 14.6% | 11.4% | **$0.0786 (−20%)** | 876 ms | **4.91** | **0.978** | **0** |
 
 **Replay** (300 requests, Zipf-skewed, 73.7% repeats):
 
@@ -51,7 +51,7 @@ These are measured on *Weir General Hospital*, a fictional hospital FAQ: 40 docu
 | **Full Weir** | **93.0%** | **$0.0055 (−94%)** | **14 ms** | **4.79** | **0.948** | **0** |
 
 - **On repeat-heavy traffic, full Weir cuts cost per 1,000 requests by 94% and median latency by about 50× (747 ms → 14 ms), with quality equal to the baseline on the same mix.** On a cold pass, where only paraphrases repeat, it still saves 20% with identical judge and facts.
-- **The router adds a modest, safe saving.** It sends 13% of questions to the small model, which answered every one of them at 5/5 with full facts. That cuts router-only cost by 7% with judge and facts unchanged. The strict "no visible loss" bar limits it; a looser bar would have saved ~38% at the cost of 2 wrong answers in 158 ([`router-tuning.md`](docs/results/router-tuning.md)).
+- **The router adds a modest, safe saving.** It sends 13% of questions to the small model, which answered every one of them at 5/5 with full facts. That cuts router-only cost by 7% with judge and facts unchanged. The strict "no visible loss" bar limits it; a looser bar would have saved ~38% at the cost of 1 worse answer in 158, a time range left out ([`router-tuning.md`](docs/results/router-tuning.md); a second "loss" turned out to be a labelling gap in the eval set, D78).
 - **It degrades gracefully.** When Groq's large model failed (HTTP 502s, then a daily rate limit), Weir fell back to the small model: **0 errors across 1,232 live requests on 2026-10-05**.
 - **The entity guard is what makes caching safe.** At the chosen 0.90 threshold, embedding similarity alone would serve the wrong answer for **37%** of accepted matches (for example "ICU visiting hours" vs "general ward visiting hours"). With the guard, that drops to **0%**.
 
@@ -463,7 +463,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router, monitoring, load testing) |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | Task-by-task implementation plans |
-| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D77) |
+| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D78) |
 | [`docs/progress.md`](docs/progress.md) | Phase-by-phase log |
 | [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary, load tests, hardening under load |
 | [`docs/backlog.md`](docs/backlog.md) | Deferred findings and ideas |
