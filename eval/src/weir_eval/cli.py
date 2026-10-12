@@ -182,6 +182,32 @@ async def _features(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _coverage(args: argparse.Namespace) -> int:
+    from weir.config import load_config
+    from weir.rag.adapter import RagClient
+
+    from .coverage import coverage_rows, summarize
+
+    cfg = load_config(CONFIGS_DIR / "weir.yaml")
+    report = Path(args.report_dir)
+    records = _load_results(report)
+    rag = RagClient(args.rag_url, cfg.rag.timeout_seconds)
+    try:
+        rows, synthetic = await coverage_rows(records, rag, cfg.rag.retrieve_k)
+    finally:
+        await rag.aclose()
+    (report / "coverage.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "
+" for r in rows),
+                                           encoding="utf-8")
+    (report / "coverage-synthetic.jsonl").write_text("".join(json.dumps(s) + "
+" for s in synthetic),
+                                                     encoding="utf-8")
+    summary = summarize(rows, synthetic, records)
+    (report / "coverage-summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    print(json.dumps(summary, indent=2))
+    return 0
+
+
 DEFAULT_DB = os.environ.get("WEIR_DB_URL", "postgresql://weir:weir@127.0.0.1:5432/weir")
 
 
@@ -365,6 +391,10 @@ def main() -> None:
     feat = sub.add_parser("features", help="router features for every question via /retrieve (no LLM)")
     feat.add_argument("--rag-url", default=os.environ.get("RAG_URL", "http://127.0.0.1:8001"))
     feat.set_defaults(func=lambda a: asyncio.run(_features(a)))
+    cov = sub.add_parser("coverage", help="score a report's saved answers with the coverage check (retrieval only)")
+    cov.add_argument("report_dir")
+    cov.add_argument("--rag-url", default=os.environ.get("RAG_URL", "http://127.0.0.1:8001"))
+    cov.set_defaults(func=lambda a: asyncio.run(_coverage(a)))
     eg = sub.add_parser("export-grounding", help="copy a report's grounding results from weir.request_log")
     eg.add_argument("report_dir")
     eg.add_argument("--db-url", default=DEFAULT_DB)
