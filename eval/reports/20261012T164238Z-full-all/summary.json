@@ -1,0 +1,124 @@
+{
+  "header": {
+    "config": "full",
+    "split": "all",
+    "workload": null,
+    "queries": 158,
+    "judge_model": "groq:qwen/qwen3.8-27b",
+    "rubric": "r1",
+    "git_commit": "07702f8",
+    "started_utc": "20261012T164238Z"
+  },
+  "summary": {
+    "n": 158,
+    "ok": 158,
+    "errors": 0,
+    "cost_usd_total": 0.008643225,
+    "cost_per_1k_usd": 0.05470395569620253,
+    "latency_ms": {
+      "p50": 685,
+      "p95": 1053,
+      "p99": 1326
+    },
+    "judge_mean": 4.905,
+    "judge_errors": 0,
+    "fact_mean": 0.978,
+    "cache_hit_rate": 0.14556962025316456,
+    "hits": 23,
+    "wrong_hits": 0,
+    "hit_rate_by_group": {
+      "distinct": 0.0,
+      "paraphrase": 0.2923076923076923,
+      "trap": 0.08333333333333333,
+      "unanswerable": 0.0
+    },
+    "latency_by_cache_status": {
+      "bypass": {
+        "n": 1,
+        "p50": 2502,
+        "p95": 2502
+      },
+      "hit": {
+        "n": 23,
+        "p50": 37,
+        "p95": 75
+      },
+      "miss": {
+        "n": 134,
+        "p50": 706,
+        "p95": 1053
+      }
+    },
+    "route_mix": {
+      "small": 0.620253164556962,
+      "large": 0.23417721518987342,
+      "none": 0.14556962025316456
+    },
+    "by_group": {
+      "distinct": {
+        "n": 35,
+        "judge_mean": 4.686,
+        "fact_mean": 0.929
+      },
+      "paraphrase": {
+        "n": 65,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "trap": {
+        "n": 48,
+        "judge_mean": 4.917,
+        "fact_mean": 0.979
+      },
+      "unanswerable": {
+        "n": 10,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      }
+    },
+    "by_difficulty": {
+      "easy": {
+        "n": 95,
+        "judge_mean": 5,
+        "fact_mean": 1.0
+      },
+      "hard": {
+        "n": 15,
+        "judge_mean": 4.267,
+        "fact_mean": 0.833
+      },
+      "medium": {
+        "n": 48,
+        "judge_mean": 4.917,
+        "fact_mean": 0.979
+      }
+    },
+    "by_route": {
+      "large": {
+        "n": 37,
+        "judge_mean": 4.676,
+        "fact_mean": 0.919,
+        "cost_per_1k_usd": 0.1053081081081081,
+        "p50": 813,
+        "p95": 1305
+      },
+      "none": {
+        "n": 23,
+        "judge_mean": 5,
+        "fact_mean": 1.0,
+        "cost_per_1k_usd": 0.0,
+        "p50": 37,
+        "p95": 75
+      },
+      "small": {
+        "n": 98,
+        "judge_mean": 4.969,
+        "fact_mean": 0.995,
+        "cost_per_1k_usd": 0.048436989795918366,
+        "p50": 684,
+        "p95": 986
+      }
+    },
+    "escalation_rate": 0.02040816326530612
+  }
+}
