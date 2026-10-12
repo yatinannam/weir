@@ -17,6 +17,7 @@ router:                      # Phase 3 addendum §3.2 / §5
   high_confidence: 0.86      # tuned offline, D37: only very strong retrieval matches go small
   low_confidence: 0.50       # tuned offline, D37 (no eval question scores below 0.62)
   max_model_calls: 2         # never more than 2 model calls per request
+  coverage_check: true       # escalate a small answer lacking the kind of detail asked for (D79); false = off
   reasoning_words: [compare, why, explain, difference, steps, calculate, versus, vs, "pros and cons", better, which is cheaper, both]
 
 grounding:

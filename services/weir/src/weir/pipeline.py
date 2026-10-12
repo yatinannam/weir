@@ -25,6 +25,8 @@ from .config import Tier, WeirConfig
 from .llm.pricing import PriceTable
 from .metrics.logger import LogSink, RequestLogRow
 from .rag.adapter import GenerateResult, RagClient, RagError, RetrievedChunk, RetrieveResult
+from .router.coverage import Coverage
+from .router.coverage import check as check_coverage
 from .router.features import FeatureExtractor
 from .router.grounding import Grounding, check
 from .router.rules import ROUTER_DECISIONS, route
@@ -111,6 +113,7 @@ class Outcome:
     escalated: bool = False
     fallback: bool = False
     tier: Tier = "large"                           # the tier whose answer is returned
+    coverage: Coverage | None = None               # D79; None when the check is off or had nothing to read
 
 
 def _ms(started: float) -> int:
@@ -225,6 +228,8 @@ class Pipeline:
         row.grounding_passed = outcome.grounding.passed
         row.grounding_reason = outcome.grounding.reason
         row.grounding_overlap = outcome.grounding.overlap
+        if outcome.coverage is not None:
+            row.coverage_passed, row.coverage_reason = outcome.coverage.passed, outcome.coverage.reason
         row.answer_len = len(generated.answer)
         sources = _sources(retrieved.chunks, generated.cited_chunk_ids)
         degraded = outcome.fallback and outcome.tier == "small"  # D40: a stand-in answer must not outlive the outage
@@ -342,9 +347,12 @@ class Pipeline:
                                second.retry_after) from second
         billed = [(self._cfg.model_for(tier), generated)]
         grounding = self._ground(generated, retrieved)
+        coverage = self._cover(req, generated, retrieved)
         escalated = False
-        if (adaptive and tier == "small" and not grounding.passed and generated.finish_reason != "skipped"
+        weak = "grounding" if not grounding.passed else ("coverage" if coverage and not coverage.passed else None)
+        if (adaptive and tier == "small" and weak and generated.finish_reason != "skipped"
                 and row.model_calls < cap):
+            row.escalated_for = weak
             try:
                 large = await self._call(req, retrieved, "large", row)
             except RagError as e:
@@ -353,7 +361,8 @@ class Pipeline:
             else:
                 billed.append((self._cfg.model_for("large"), large))
                 generated, grounding, escalated = large, self._ground(large, retrieved), True
-        return Outcome(generated, grounding, billed, escalated, fallback, "large" if escalated else tier)
+                coverage = self._cover(req, large, retrieved)
+        return Outcome(generated, grounding, billed, escalated, fallback, "large" if escalated else tier, coverage)
 
     async def _call(self, req: QueryRequest, retrieved: RetrieveResult, tier: Tier,
                     row: RequestLogRow) -> GenerateResult:
@@ -369,6 +378,13 @@ class Pipeline:
         if generated.finish_reason != "skipped":  # no chunks: hospital-rag answers without calling a model
             row.model_calls += 1
         return generated
+
+    def _cover(self, req: QueryRequest, generated: GenerateResult, retrieved: RetrieveResult) -> Coverage | None:
+        if not self._cfg.router.coverage_check or generated.finish_reason == "skipped":
+            return None
+        cited = set(generated.cited_chunk_ids)
+        texts = [c.text for c in retrieved.chunks if c.id in cited]
+        return check_coverage(req.query, generated.answer, texts) if texts else None
 
     def _ground(self, generated: GenerateResult, retrieved: RetrieveResult) -> Grounding:
         return check(generated, retrieved.chunks, self._cfg.grounding.min_overlap)

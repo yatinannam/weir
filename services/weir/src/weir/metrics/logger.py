@@ -39,6 +39,9 @@ class RequestLogRow:
     grounding_passed: bool | None = None
     grounding_reason: str | None = None
     grounding_overlap: float | None = None
+    coverage_passed: bool | None = None
+    coverage_reason: str | None = None
+    escalated_for: str | None = None     # "grounding" or "coverage": why a small answer went to the large model
     latency_embed_ms: int | None = None
     latency_cache_ms: int | None = None
     latency_retrieval_ms: int | None = None

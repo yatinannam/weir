@@ -39,6 +39,8 @@ class WeirMetrics:
         self.fallbacks = Counter("weir_fallbacks", "Requests that switched tier after a provider error",
                                  ["routed_tier"], registry=registry)
         self.grounding = Counter("weir_grounding", "Grounding check results", ["passed", "reason"], registry=registry)
+        self.coverage_failures = Counter("weir_coverage_failures", "Answers missing the asked-for detail type (D79)",
+                                         ["tier"], registry=registry)
         self.metrics_failed = Counter("weir_metrics_failed", "Rows the metrics layer failed to record",
                                       registry=registry)
         Gauge("weir_info", "Running Weir configuration", ["config_label"],
@@ -47,6 +49,7 @@ class WeirMetrics:
         # first fallback/error after every restart went unreported. Create every series the alerts use at 0.
         for tier in ("small", "large"):
             self.fallbacks.labels(tier)
+            self.coverage_failures.labels(tier)
         for cache_status in CACHE_STATUSES:
             for route in ROUTES:
                 self.latency.labels(cache_status, route)
@@ -71,6 +74,10 @@ class WeirMetrics:
             self.fallbacks.labels(row.route).inc()
         if row.grounding_passed is not None:
             self.grounding.labels("true" if row.grounding_passed else "false", row.grounding_reason or "none").inc()
+        if row.escalated_for == "coverage":
+            self.coverage_failures.labels("small").inc()
+        if row.coverage_passed is False:
+            self.coverage_failures.labels("large" if row.escalated or row.route == "large" else "small").inc()
 
 
 class MetricsSink:

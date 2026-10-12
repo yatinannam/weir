@@ -28,6 +28,7 @@ class RouterConfig(_Strict):
     low_confidence: float = 0.40            # tuned offline
     max_model_calls: int = Field(2, ge=1, le=2)
     reasoning_words: list[str] = []
+    coverage_check: bool = True             # escalate small answers missing the asked-for detail type (D79)
 
 
 class GroundingConfig(_Strict):

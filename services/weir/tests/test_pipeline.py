@@ -667,3 +667,48 @@ async def test_hits_on_one_entry_coalesce_into_one_write():  # D76: no per-hit U
     await h.p._cache.hits.flush()
     await h.p._cache.hits.flush()                                # nothing pending: no second write
     assert h.store.hits == {h.store.entries[0].id: 5}
+
+
+# --- D79: coverage check. A small answer missing the asked-for kind of detail escalates once.
+
+CAMP_CHUNKS = [{"id": "pub-blood-bank#0", "doc_id": "pub-blood-bank", "title": "Blood bank",
+                "text": "The blood donation camp is held on the first Saturday of every month, 10 am to 3 pm, "
+                        "in the lobby.", "score": 0.95, "token_count": 25}]
+CAMP_Q = "When is the blood donation camp held?"
+DAY_ONLY = "It is held on the first Saturday of every month [c1]."
+FULL = "First Saturday of every month, 10 am to 3 pm [c1]."
+
+
+def camp_rag(small=DAY_ONLY, large=FULL):
+    return fake_rag(chunks=CAMP_CHUNKS, top_score=0.95, cited=["pub-blood-bank#0"], answers={SMALL: small, LARGE: large})
+
+
+async def test_a_small_answer_missing_the_time_escalates_once():
+    h = harness(camp_rag(), **ROUTER_ON)
+    resp = await h.p.handle(ask(CAMP_Q))
+    [row] = h.sink.rows
+    assert row.route == "small" and resp.meta.escalated and "10 am" in resp.answer
+    assert row.escalated_for == "coverage" and row.coverage_passed is True and row.model_calls == 2
+
+
+async def test_coverage_off_never_escalates_and_logs_nothing():  # Review Focus 5
+    h = harness(camp_rag(), **ROUTER_ON)
+    h.cfg.router.coverage_check = False
+    resp = await h.p.handle(ask(CAMP_Q))
+    [row] = h.sink.rows
+    assert not resp.meta.escalated and row.coverage_passed is None and row.escalated_for is None
+
+
+async def test_grounding_failure_is_named_first():  # Review Focus 4
+    h = harness(camp_rag(small=UNGROUNDED), **ROUTER_ON)
+    await h.p.handle(ask(CAMP_Q))
+    assert h.sink.rows[0].escalated_for == "grounding"
+
+
+async def test_a_large_answer_missing_detail_is_logged_not_recalled():
+    h = harness(camp_rag(large="It is held on the first Saturday [c1]."), **ROUTER_ON)
+    h.cfg.kill_switch.force_large = True
+    resp = await h.p.handle(ask(CAMP_Q))
+    [row] = h.sink.rows
+    assert not resp.meta.escalated and row.model_calls == 1
+    assert row.coverage_passed is False and row.coverage_reason == "missing:time"

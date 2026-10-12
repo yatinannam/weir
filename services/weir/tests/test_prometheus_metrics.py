@@ -133,3 +133,11 @@ def test_alerting_series_exist_at_zero_before_any_request():
                     assert registry.get_sample_value("weir_requests_total", labels) == 0, labels
     assert registry.get_sample_value("weir_request_latency_seconds_count", {"cache_status": "miss",
                                                                            "route": "large"}) == 0
+
+
+def test_coverage_failures_are_counted_by_tier():  # D79
+    registry, metrics, _ = setup()
+    metrics.record(row(escalated=True, escalated_for="coverage", coverage_passed=True))
+    metrics.record(row(coverage_passed=False, coverage_reason="missing:time"))
+    assert value(registry, "weir_coverage_failures_total", tier="small") == 1
+    assert value(registry, "weir_coverage_failures_total", tier="large") == 1
