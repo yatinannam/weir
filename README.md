@@ -40,7 +40,10 @@ These are measured on *Weir General Hospital*, a fictional hospital FAQ: 40 docu
 | Baseline: always the large model, no cache | 0% | 0% | $0.0988 | 767 ms | 4.91 | 0.978 | — |
 | Cache only | 14.6% | 0% | $0.0847 (−14%) | 686 ms | 4.91 | 0.981 | **0** |
 | Router only | 0% | 12.7% | $0.0921 (−7%) | 781 ms | 4.91 | 0.978 | — |
-| **Full Weir** (cache + router) | 14.6% | 11.4% | **$0.0786 (−20%)** | 876 ms | **4.91** | **0.978** | **0** |
+| Full Weir (cache + router, Oct 6) | 14.6% | 11.4% | $0.0786 (−20%) | 876 ms | 4.91 | 0.978 | **0** |
+| **Full Weir + coverage check** (Oct 12)* | 14.6% | 62% | **$0.0547 (−45%)** | 692 ms | **4.91** | **0.978** | **0** |
+
+\* Re-tuned router with the answer coverage check (D79, D80), against a same-day baseline run on 2026-10-12: $0.0987, judge 4.91, facts 0.978. No question scored differently from that baseline. Details: [`coverage-2026-10-12.md`](docs/results/coverage-2026-10-12.md).
 
 **Replay** (300 requests, Zipf-skewed, 73.7% repeats):
 
@@ -50,8 +53,8 @@ These are measured on *Weir General Hospital*, a fictional hospital FAQ: 40 docu
 | Cache only | 93.3% | $0.0050 | 56 ms | 4.79 | 0.948 | **0** |
 | **Full Weir** | **93.0%** | **$0.0055 (−94%)** | **14 ms** | **4.79** | **0.948** | **0** |
 
-- **On repeat-heavy traffic, full Weir cuts cost per 1,000 requests by 94% and median latency by about 50× (747 ms → 14 ms), with quality equal to the baseline on the same mix.** On a cold pass, where only paraphrases repeat, it still saves 20% with identical judge and facts.
-- **The router adds a modest, safe saving.** It sends 13% of questions to the small model, which answered every one of them at 5/5 with full facts. That cuts router-only cost by 7% with judge and facts unchanged. The strict "no visible loss" bar limits it; a looser bar would have saved ~38% at the cost of 1 worse answer in 158, a time range left out ([`router-tuning.md`](docs/results/router-tuning.md); a second "loss" turned out to be a labelling gap in the eval set, D78).
+- **On repeat-heavy traffic, full Weir cuts cost per 1,000 requests by 94% and median latency by about 50× (747 ms → 14 ms), with quality equal to the baseline on the same mix.** On a cold pass, where only paraphrases repeat, it saves 45% with identical judge and facts (20% before the coverage check).
+- **The router saves safely, because a second check catches incomplete answers.** Under the strict "no visible loss" bar it first sent only 13% of questions to the small model (−7%): a looser setting would have saved ~38% but made 1 answer in 158 worse, a time range left out. A rule-based **coverage check** now escalates any small answer that lacks the kind of detail the question asks for (a time, a day, a price, an extension, a quantity). With it, the same bar allows 77% small offline (−37.5%), and live a cold pass costs 45% less than a same-day baseline with no question scoring differently ([`coverage-2026-10-12.md`](docs/results/coverage-2026-10-12.md)). Along the way, a second "worse" answer turned out to be a labelling gap in the eval set (D78).
 - **It degrades gracefully.** When Groq's large model failed (HTTP 502s, then a daily rate limit), Weir fell back to the small model: **0 errors across 1,232 live requests on 2026-10-05**.
 - **The entity guard is what makes caching safe.** At the chosen 0.90 threshold, embedding similarity alone would serve the wrong answer for **37%** of accepted matches (for example "ICU visiting hours" vs "general ward visiting hours"). With the guard, that drops to **0%**.
 
@@ -255,8 +258,9 @@ flowchart TD
   - it cites at least one chunk, and every citation is valid
   - it didn't give up partway ("NOT_FOUND" mid-answer)
   - at least `min_overlap` of its content words appear in the cited chunks
+- **Coverage check** (rule-based, D79). If the question asks *when*, *how much*, *which extension* or *how long*, a small answer must contain a time, day, price, extension or quantity that the best-matching source line gives; otherwise it escalates. It is what catches "the first Saturday" with "10 am to 3 pm" left out. Offline it flags 0 of 153 good answers and 84 of 84 deliberately broken ones.
 - **Escalation and fallback:**
-  - A small answer that fails grounding is retried once on the large model.
+  - A small answer that fails grounding or coverage is retried once on the large model.
   - A rate-limited or timed-out tier falls back to the other tier.
   - Never more than 2 model calls per request.
   - Forced and disabled routes never adapt.
@@ -265,7 +269,7 @@ flowchart TD
   - judge within 0.1 of the baseline
   - facts no lower
   - the small route no worse than the large model on the same questions
-- **Tuned values** (D37, D39): small only if the question is at most **16 tokens**, a single question with no reasoning words, and its top retrieval score is at least **0.86**; grounding `min_overlap` **0.3**. The live router matched the simulation almost exactly: 12.7% routed small vs 13% predicted, −7% vs −6%.
+- **Tuned values** (D80, with the coverage check): small only if the question is at most **25 tokens**, a single question with no reasoning words, and its top retrieval score is at least **0.72**; grounding `min_overlap` **0.3** (D39). The first tuning without the check (D37: 16 tokens, 0.86) sent 13% small; the live router matched its simulation almost exactly (12.7% vs 13%, −7% vs −6%).
 
 ## Monitoring
 
@@ -415,6 +419,8 @@ uv run python -m weir_eval make-workload --n 300 --seed 7                 # Zipf
 uv run python -m weir_eval features                                       # router inputs for every question
 uv run python -m weir_eval export-grounding reports/<small-trial>         # grounding results from the request log
 uv run python -m weir_eval simulate --small reports/<small-trial>         # replay both models over the rule grid
+uv run python -m weir_eval coverage reports/<run>                         # score saved answers with the coverage check
+uv run python -m weir_eval simulate --small reports/<small-trial> --coverage reports/<small-trial>/coverage.jsonl
 uv run python -m weir_eval gate reports/<run>                             # exit gate vs baseline v3, same questions
 uv run python -m weir_eval derive-workload reports/<run> --workload datasets/workload-300-seed7.jsonl --out reports/<name>
 ```
@@ -446,9 +452,9 @@ The orchestrator refuses to run unless hospital-rag reports the stub model, and 
 
 ```bash
 docker compose up -d postgres                       # DB tests use 127.0.0.1:5432/weir_test
-cd services/weir         && uv run pytest -q        # 300 tests
+cd services/weir         && uv run pytest -q        # 318 tests
 cd services/hospital-rag && uv run pytest -q        #  57 tests
-cd eval                  && uv run pytest -q        # 161 tests
+cd eval                  && uv run pytest -q        # 168 tests
 uv run --no-project --python 3.12 --with pytest pytest -q tests   # 23 launcher tests (demo.py)
 ```
 
@@ -463,9 +469,9 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 | [`docs/weir-original.md`](docs/weir-original.md) | The original vision: goals, risks, evaluation plan |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/) | Implementation design and the per-phase addenda (cache, router, monitoring, load testing) |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | Task-by-task implementation plans |
-| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D78) |
+| [`docs/decisions.md`](docs/decisions.md) | Every decision with its alternatives and the reason (D0–D80) |
 | [`docs/progress.md`](docs/progress.md) | Phase-by-phase log |
-| [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary, load tests, hardening under load |
+| [`docs/results/`](docs/results/) | Baselines, threshold sweep, cache, router tuning, router live results, four-way summary, load tests, hardening under load, the answer coverage check |
 | [`docs/backlog.md`](docs/backlog.md) | Deferred findings and ideas |
 
 ## Limitations
@@ -474,7 +480,7 @@ CI runs all three suites against `pgvector/pgvector:0.8.0-pg16` on every push. A
 - **Hit rate depends on the workload.** 93% is for a 73.7%-repeat replay; a cold pass with only paraphrases repeating hits 14.6%.
 - **Load tests use a stub model on one laptop.** Retrieval, embeddings, the cache and the router are real; generation is simulated with timing fitted to measured Groq latencies. k6 shares the machine, and its capacity varied between rounds (a 15 W-class CPU, 21 of 31 runs on battery), so the ceilings are this laptop's, not Weir's.
 - **The overload limits were measured on this laptop.** 32 concurrent lookups and 64 requests on the model path sit well above normal concurrency and well below a collapse here; another machine may want other values (`configs/weir.yaml`). Shed requests get a 503 with `Retry-After: 1`, so clients should retry.
-- **Grounding is lexical.** It catches unfinished, uncited and "not found" answers, but not a fluent answer that omits or invents a detail using the source's own words. The strict routing cut-offs, not grounding, keep such questions on the large model.
+- **The answer checks are rule-based.** Grounding catches unfinished, uncited and "not found" answers; the coverage check catches a missing time, day, price, extension or quantity. Neither catches a missing instruction ("bring ID proof") or a wrong detail that is present in the source, and the coverage patterns are specific to this hospital's FAQ (₹ prices, "ext." numbers, am/pm times).
 - **The large model isn't stable over time.** One hard question drifted between runs and another flips between attempts, so every Phase 3 comparison uses a same-day baseline.
 
 ## License

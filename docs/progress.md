@@ -407,3 +407,13 @@ Full numbers: [`results/hardening-2026-10-10.md`](results/hardening-2026-10-10.m
 - Corrected figures: cold-pass judge averages +0.006 (baselines, cache only, router only, full: 4.90 → 4.91; cut-off 0.6 run 4.89 → 4.90), +0.019 where the small model answered (small trial 4.87 → 4.89; degraded full run 4.87 → 4.89). Replay figures are unchanged (q-154 isn't in the workload). The dated entries above keep the figures as measured then.
 - Router simulation re-run (`eval/reports/simulate-20261012T134826Z/`): the strict bar picks the same setting. The looser D37 option saves 38% with 77% of questions on the small model and makes **1** of 158 answers worse (q-036, which left out "10 am to 3 pm"), plus 1 better (q-078).
 - So the stronger check needs to catch **omissions**, not invented details: with one, the 38% option could be safe.
+
+## 2026-10-12: Answer coverage check and router re-tune (D79, D80)
+
+- Spec `docs/superpowers/specs/2026-10-12-answer-coverage-check-design.md`, plan `docs/superpowers/plans/2026-10-12-answer-coverage-check.md`, executed inline (7 tasks). Results: [`results/coverage-2026-10-12.md`](results/coverage-2026-10-12.md).
+- **The check** (`weir/router/coverage.py`, D79): question wording -> required detail types (time, day, money, extension, quantity); the source line that best matches the question; fail when that line has a required type the answer lacks. Wired in as an escalation trigger next to grounding; logged (`coverage_passed`, `coverage_reason`, `escalated_for`, migration 006) and counted (`weir_coverage_failures_total{tier}`).
+- **Offline** (`weir_eval coverage`, retrieval only): small model flags only q-036; 0 of 153 good answers; 84/84 synthetic omissions; large model 0 flags, 87/87. Two first-pass "false flags" were correct refusals; refusals are now left to grounding (live, they cite nothing anyway).
+- **Router re-tune** (`simulate --coverage`, D80): 25 tokens / 0.72 under the unchanged strict bar: −37.5% offline (holdout −33.5%), 77% small, no answer worse.
+- **Live confirmation** (real Groq, approved): same-day baseline $0.0987 / 1k, judge 4.91, facts 0.978; full Weir $0.0547 (−45%), 4.91, 0.978, 0 wrong hits, gate passed, no question scored differently. Two runs were killed once by Claude Code's low-memory guard (Chrome ~5 GB) and restarted after the user freed memory.
+- Found along the way: a syntax error in the new CLI command that no test imported (fixed, CLI smoke test added); sentence splitting broke "ext. 2171" (split only before a capital).
+- **Suites:** weir 318, hospital-rag 57, eval 168, launcher 23.

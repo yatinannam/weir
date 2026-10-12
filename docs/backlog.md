@@ -7,6 +7,7 @@ Ideas and deferred findings that aren't scheduled yet. Each item says where it c
 | Idea | Why | Suggested phase |
 | --- | --- | --- |
 | **Demo chat page** (done in Phase 6A: `uv run demo.py`, `/demo`). A small web page: ask a question and see the answer, plus a badge for "from cache / small model / large model", time and cost | Makes the story visible in a 5-minute demo: slow first answer, instant reworded answer, trap correctly not cached. The FastAPI page at `localhost:8000/docs` works today but is plain. | Phase 6 (polish) |
+| **NLI coverage check.** A small local NLI model as a second answer check, behind the rule-based coverage check (D79) | The rules catch missing times, days, prices, extensions and quantities; they don't catch a missing instruction or a wrong detail present in the source | If the rules miss too much in real traffic |
 | **"Asked attribute" guard group.** Time vs place vs price, plus open vs close | The guard can't tell "clinic timings" from "which room" (0.825 similarity). The threshold margin covers it today. Adding this could allow a lower threshold and more hits. | After Phase 3 |
 
 ## Deferred minor findings: Phase 2 final review (2026-10-03)

@@ -11,7 +11,7 @@ Weir sits in front of a retrieval-augmented chatbot and decides, for every quest
 | Cost per 1,000 requests, repeat-heavy replay (73.7% repeats) | $0.0970 | **$0.0055 (−94%)** |
 | Median latency, same replay | 747 ms | **14 ms** |
 | Answer quality, same replay (judge 1–5 / key facts) | 4.79 / 0.947 | **4.79 / 0.948** |
-| Cost per 1,000 requests, cold pass (each question once) | $0.0988 | **$0.0786 (−20%)** |
+| Cost per 1,000 requests, cold pass (each question once), with the coverage check (same-day baseline) | $0.0987 | **$0.0547 (−45%)** |
 | Wrong cache hits (cached answer served for a different question) | n/a | **0** |
 | p95 at 10 req/s under load, warm cache (stub model) | 1,439 ms | **15 ms** |
 | Errors seen by users under injected model and database faults | n/a | **0** |
@@ -57,7 +57,9 @@ flowchart LR
 
 **Only grounded answers are cached** ([D35](decisions.md)). An answer is cached only if it cites the retrieved passages and its words actually come from them. A cache multiplies whatever it stores, so a bad answer cached once would be served to everyone who asks. Later, answers from a fallback to the small model were excluded too ([D40](decisions.md), see §5).
 
-**The router has a strict bar.** Simple features decide the route: question length, how well the top document matches, whether the question asks more than one thing or needs reasoning, and clinical words, which always go large. The cut-offs were tuned offline by replaying both models' answers over a rule grid, with the rule that **no question may get visibly worse** ([D37](decisions.md); [router tuning](results/router-tuning.md)). That bar sends only 13% of questions to the small model, which answered every one of them at 5/5 with full facts. A looser bar would have saved about 38% but made 1 of 158 answers worse: the small model gave the blood donation camp's day and left out its hours. In a hospital FAQ that's a real error, and the cache already delivers the big saving.
+**The router has a strict bar.** Simple features decide the route: question length, how well the top document matches, whether the question asks more than one thing or needs reasoning, and clinical words, which always go large. The cut-offs were tuned offline by replaying both models' answers over a rule grid, with the rule that **no question may get visibly worse** ([D37](decisions.md); [router tuning](results/router-tuning.md)). At first that bar sent only 13% of questions to the small model (−7%). A looser bar would have saved about 38% but made 1 of 158 answers worse: the small model gave the blood donation camp's day and left out its hours. In a hospital FAQ that's a real error.
+
+**A second check made the cheaper setting safe** ([D79, D80](decisions.md); [coverage results](results/coverage-2026-10-12.md)). Grounding confirms an answer's words come from the source; it can't see what the answer leaves out. The **coverage check** maps the question to the detail types it asks for (*when* needs a time, *how much* a price, *which extension* a number, *how long* a quantity), finds the source line that best matches the question, and escalates a small answer that has none of a required type. It's rules, not a model: microseconds, nothing to download, and every flag explains itself. Offline it flagged exactly the one real omission, 0 of 153 good answers and 84 of 84 deliberately broken ones. With it, the same strict bar allowed 77% of questions on the small model, and live, against a same-day baseline, a cold pass cost **45% less with no question scoring differently**.
 
 **Escalation and fallback.** If a small-model answer fails the grounding check, Weir escalates to the large model once. If a model is down or rate-limited, Weir falls back to the other tier. There's a hard cap of two model calls per request.
 
@@ -81,7 +83,7 @@ flowchart LR
 | Router only | $0.0921 (−7%) | 4.91, 0.978 | 0% | $0.0936 | 732 ms |
 | **Full Weir** | **$0.0786 (−20%)** | **4.91, 0.978** | **93.0%** | **$0.0055 (−94%)** | **14 ms** |
 
-The cache does most of the work on realistic, repeat-heavy traffic. The router adds a smaller, safe saving that shows on cold traffic.
+The cache does most of the work on realistic, repeat-heavy traffic. The router's saving shows on cold traffic: −7% in this table, which predates the coverage check; with it, full Weir's cold pass fell to **$0.0547 (−45%)** against a same-day baseline of $0.0987, judge 4.91 and facts 0.978 both identical.
 
 **Under load** ([load-test report](results/loadtest-2026-10-07.md)): 31 k6 runs at constant arrival rates, using a stub model whose delays are fitted to measured Groq latencies (Groq's free tier can't sustain load tests). Retrieval, embeddings, the cache and the router were all real.
 - At 10 req/s with a warm cache, full Weir's p95 was **15 ms** against the baseline's **1,439 ms**.
@@ -121,11 +123,12 @@ Every check now has to be able to say "not run" instead of "pass".
 
 - **A small, synthetic benchmark.** 158 questions and 24 trap pairs is evidence, not proof. "0 wrong hits" holds for this set.
 - **Hit rate depends on traffic.** 93% is for a 73.7%-repeat replay; a cold pass where only paraphrases repeat gets 14.6%.
-- **Grounding is lexical.** It catches unfinished, uncited and "not found" answers, but not a fluent answer that invents a detail using the source's own words. The strict router bar, not grounding, keeps those questions on the large model.
+- **The answer checks are rules.** Grounding catches unfinished, uncited and "not found" answers; the coverage check catches a missing time, day, price, extension or quantity. Neither catches a missing instruction or a wrong detail that appears in the source, and the coverage patterns fit this hospital's FAQ. Only one real omission exists in the eval set; the synthetic ones prove the rule works, not that it covers everything.
 - **Load tests use a stub model on one laptop,** shared with the load generator. The ceilings are this machine's, not Weir's, and so are the overload limits (32 lookups, 64 requests on the model path).
 
 ## 7. What I'd do next
 
+- **An NLI model behind the coverage check,** for omissions the rules can't name, kept only if its false alarms stay rare.
 - **A learned router:** a small classifier trained on the logged features and outcomes, kept only if it beats the rules on cost at equal quality.
 - **Cache warming** from the most frequent questions in past logs, and a cross-encoder check for matches just above the threshold.
 
@@ -137,6 +140,7 @@ Every check now has to be able to say "not run" instead of "pass".
 - Designed a **158-question eval set** with paraphrase clusters and **24 look-alike trap pairs**, and built an entity guard that cut wrong cache hits at the chosen 0.90 threshold from **37% to 0%**.
 - Logged per-request cost, counterfactual cost and latency to Postgres and Prometheus, with a Grafana dashboard over every run and **8 alerts** covered by **22 promtool tests**.
 - Load-tested with k6 (31 runs): p95 **15 ms vs 1,439 ms** for the baseline at 10 req/s on a warm cache, and **0 user-facing errors** under injected model rate limits, model timeouts and a 2 s database delay.
+- Built a rule-based **answer coverage check** that catches small-model answers missing the asked-for detail; under an unchanged "no visible loss" bar it raised the cold-pass saving from **20% to 45%** against a same-day baseline, with **no question scoring differently** (158 questions, real models).
 - Found and fixed an overload collapse with concurrency-based load shedding and a 25× CPU cut: at 250 req/s, from **35 req/s served at a 34 s p95** to **221 req/s at 158 ms**, with **0 request-log rows lost** (16,940 before).
 - Shipped a one-command demo (`uv run demo.py`) with a guided page that shows cache hits, guard refusals and routing live.
 
@@ -152,9 +156,9 @@ One or two of these is enough on a resume; the rest are for conversation.
 
 **When would you not use a semantic cache?** On low-repeat traffic (the cold pass gets only 14.6% hits), for personalised answers (bypassed by rule), and for fast-changing content (the knowledge-base version is part of the cache key, so an edit invalidates old answers).
 
-**What did each part contribute?** The cache: −94% cost on repeat-heavy traffic. The router: −7% on its own, safely. Together on a cold pass: −20%, with quality identical.
+**What did each part contribute?** The cache: −94% cost on repeat-heavy traffic. The router: −7% on its own under the first strict tuning, about −37% once the coverage check made a looser setting safe. Together on a cold pass: −45%, with quality identical.
 
-**Why is the router's saving so small?** Deliberately. A looser bar would save about 38% but made 1 of 158 answers worse (a left-out time range). I'd rather show the trade-off than hide it. A second "worse" answer turned out to be the eval set's fault: the judge was shown the wrong source page and called a correct extension number invented (D78).
+**Why was the router's saving small at first, and what changed?** The strict bar allowed only −7%: a looser setting saved ~38% but made one answer worse by leaving out a time range. Rather than relax the bar, I built a check for exactly that failure, an answer missing the kind of detail the question asks for, and the same bar then allowed the cheaper setting. While designing it I also found that a second "worse" answer was the eval set's fault: the judge had been shown the wrong source page and called a correct extension number invented (D78).
 
 **How does it behave under load and failure?** After the hardening it holds 100 req/s at about 20 ms p95 in 3 of 3 ramps (60 req/s for the baseline) and 200 req/s with no errors. Past capacity it sheds with a quick 503 instead of collapsing: 221 req/s answered at 158 ms p95 when offered 250. Failures stayed invisible: 0 errors under injected rate limits, model timeouts and a slow database.
 
