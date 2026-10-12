@@ -75,7 +75,8 @@ def test_daily_is_not_a_day_detail():  # Review Focus 1
 def test_required_types_follow_the_question():
     assert required_types("When is the blood donation camp held?") == {"time", "day"}
     assert required_types("What time does ICU visiting start in the morning?") == {"time"}
-    assert required_types("How much is car parking for 2 hours?") == {"money"}
+    assert required_types("How much is car parking for 2 hours?") == {"money"}     # "2 hours" is a quantity
+    assert required_types("What are the ICU visiting hours?") == {"time"}
     assert required_types("What is the pediatric ward desk extension?") == {"extension"}
     assert required_types("How many visitors are allowed in the ICU?") == {"quantity"}
     assert required_types("Which floor is cardiology on?") == frozenset()
@@ -166,7 +167,9 @@ _BARE_NUMBER = re.compile(r"\b\d{3,5}\b")      # answer side only: "the extensio
 # Question wording -> the detail types it asks for (word-boundary, case-insensitive).
 TRIGGERS: list[tuple[re.Pattern[str], frozenset[str]]] = [
     (re.compile(r"\bwhen\b|\bheld\b|\bschedule\b", re.I), frozenset({"time", "day"})),
-    (re.compile(r"\bwhat time\b|\btimings?\b|\bhours\b|\bopens?\b|\bcloses?\b|\bstarts?\b|\bends?\b", re.I),
+    # "hours" asks for a time ("visiting hours") unless it's a quantity ("for 2 hours")
+    (re.compile(r"\bwhat time\b|\btimings?\b|(?<!\d )(?<!\d)\bhours\b|\bopens?\b|\bcloses?\b|\bstarts?\b|\bends?\b",
+                re.I),
      frozenset({"time"})),
     (re.compile(r"\bwhich days?\b|\bwhat days?\b", re.I), frozenset({"day"})),
     (re.compile(r"\bhow much\b|\bcosts?\b|\bfees?\b|\bcharges?\b|\bprices?\b|\brates?\b|\bpay\b", re.I),
@@ -192,7 +195,7 @@ def _canonical(kind: str, raw: str, match: re.Match[str]) -> str:
         s = re.sub(r"[\s.]", "", s).replace(":00", "")
         return {"roundtheclock": "24hours", "24x7": "24hours", "24/7": "24hours", "24hrs": "24hours"}.get(s, s)
     if kind == "day":
-        return re.sub(r"s$", "", re.sub(r"\s+", " ", s)).replace("weekday", "weekday").replace("weekend", "weekend")
+        return re.sub(r"s$", "", re.sub(r"\s+", " ", s))      # "saturdays" -> "saturday", "weekends" -> "weekend"
     if kind == "money":
         digits = re.sub(r"\D", "", s)
         return digits or "free"
