@@ -141,3 +141,19 @@ def test_coverage_failures_are_counted_by_tier():  # D79
     metrics.record(row(coverage_passed=False, coverage_reason="missing:time"))
     assert value(registry, "weir_coverage_failures_total", tier="small") == 1
     assert value(registry, "weir_coverage_failures_total", tier="large") == 1
+
+
+def test_one_failed_escalation_counts_once_on_the_small_tier():  # final review #3
+    registry, metrics, _ = setup()
+    metrics.record(row(route="small", escalated=False, escalated_for="coverage", coverage_passed=False))
+    assert value(registry, "weir_coverage_failures_total", tier="small") == 1
+    assert value(registry, "weir_coverage_failures_total", tier="large") == 0
+
+
+def test_a_fallback_answer_is_counted_on_the_tier_that_answered():  # final review #3
+    registry, metrics, _ = setup()
+    metrics.record(row(route="large", route_reason="default_large+fallback", coverage_passed=False))
+    metrics.record(row(route="small", route_reason="simple+fallback", coverage_passed=False))
+    metrics.record(row(route="small", route_reason="simple+fallback", coverage_passed=False))
+    assert value(registry, "weir_coverage_failures_total", tier="small") == 1
+    assert value(registry, "weir_coverage_failures_total", tier="large") == 2

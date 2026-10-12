@@ -71,3 +71,34 @@ def test_nothing_to_judge_passes():
 def test_strip_type_removes_every_detail_of_one_type():
     assert details(strip_type("First Saturday, 10 am to 3 pm.", "time")).get("time") is None
     assert details(strip_type("First Saturday, 10 am to 3 pm.", "time"))["day"] == {"first saturday"}
+
+
+# --- Final review: real hospital-rag chunks start with a "<title>: <heading>" line (chunking.py). That line holds
+# the question's topic words but no details, so it must never be the passage on its own.
+
+GENERAL_WEEKDAYS = ("General ward visiting hours: Weekdays\n"
+                    "Visitors to the general wards (Main Block, 4th floor) are welcome from Monday to Friday between "
+                    "4 pm and 7 pm. Visiting is not allowed outside this window except for the registered attendant.")
+ICU_WINDOWS = ("ICU visiting hours: Visiting windows\n"
+               "The Intensive Care Unit (ICU) is on the 3rd floor of the Main Block. Visiting is allowed twice a day.\n\n"
+               "- Morning: 11 am to 11:30 am\n- Evening: 5 pm to 6 pm")
+
+
+def test_the_heading_line_is_never_the_passage_alone():
+    assert passage("What are the visiting hours for the general ward on weekdays?", [GENERAL_WEEKDAYS])[0].startswith(
+        "Visitors to the general wards")
+    assert passage("What time does ICU visiting start in the morning?", [ICU_WINDOWS]) == ["- Morning: 11 am to 11:30 am"]
+
+
+def test_real_chunks_catch_a_missing_time():
+    q = "What are the visiting hours for the general ward on weekdays?"
+    assert check(q, "You can visit the general ward on weekdays.", [GENERAL_WEEKDAYS]).reason == "missing:time"
+    assert check(q, "Weekdays from 4 pm to 7 pm.", [GENERAL_WEEKDAYS]).passed
+    q = "What time does ICU visiting start in the morning?"
+    assert check(q, "ICU visiting starts in the morning.", [ICU_WINDOWS]).reason == "missing:time"
+    assert check(q, "It starts at 11 am.", [ICU_WINDOWS]).passed
+
+
+def test_visiting_and_opening_times_ask_for_a_time():  # final review: "times" never triggered the check
+    assert required_types("What are the visiting times?") == {"time"}
+    assert required_types("What are the pharmacy opening times?") == {"time"}

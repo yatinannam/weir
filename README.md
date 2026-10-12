@@ -258,7 +258,7 @@ flowchart TD
   - it cites at least one chunk, and every citation is valid
   - it didn't give up partway ("NOT_FOUND" mid-answer)
   - at least `min_overlap` of its content words appear in the cited chunks
-- **Coverage check** (rule-based, D79). If the question asks *when*, *how much*, *which extension* or *how long*, a small answer must contain a time, day, price, extension or quantity that the best-matching source line gives; otherwise it escalates. It is what catches "the first Saturday" with "10 am to 3 pm" left out. Offline it flags 0 of 153 good answers and 84 of 84 deliberately broken ones.
+- **Coverage check** (rule-based, D79). If the question asks *when*, *how much*, *which extension* or *how long*, a small answer must contain a time, day, price, extension or quantity that the best-matching source line gives; otherwise it escalates. It is what catches "the first Saturday" with "10 am to 3 pm" left out. Offline it flags 0 of 153 good answers and 102 of 102 deliberately broken ones; 16 of the 113 detail-asking questions still pass unread, because the best-matching line holds no detail (a table header, the other half of a two-part question).
 - **Escalation and fallback:**
   - A small answer that fails grounding or coverage is retried once on the large model.
   - A rate-limited or timed-out tier falls back to the other tier.

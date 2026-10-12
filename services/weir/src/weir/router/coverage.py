@@ -29,8 +29,8 @@ _BARE_NUMBER = re.compile(r"\b\d{3,5}\b")      # answer side only: "the extensio
 TRIGGERS: list[tuple[re.Pattern[str], frozenset[str]]] = [
     (re.compile(r"\bwhen\b|\bheld\b|\bschedule\b", re.I), frozenset({"time", "day"})),
     # "hours" asks for a time ("visiting hours") unless it's a quantity ("for 2 hours")
-    (re.compile(r"\bwhat time\b|\btimings?\b|(?<!\d )(?<!\d)\bhours\b|\bopens?\b|\bcloses?\b|\bstarts?\b|\bends?\b",
-                re.I), frozenset({"time"})),
+    (re.compile(r"\bwhat time\b|\btimings?\b|(?<!\d )(?<!\d)\bhours\b|\bopens?\b|\bcloses?\b|\bstarts?\b|\bends?\b"
+                r"|\b(?:visiting|opening|closing|working|office)\s+times?\b", re.I), frozenset({"time"})),
     (re.compile(r"\bwhich days?\b|\bwhat days?\b", re.I), frozenset({"day"})),
     (re.compile(r"\bhow much\b|\bcosts?\b|\bfees?\b|\bcharges?\b|\bprices?\b|\brates?\b|\bpay\b", re.I),
      frozenset({"money"})),
@@ -80,12 +80,17 @@ def required_types(question: str) -> frozenset[str]:
 
 
 def passage(question: str, chunk_texts: list[str]) -> list[str]:
+    """The lines of the cited chunks that best match the question. hospital-rag starts every chunk with a
+    "<title>: <heading>" line (chunking.py): it carries the topic words but no details, so it is never a candidate on
+    its own; instead every line under it borrows its words when scored."""
     asked = set(content_words(question))
     scored = []
     for text in chunk_texts:
-        for line in _SPLIT.split(text):
-            if line := line.strip():
-                scored.append((len(asked & set(WORD.findall(line.lower()))), line))
+        first, _, rest = text.strip().partition("\n")
+        heading = set(WORD.findall(first.lower())) if rest.strip() else set()
+        body = [line.strip() for line in _SPLIT.split(rest if rest.strip() else first) if line.strip()]
+        for line in body:
+            scored.append((len(asked & (heading | set(WORD.findall(line.lower())))), line))
     best = max((s for s, _ in scored), default=0)
     return [line for s, line in scored if s == best] if best > 0 else []
 

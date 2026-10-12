@@ -75,3 +75,14 @@ The review found no Critical findings. Three Important ones were fixed before cl
 | M42 | Demo page | Browser history keeps the `/demo#key=...` visit; `ask()` has no try/finally, blocked `sessionStorage` leaves a blank page, a non-Latin-1 key reads as "not reachable", a cancelled prompt still sends a request; the rate-limit card ignores `Retry-After` | A README note on history; try/finally and guarded storage; validate the pasted key; use `Retry-After` in the message |
 | M43 | Tests | The smoke can print the key in a Playwright `goto` error when the stack is down; the CSP could pin the script by hash and set `form-action`; no launcher tests for Docker missing, a health timeout or a failed ingest; the page's path logic is only string-checked and duplicates the Python; no test that a lookup timeout leaves `guard_refused` false | Re-raise `goto` errors without the URL; hash the script at import; add the tests; share one table of paths between the page and the launcher |
 | M44 | Security | hospital-rag on 127.0.0.1:8001 has no auth and no Host check, so DNS rebinding from a malicious website could call `/generate` and spend the user's Groq quota; now that strangers run it with a key, this matters more | **Resolved (D73):** hospital-rag refuses any Host but `127.0.0.1`, `localhost` and `hospital-rag` with a 400 |
+
+## Deferred minor findings: coverage check final review (2026-10-12)
+
+| # | Area | Finding | Suggested fix |
+| --- | --- | --- | --- |
+| M45 | Coverage | 16 of 113 detail-asking questions pass unread: a table header row wins over the data row, two-part questions match the other half, and wording mismatches | Skip markdown table header and separator rows; score each part of a two-part question; or the NLI follow-up |
+| M46 | Coverage | Pattern gaps cause false flags (an extra large call): "500 rupees", "free" / "free of cost" / "at no cost", "Mon-Sat", "two visitors", 24-hour times ("10:00-15:00"), "10 a.m" without the last dot, "round-the-clock" | Add each to `PATTERNS`, with care for "free" on the answer side |
+| M47 | Coverage | Over-broad triggers: "pay" (how do I pay), "phone" (can I use my phone), "open" in yes/no questions, "schedule" (how do I schedule) | Narrow the trigger patterns; each misfire costs only a large call |
+| M48 | Coverage | Answer-side bare numbers count as extensions (years, "200" inside "1,200"); the sentence splitter breaks "Dr. Mehta" | Harmless today; tighten if extension questions grow |
+| M49 | Eval tool | `simulate`'s summary.md doesn't print the coverage mode (only simulate.json records it) | Render `header["coverage"]` in the summary |
+| M50 | Config | Turning `router.coverage_check` off keeps the looser D80 thresholds, which are only safe with the check on (noted in `configs/weir.yaml`) | A startup warning, or restore 16 / 0.86 when the check is off |

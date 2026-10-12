@@ -76,8 +76,9 @@ class WeirMetrics:
             self.grounding.labels("true" if row.grounding_passed else "false", row.grounding_reason or "none").inc()
         if row.escalated_for == "coverage":
             self.coverage_failures.labels("small").inc()
-        if row.coverage_passed is False:
-            self.coverage_failures.labels("large" if row.escalated or row.route == "large" else "small").inc()
+        # the returned answer's own result; skipped when it is that same small answer (its escalation failed)
+        if row.coverage_passed is False and not (row.escalated_for == "coverage" and not row.escalated):
+            self.coverage_failures.labels(_answering_tier(row)).inc()
 
 
 class MetricsSink:
@@ -107,3 +108,12 @@ class LossCollector(Collector):
             for attr in ("dropped", "failed"):
                 yield CounterMetricFamily(f"weir_{name}_{attr}", f"{name.replace('_', ' ')} {attr}",
                                           value=getattr(source, attr))
+
+
+def _answering_tier(row: RequestLogRow) -> str:
+    """The tier whose answer was returned: `route` keeps the router's decision even after a fallback."""
+    if row.escalated:
+        return "large"
+    if row.route_reason and row.route_reason.endswith("+fallback"):
+        return "small" if row.route == "large" else "large"
+    return row.route

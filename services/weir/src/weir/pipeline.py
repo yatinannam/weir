@@ -233,7 +233,9 @@ class Pipeline:
         row.answer_len = len(generated.answer)
         sources = _sources(retrieved.chunks, generated.cited_chunk_ids)
         degraded = outcome.fallback and outcome.tier == "small"  # D40: a stand-in answer must not outlive the outage
-        if row.cache_status == "miss" and outcome.grounding.passed and not degraded:  # D35: only grounded answers
+        # a small answer the coverage check judged incomplete is returned only because escalation failed: don't cache it
+        incomplete = outcome.tier == "small" and outcome.coverage is not None and not outcome.coverage.passed
+        if row.cache_status == "miss" and outcome.grounding.passed and not degraded and not incomplete:  # D35: only grounded answers
             row.cache_entry_id = self._maybe_store(req, normalized, vector, versions, retrieved, generated,
                                                    sources, now)
         row.latency_total_ms = _ms(started)

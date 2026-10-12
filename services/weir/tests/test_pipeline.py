@@ -723,3 +723,14 @@ async def test_a_not_found_answer_is_left_to_grounding():  # D79: coverage never
     await h.p.handle(ask(CAMP_Q))
     [row] = h.sink.rows
     assert row.escalated_for == "grounding" and row.coverage_passed is None
+
+
+async def test_an_incomplete_small_answer_is_not_cached_when_escalation_fails():  # final review #2
+    rag = fake_rag(chunks=CAMP_CHUNKS, top_score=0.95, cited=["pub-blood-bank#0"], answers={SMALL: DAY_ONLY},
+                   responses={LARGE: LIMITED})
+    h = harness(rag, **ROUTER_ON)
+    resp = await h.p.handle(ask(CAMP_Q))
+    await h.writer.drain()
+    [row] = h.sink.rows
+    assert resp.answer == DAY_ONLY and not resp.meta.escalated and row.escalated_for == "coverage"
+    assert row.coverage_passed is False and row.cache_entry_id is None and h.store.entries == []
