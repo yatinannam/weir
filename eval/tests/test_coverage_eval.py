@@ -32,3 +32,18 @@ async def test_flags_real_omissions_and_builds_synthetic_ones():
 async def test_errored_rows_are_skipped():
     rows, synthetic = await coverage_rows([{**rec("q-1", "x"), "status_code": 503}], FakeRag(), 4)
     assert rows == [] and synthetic == []
+
+
+def test_the_cli_loads_and_knows_the_new_flags(monkeypatch, capsys):  # a syntax error in cli.py once hid here
+    import sys
+
+    import pytest
+
+    from weir_eval import cli
+
+    for argv in (["coverage", "--help"], ["simulate", "--help"]):
+        monkeypatch.setattr(sys, "argv", ["weir_eval", *argv])
+        with pytest.raises(SystemExit):
+            cli.main()
+    out = capsys.readouterr().out
+    assert "--rag-url" in out and "--coverage-mode" in out

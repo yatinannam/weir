@@ -196,11 +196,9 @@ async def _coverage(args: argparse.Namespace) -> int:
         rows, synthetic = await coverage_rows(records, rag, cfg.rag.retrieve_k)
     finally:
         await rag.aclose()
-    (report / "coverage.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "
-" for r in rows),
+    (report / "coverage.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
                                            encoding="utf-8")
-    (report / "coverage-synthetic.jsonl").write_text("".join(json.dumps(s) + "
-" for s in synthetic),
+    (report / "coverage-synthetic.jsonl").write_text("".join(json.dumps(s) + "\n" for s in synthetic),
                                                      encoding="utf-8")
     summary = summarize(rows, synthetic, records)
     (report / "coverage-summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
